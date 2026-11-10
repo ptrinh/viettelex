@@ -15,100 +15,188 @@ import com.viettelex.telexcore.EnglishContextLookup
 enum class SwipeLang { VI, EN }
 
 object SwipeEnglish {
-    class Lexicon(
-        val words: Array<String>,   // chữ thường a–z, sort tăng dần
+    /**
+     * Từ điển Anh đọc TẠI CHỖ trên enlexicon.bin (mmap) — RAM-AUDIT #7 (10/11/2026). Định dạng
+     * KHÔNG đổi ("VTE1" | count u32 LE | [len][freq][ASCII a–z]…, từ sort tăng dần — iOS đọc cùng
+     * file): chỉ giữ [off] (vị trí từng mục, 4 B/từ); tra cứu nhị phân so byte ASCII ngay trên
+     * buffer, String chỉ dựng cho từ thật sự trả ra ([word]). Trước: ~20k String (~1.4 MB giữ lại +
+     * ~1.9 MB rác mỗi lần nạp). Bảng riêng gõ vuốt ([swipe]: phím gộp lặp, xô cặp phím đầu/cuối,
+     * tần suất IntArray) dựng LƯỜI lần đầu decoder cần — tức chỉ khi vuốt tiếng Anh bật.
+     * Chỉ đọc bằng absolute get ⇒ dùng chung giữa các luồng được.
+     */
+    class Lexicon internal constructor(private val buf: java.nio.ByteBuffer, private val off: IntArray) {
+        val count: Int get() = off.size
+
+        /** Tần suất 0–255 (thang vnlexicon). */
+        fun freq(i: Int): Int = buf.get(off[i] + 1).toInt() and 255
+
+        /** Số chữ của từ [i]. */
+        fun length(i: Int): Int = buf.get(off[i]).toInt() and 255
+
+        /** Từ [i] (chữ thường a–z) — cấp phát một String; vòng lặp nóng dùng [compare]/[view]. */
+        fun word(i: Int): String {
+            val p = off[i]; val n = buf.get(p).toInt() and 255
+            val b = ByteArray(n)
+            for (j in 0 until n) b[j] = buf.get(p + 2 + j)
+            return String(b, Charsets.US_ASCII)
+        }
+
+        /** Cùng dấu với `word(i).compareTo(key)` (so từng UTF-16 code unit rồi độ dài) — không cấp phát. */
+        fun compare(i: Int, key: CharSequence): Int {
+            val p = off[i]; val n = buf.get(p).toInt() and 255; val m = key.length
+            val lim = if (n < m) n else m
+            for (j in 0 until lim) {
+                val c = (buf.get(p + 2 + j).toInt() and 255) - key[j].code
+                if (c != 0) return c
+            }
+            return n - m
+        }
+
+        /** Chỉ số đầu tiên có từ ≥ [key]. */
+        fun lowerBound(key: CharSequence): Int {
+            var lo = 0; var hi = off.size
+            while (lo < hi) { val mid = (lo + hi) ushr 1; if (compare(mid, key) < 0) lo = mid + 1 else hi = mid }
+            return lo
+        }
+
+        fun indexOf(word: CharSequence): Int {
+            val i = lowerBound(word)
+            return if (i < off.size && compare(i, word) == 0) i else -1
+        }
+
+        /** Từ [i] bắt đầu bằng [prefix]. */
+        fun startsWith(i: Int, prefix: CharSequence): Boolean {
+            val p = off[i]; val m = prefix.length
+            if ((buf.get(p).toInt() and 255) < m) return false
+            for (j in 0 until m) if ((buf.get(p + 2 + j).toInt() and 255) != prefix[j].code) return false
+            return true
+        }
+
+        /** CharSequence dùng lại được trỏ vào từ [View.at] — so chuỗi trong vòng lặp không cấp phát. */
+        inner class View : CharSequence {
+            private var p = 2; private var n = 0
+            fun at(i: Int): View { p = off[i] + 2; n = buf.get(off[i]).toInt() and 255; return this }
+            override val length: Int get() = n
+            override fun get(index: Int): Char = (buf.get(p + index).toInt() and 255).toChar()
+            override fun subSequence(startIndex: Int, endIndex: Int): CharSequence = toString().substring(startIndex, endIndex)
+            override fun toString(): String { val b = ByteArray(n); for (j in 0 until n) b[j] = buf.get(p + j); return String(b, Charsets.US_ASCII) }
+        }
+
+        @Volatile private var swipeTables: Swipe? = null
+
+        /** Bảng gõ vuốt — dựng lười một lần (thread-safe). Chỉ decoder vuốt tiếng Anh gọi. */
+        val swipe: Swipe
+            get() = swipeTables ?: synchronized(this) { swipeTables ?: buildSwipe().also { swipeTables = it } }
+
+        /** Đã dựng [swipe] chưa (test: tắt vuốt tiếng Anh ⇒ không dựng). */
+        val hasSwipe: Boolean get() = swipeTables != null
+
+        private fun buildSwipe(): Swipe {
+            val n = off.size
+            val freq = IntArray(n)
+            var total = 0
+            for (i in 0 until n) total += length(i)
+            val keys = ByteArray(total)
+            val keyStart = IntArray(n + 1)
+            val first = IntArray(n); val last = IntArray(n)
+            var kc = 0
+            for (i in 0 until n) {
+                val p = off[i]; val len = buf.get(p).toInt() and 255
+                freq[i] = buf.get(p + 1).toInt() and 255
+                var prev = -1
+                for (j in 0 until len) {
+                    val k = (buf.get(p + 2 + j).toInt() and 255) - 97
+                    if (k != prev) { keys[kc++] = k.toByte(); prev = k }
+                }
+                first[i] = keys[keyStart[i]].toInt(); last[i] = keys[kc - 1].toInt()
+                keyStart[i + 1] = kc
+            }
+            val bucketStart = IntArray(677)
+            for (i in 0 until n) bucketStart[first[i] * 26 + last[i] + 1]++
+            for (bk in 0 until 676) bucketStart[bk + 1] += bucketStart[bk]
+            val fill = bucketStart.copyOf(676)
+            val order = IntArray(n)
+            for (i in 0 until n) { val bk = first[i] * 26 + last[i]; order[fill[bk]++] = i }
+            return Swipe(this, freq, keys.copyOf(kc), keyStart, order, bucketStart)
+        }
+    }
+
+    /** Bảng riêng gõ vuốt tiếng Anh (decoder SHARK2 / FUTO) — xem [Lexicon.swipe]. */
+    class Swipe internal constructor(
+        val lexicon: Lexicon,
         val freq: IntArray,         // 0-255, thang vnlexicon
         val keys: ByteArray,        // phím gộp chữ lặp (0…25)
         val keyStart: IntArray,
         val order: IntArray,        // chỉ số từ xếp theo cặp (phím đầu·26 + phím cuối)
         val bucketStart: IntArray,  // 677
-    ) { val count: Int get() = words.size }
+    ) {
+        val count: Int get() = lexicon.count
+        fun word(i: Int): String = lexicon.word(i)
+    }
 
-    private val EMPTY = Lexicon(emptyArray(), IntArray(0), ByteArray(0), IntArray(1), IntArray(0), IntArray(677))
+    internal val EMPTY = Lexicon(java.nio.ByteBuffer.allocate(0), IntArray(0))
 
     @Volatile private var loaded: Lexicon? = null
 
     /**
-     * Từ điển Anh (~1.4 MB heap: ~25k String) — nạp lười, thread-safe. IME [release] khi bàn
-     * phím ẩn lâu và nạp lại NỀN lúc hiện ([isLoaded] cho biết có cần hâm nóng).
+     * Từ điển Anh (mmap + IntArray vị trí ~80 KB) — nạp lười, thread-safe. Đường main thread KHÔNG
+     * gọi cái này (dùng [containsOrNull]/[containsIfLoaded]); worker hâm nóng ([warm]). IME [release]
+     * khi bàn phím ẩn lâu và nạp lại NỀN lúc hiện ([isLoaded] cho biết có cần hâm nóng).
      */
     val lexicon: Lexicon
         get() = loaded ?: synchronized(this) {
             loaded ?: (try { parse(KeyboardData.buffer(Keys.ASSET_EN_LEXICON)) ?: EMPTY } catch (e: Exception) { EMPTY })
-                .also { loaded = it }
+                .also { loaded = it; loads++ }
         }
 
     val isLoaded: Boolean get() = loaded != null
 
+    /** Test: số lần [lexicon] thực sự nạp (đường main không được làm tăng). */
+    @Volatile var loads = 0
+        private set
+
+    /** Hâm nóng trên luồng nền: nạp từ điển, và bảng gõ vuốt nếu [swipe]. */
+    fun warm(swipe: Boolean = false) { val l = lexicon; if (swipe) l.swipe }
+
     /** Bỏ bảng (GC được); lần dùng sau nạp lại. Ai đang giữ tham chiếu cũ vẫn dùng được. */
     fun release() { loaded = null }
 
-    /** Giải mã enlexicon.bin ("VTE1" | count u32 | [len][freq][ASCII]…). null = hỏng. */
+    /** Kiểm tra + đánh chỉ mục enlexicon.bin ("VTE1" | count u32 | [len][freq][ASCII]…). null = hỏng. */
     fun parse(buf: java.nio.ByteBuffer): Lexicon? {
-        val b = ByteArray(buf.capacity())
-        val d = buf.duplicate(); d.position(0); d.get(b)
-        if (b.size < 8 || b[0] != 0x56.toByte() || b[1] != 0x54.toByte() || b[2] != 0x45.toByte() || b[3] != 0x31.toByte()) return null
-        val n = (b[4].toInt() and 255) or ((b[5].toInt() and 255) shl 8) or
-            ((b[6].toInt() and 255) shl 16) or ((b[7].toInt() and 255) shl 24)
-        val words = arrayOfNulls<String>(n)
-        val freq = IntArray(n)
-        val keys = ByteArray(b.size)
-        val keyStart = IntArray(n + 1)
-        val first = IntArray(n); val last = IntArray(n)
-        var kc = 0
+        val b = buf.duplicate()
+        val size = b.capacity()
+        if (size < 8 || b.get(0) != 0x56.toByte() || b.get(1) != 0x54.toByte() || b.get(2) != 0x45.toByte() || b.get(3) != 0x31.toByte()) return null
+        val n = (b.get(4).toInt() and 255) or ((b.get(5).toInt() and 255) shl 8) or
+            ((b.get(6).toInt() and 255) shl 16) or ((b.get(7).toInt() and 255) shl 24)
+        if (n < 0 || n > (size - 8) / 3) return null    // mỗi mục ≥ 3 byte
+        val off = IntArray(n)
         var p = 8
         for (i in 0 until n) {
-            if (p + 2 > b.size) return null
-            val len = b[p].toInt() and 255
-            val f = b[p + 1].toInt() and 255
-            if (len == 0 || p + 2 + len > b.size) return null
-            var prev = -1
+            if (p + 2 > size) return null
+            val len = b.get(p).toInt() and 255
+            if (len == 0 || p + 2 + len > size) return null
             for (j in 0 until len) {
-                val k = (b[p + 2 + j].toInt() and 255) - 97
+                val k = (b.get(p + 2 + j).toInt() and 255) - 97
                 if (k !in 0 until 26) return null
-                if (k != prev) { keys[kc++] = k.toByte(); prev = k }
             }
-            first[i] = keys[keyStart[i]].toInt(); last[i] = keys[kc - 1].toInt()
-            keyStart[i + 1] = kc
-            words[i] = String(b, p + 2, len, Charsets.US_ASCII)
-            freq[i] = f
+            off[i] = p
             p += 2 + len
         }
-        val bucketStart = IntArray(677)
-        for (i in 0 until n) bucketStart[first[i] * 26 + last[i] + 1]++
-        for (bk in 0 until 676) bucketStart[bk + 1] += bucketStart[bk]
-        val fill = bucketStart.copyOf(676)
-        val order = IntArray(n)
-        for (i in 0 until n) { val bk = first[i] * 26 + last[i]; order[fill[bk]++] = i }
-        @Suppress("UNCHECKED_CAST")
-        return Lexicon(words as Array<String>, freq, keys.copyOf(kc), keyStart, order, bucketStart)
+        return Lexicon(b, off)
     }
 
-    fun indexOf(word: String): Int {
-        val a = lexicon.words
-        var lo = 0; var hi = a.size
-        while (lo < hi) {
-            val mid = (lo + hi) / 2
-            if (a[mid] < word) lo = mid + 1 else hi = mid
-        }
-        return if (lo < a.size && a[lo] == word) lo else -1
-    }
+    fun indexOf(word: String): Int = lexicon.indexOf(word)
 
     fun contains(word: String): Boolean = indexOf(word) >= 0
 
     /**
-     * Như [contains] nhưng KHÔNG nạp (main thread: parse ~1.4 MB mất hàng chục ms). Chưa nạp
-     * (đang hâm nóng nền / vừa nhả lúc ẩn lâu) ⇒ coi như chưa biết = false.
+     * Như [contains] nhưng KHÔNG nạp (main thread). Chưa nạp (đang hâm nóng nền / vừa nhả lúc ẩn
+     * lâu) ⇒ coi như chưa biết = false. Cần phân biệt "không có" với "chưa biết" ⇒ [containsOrNull].
      */
-    fun containsIfLoaded(word: String): Boolean {
-        val a = (loaded ?: return false).words
-        var lo = 0; var hi = a.size
-        while (lo < hi) {
-            val mid = (lo + hi) / 2
-            if (a[mid] < word) lo = mid + 1 else hi = mid
-        }
-        return lo < a.size && a[lo] == word
-    }
+    fun containsIfLoaded(word: String): Boolean = containsOrNull(word) ?: false
+
+    /** Như [contains] nhưng KHÔNG nạp: null = từ điển chưa nạp (chưa biết). */
+    fun containsOrNull(word: String): Boolean? = loaded?.let { it.indexOf(word) >= 0 }
 
     /**
      * Chế độ Tiếng Anh (vuốt phím cách): từ bắt đầu bằng [typed] (a–z, không phân biệt hoa
@@ -118,21 +206,19 @@ object SwipeEnglish {
     fun completions(typed: String, limit: Int = 24, lex: Lexicon = lexicon): List<VNSuggest.Match> {
         val low = typed.lowercase()
         if (low.isEmpty() || limit <= 0 || low.any { it !in 'a'..'z' }) return emptyList()
-        val a = lex.words
-        var lo = 0; var hi = a.size
-        while (lo < hi) { val mid = (lo + hi) / 2; if (a[mid] < low) lo = mid + 1 else hi = mid }
+        val n = lex.count
         val hits = ArrayList<Int>()
-        var i = lo
-        while (i < a.size && a[i].startsWith(low)) { if (a[i] != low) hits.add(i); i++ }
-        hits.sortWith { x, y -> if (lex.freq[x] != lex.freq[y]) lex.freq[y] - lex.freq[x] else x - y }
-        return hits.take(limit).map { VNSuggest.Match(matchCase(a[it], typed), lex.freq[it]) }
+        var i = lex.lowerBound(low)
+        while (i < n && lex.startsWith(i, low)) { if (lex.length(i) != low.length) hits.add(i); i++ }
+        hits.sortWith { x, y -> val fx = lex.freq(x); val fy = lex.freq(y); if (fx != fy) fy - fx else x - y }
+        return hits.take(limit).map { VNSuggest.Match(matchCase(lex.word(it), typed), lex.freq(it)) }
     }
 
     /** Từ phổ biến nhất (đệm thanh gợi ý ở chế độ Tiếng Anh). */
     fun topWords(limit: Int, lex: Lexicon = lexicon): List<String> {
         if (limit <= 0) return emptyList()
-        return lex.freq.indices.sortedWith { x, y -> if (lex.freq[x] != lex.freq[y]) lex.freq[y] - lex.freq[x] else x - y }
-            .take(limit).map { lex.words[it] }
+        return (0 until lex.count).sortedWith { x, y -> val fx = lex.freq(x); val fy = lex.freq(y); if (fx != fy) fy - fx else x - y }
+            .take(limit).map { lex.word(it) }
     }
     @Volatile private var topCache: List<String>? = null
     /** 12 từ phổ biến nhất — nạp từ điển nếu cần (gọi trên luồng nền: [warm]). Giữ qua [release] (12 String). */

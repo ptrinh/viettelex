@@ -558,7 +558,7 @@ class SwipeDecoderTests {
             val sim = SwipeSim(2028)
             val sb = StringBuilder("# swipe-paths-timed v1 — layout qwerty(keyWidth 40, rowHeight 54), SwipeSim.natural. " +
                 "Sinh bởi SwipeDecoderTests.kt (SWIPE_WRITE_FIXTURE=1). word<TAB>prior none|vi|en<TAB>top1 lang:word<TAB>x,y,ms;…\n")
-            val en = SwipeEnglish.lexicon.let { e -> e.words.indices.sortedByDescending { e.freq[it] }.map { e.words[it] } }
+            val en = SwipeEnglish.lexicon.let { e -> (0 until e.count).sortedByDescending { e.freq(it) }.map { e.word(it) } }
                 .filter { it.length >= 3 }.take(30)
             val cases = corpus(120).map { it to "none" } + corpus(160).drop(120).map { it to "vi" } +
                 listOf("day", "lay", "thay", "vi", "cung", "hoi", "trai", "the", "nay", "du", "nhu").map { it to "vi" } +

@@ -444,7 +444,7 @@ class SwipeDecoder(val params: Params = Params()) {
         val vocab = SwipeVocab.current
         if (tpl.isEmpty() || tplVocab !== vocab) buildTemplates(l, vocab)
         val forms = vocab.forms
-        val en = if (english == null) null else SwipeEnglish.lexicon
+        val en = if (english == null) null else SwipeEnglish.lexicon.swipe
         val fc = forms.count
         val n = params.points; val w = l.keyWidth
         val (xs, ys) = shifted(xs0, ys0, count, w)
@@ -514,7 +514,7 @@ class SwipeDecoder(val params: Params = Params()) {
             val f = topIdx[k]
             var s = topScore[k]
             if (f >= fc && en != null) {
-                val word = en.words[f - fc]
+                val word = en.word(f - fc)
                 if (englishContext != null) s += englishContext(word)
                 out.add(SwipeCandidate(word, s, SwipeLang.EN))
                 continue
@@ -529,7 +529,7 @@ class SwipeDecoder(val params: Params = Params()) {
     }
 
     /** Chấm từ tiếng Anh lọt lọc phím đầu/cuối (theo cặp phím, thứ tự cố định — parity Swift). */
-    private fun scoreEnglish(en: SwipeEnglish.Lexicon, bias: Float, l: SwipeLayout, r2: Float, m: Int, fc: Int,
+    private fun scoreEnglish(en: SwipeEnglish.Swipe, bias: Float, l: SwipeLayout, r2: Float, m: Int, fc: Int,
                              pathLen: Float) {
         val n = params.points; val w = l.keyWidth
         val tunnelW = params.tunnel * w
@@ -617,7 +617,7 @@ class SwipeDecoder(val params: Params = Params()) {
     }
 
     /** Phím của ứng viên [idx] (< fc: dạng VN; ≥ fc: từ tiếng Anh) → rkx/rky; số phím, ≤ 0 = không dựng được. */
-    private fun candidateKeys(idx: Int, l: SwipeLayout, en: SwipeEnglish.Lexicon?, fc: Int): Int {
+    private fun candidateKeys(idx: Int, l: SwipeLayout, en: SwipeEnglish.Swipe?, fc: Int): Int {
         val keys: ByteArray; val lo: Int; val hi: Int
         if (idx < fc) {
             val forms = (tplVocab ?: SwipeVocab.current).forms
@@ -644,7 +644,7 @@ class SwipeDecoder(val params: Params = Params()) {
      * chi phí căn phím + góc; xếp lại ổn định (bằng điểm giữ thứ tự cũ).
      */
     private fun rescore(xs: FloatArray, ys: FloatArray, ts: DoubleArray?, count: Int, l: SwipeLayout, invL: Float,
-                        en: SwipeEnglish.Lexicon?, fc: Int) {
+                        en: SwipeEnglish.Swipe?, fc: Int) {
         val w = l.keyWidth
         if (params.adaptThreshold > 0f && params.adaptMax > 1f) {
             var best = Float.MAX_VALUE

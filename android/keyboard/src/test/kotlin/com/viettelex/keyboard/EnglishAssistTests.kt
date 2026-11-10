@@ -45,7 +45,7 @@ class EnglishAssistTests {
     @Test fun completionsRankedByFrequency() {
         val w = assist("accom")!!.words
         val lex = SwipeEnglish.lexicon
-        val f = w.map { lex.freq[EnglishAssist.indexOf(it, lex)] }
+        val f = w.map { lex.freq(EnglishAssist.indexOf(it, lex)) }
         assertEquals(w.toString(), f.sortedDescending(), f)
         assertTrue(w.size <= EnglishAssist.COMPLETION_LIMIT)
     }

@@ -181,7 +181,7 @@ object SwipeSuggest {
         private fun englishFreqShift(w: String): Float {
             if (lmCtx == null) return 0f
             val i = SwipeEnglish.indexOf(w)
-            return if (i < 0) 0f else -(LAMBDA_FREQ - LM_LAMBDA_FREQ) * SwipeEnglish.lexicon.freq[i] / 255f
+            return if (i < 0) 0f else -(LAMBDA_FREQ - LM_LAMBDA_FREQ) * SwipeEnglish.lexicon.freq(i) / 255f
         }
 
         val word: (String) -> Float = { w ->

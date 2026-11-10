@@ -100,7 +100,10 @@ class AutoCorrectTests {
     // MARK: session
 
     private fun session(on: Boolean = true, traits: FieldTraits = FieldTraits(), settings: KeyboardSettings = KeyboardSettings()) =
-        KeyboardSession(UserLangModel(), null).also { it.startInput(settings.copy(autoCorrect = on), traits) }
+        KeyboardSession(UserLangModel(), null).also {
+            it.startInput(settings.copy(autoCorrect = on), traits)
+            if (it.warmEnglishOnShow) SwipeEnglish.warm()   // như IME lúc hiện (worker) — main chỉ tra không nạp
+        }
 
     /** Gõ [keys]; phím thứ [slip] chạm lệch dx (âm = về bên trái). */
     private fun KeyboardSession.type(p: TextProxy, keys: String, slip: Int = -1, dx: Float = -0.4f, touch: Boolean = true) {

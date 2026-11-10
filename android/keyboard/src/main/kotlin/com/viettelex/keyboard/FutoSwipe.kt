@@ -248,7 +248,7 @@ class FutoSwipe(private val source: () -> ByteBuffer?) {
      * Tìm trên từ vựng theo tiền tố: giữ top-[m] theo điểm prior = [w]·âm học + λ·tần suất/255
      * (+ [enBias] cho từ tiếng Anh). Chỉ số: < fc = dạng Việt; ≥ fc = từ tiếng Anh.
      */
-    fun search(m: Int, w: Float, lambdaFreq: Float, en: SwipeEnglish.Lexicon?, enBias: Float) {
+    fun search(m: Int, w: Float, lambdaFreq: Float, en: SwipeEnglish.Swipe?, enBias: Float) {
         topFilled = 0
         if (!hasEmissions) return
         initBlank()
@@ -321,7 +321,7 @@ class FutoSwipe(private val source: () -> ByteBuffer?) {
                reuseEmissions: Boolean = false): List<SwipeCandidate>? {
         if (!(reuseEmissions && hasEmissions) && !computeEmissions(path.xs, path.ys, path.ts, path.count)) return null
         val lam = SwipeDecoder.Params().lambdaFreq
-        val en = if (english != null) SwipeEnglish.lexicon else null
+        val en = if (english != null) SwipeEnglish.lexicon.swipe else null
         val forms = SwipeLexicon.forms
         val fc = forms.count
         val out = ArrayList<SwipeCandidate>()
@@ -344,7 +344,7 @@ class FutoSwipe(private val source: () -> ByteBuffer?) {
             if (pool.isNotEmpty()) for (k in 0 until topFilled) {
                 val idx = topIdx[k]
                 val isEn = idx >= fc
-                val word = if (isEn) en!!.words[idx - fc] else forms.folded[idx]
+                val word = if (isEn) en!!.word(idx - fc) else forms.folded[idx]
                 if (!seen.add(word)) continue
                 var s = minShark + params.ensembleWeight * (topAc[k] - best)
                 if (!isEn && context != null) s += context(word)
@@ -357,7 +357,7 @@ class FutoSwipe(private val source: () -> ByteBuffer?) {
                 val idx = topIdx[k]
                 var s = topScore[k]
                 if (idx >= fc) {
-                    val word = en!!.words[idx - fc]
+                    val word = en!!.word(idx - fc)
                     englishContext?.let { s += it(word) }
                     out.add(SwipeCandidate(word, s, SwipeLang.EN))
                 } else {

@@ -25,13 +25,13 @@ class IdleReleaseTests {
         val hello = SwipeEnglish.indexOf("hello")
         SwipeEnglish.release()
         assertFalse(SwipeEnglish.isLoaded)
-        assertTrue("người giữ tham chiếu cũ vẫn dùng được", a.words.isNotEmpty())
+        assertTrue("người giữ tham chiếu cũ vẫn dùng được", a.count > 0 && a.word(hello) == "hello")
         val b = SwipeEnglish.lexicon
         assertNotSame(a, b)
-        assertArrayEquals(a.words, b.words)
-        assertArrayEquals(a.freq, b.freq)
-        assertArrayEquals(a.keys, b.keys)
-        assertArrayEquals(a.order, b.order)
+        assertEquals(a.count, b.count)
+        for (i in 0 until a.count) { assertEquals(a.word(i), b.word(i)); assertEquals(a.freq(i), b.freq(i)) }
+        assertArrayEquals(a.swipe.keys, b.swipe.keys)
+        assertArrayEquals(a.swipe.order, b.swipe.order)
         assertEquals(hello, SwipeEnglish.indexOf("hello"))
         assertSame(b, SwipeEnglish.lexicon)
     }
