@@ -3,12 +3,12 @@
   "url": "https://github.com/ptrinh/viettelex/releases/tag/v1.9.4",
   "build": 152,
   "windows": {
-    "version": "1.3.21",
-    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.21/VietTelex-1.3.21-x64.msi",
-    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.21/VietTelex-1.3.21-arm64.msi",
-    "notes": "Ô tìm kiếm Navigation của Word (bản cài) gõ đúng dấu.",
-    "portable_x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.21/VietTelex-1.3.21-portable-x64.zip",
-    "portable_arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.21/VietTelex-1.3.21-portable-arm64.zip"
+    "version": "1.3.22",
+    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.22/VietTelex-1.3.22-x64.msi",
+    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.22/VietTelex-1.3.22-arm64.msi",
+    "notes": "Bản portable không còn bị trình diệt virus xoá nhầm; sửa lỗi gõ tắt và độ ổn định.",
+    "portable_x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.22/VietTelex-1.3.22-portable-x64.zip",
+    "portable_arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.22/VietTelex-1.3.22-portable-arm64.zip"
   },
   "linux": {
     "version": "1.0.25",
