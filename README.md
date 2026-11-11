@@ -42,6 +42,8 @@ https://github.com/user-attachments/assets/1d9bdef1-f814-4070-9b2d-01436f7d3020
 |---|---|
 | ![Menu bộ gõ](assets/Menu-Bar-Screenshot.png) | ![Cửa sổ Cài đặt](assets/Settings-Screenshot.png) |
 
+<p align="center"><img src="assets/iOS-Keyboard-Screenshot.png" width="420" alt="Bàn phím VietTelex trên iPhone"><br><sub>iPhone: bàn phím VietTelex với thanh gợi ý</sub></p>
+
 ## Cài đặt
 
 Tải và hướng dẫn từng bước: **[viettelex.com/download](https://viettelex.com/download/)** · Hướng dẫn sử dụng: [viettelex.com/hdsd](https://viettelex.com/hdsd/)
