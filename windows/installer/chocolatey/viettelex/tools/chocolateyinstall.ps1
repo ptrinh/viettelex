@@ -1,9 +1,9 @@
 $ErrorActionPreference = 'Stop'
 
 # Bumped by windows/installer/chocolatey/update.sh - keep these three lines in this form.
-$version       = '1.3.22'
-$checksumX64   = '96F41717E2D36578C8548563B795A5A4CD785C8A252BD4B10FDEA7C7D986998C'
-$checksumArm64 = '554923BB9422E7ABDD45608B12C377D3B5EEDBD0C753A130B85D3B5A1987F4DF'
+$version       = '1.3.23'
+$checksumX64   = '8A27411A3FC334FD1AC9AF1043C40F96750EBD0C34FCC8952A9CF4915CA3DB61'
+$checksumArm64 = 'F9B2CD6209C4A1F70CFE7FB8CF097E6483FC24B29AF88F1B4DB9DD2935BBA00F'
 
 $base = "https://github.com/ptrinh/viettelex/releases/download/windows-v$version"
 
