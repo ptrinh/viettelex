@@ -163,6 +163,8 @@ enum class S {
     // Portable (báo lỗi 1.3.17): run from inside the zip; tray click with only Vietnamese
     // keyboards in the list
     RunFromArchive, PortableNoOtherKeyboard,
+    // #159: a plain start stays in the tray
+    StartHidden, StartHiddenDesc,
     Count
 };
 

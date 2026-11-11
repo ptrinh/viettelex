@@ -24,6 +24,10 @@ bool isNewUser(bool settingsStored, bool setupDone, bool welcomeShown) {
 
 void applyNewUserDefaults(Settings& s) { s.showTrayIcon = true; }
 
+bool opensSettingsAtStart(bool background, bool explicitSettings, bool startHidden) {
+    return explicitSettings || (!background && !startHidden);
+}
+
 TrayState trayStateFor(bool portable, int tipProp, bool console, unsigned fgLangId, bool storedVietnamese,
                        bool alwaysEnglish) {
     if (portable) {

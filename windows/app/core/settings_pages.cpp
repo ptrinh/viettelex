@@ -159,6 +159,7 @@ std::vector<PageRow> settingsPageRows(SettingsPage page, const Settings& s, cons
             if (!ctx.portable) b.control(PageControl::IconPicker);
             b.toggle(&Settings::showTrayIcon);
             if (showsTrayStyle(s)) b.control(PageControl::TrayStyle);
+            b.toggle(&Settings::startHidden);
             b.endExpander();
             b.section(PageSection::Updates);
             b.control(PageControl::CheckNow);

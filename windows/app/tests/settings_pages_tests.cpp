@@ -31,7 +31,7 @@ const Field kAllToggles[] = {
     &Settings::toneHints,        &Settings::dateHints,          &Settings::underlineMisspelled,
     &Settings::autoOffFullscreen, &Settings::gameMode,          &Settings::filterSensitive,
     &Settings::learnWords,       &Settings::retroactiveEnglish, &Settings::englishByFrequency,
-    &Settings::startEnglish,
+    &Settings::startEnglish,     &Settings::startHidden,
 };
 
 PageContext allOpen() {
@@ -108,6 +108,7 @@ TEST(settings_pages_structure) {
     CHECK(placed(&Settings::gameMode, SettingsPage::Apps, ex(Expander::Games)));
     CHECK(placed(&Settings::autoOffFullscreen, SettingsPage::Apps, ex(Expander::Games)));
     CHECK(placed(&Settings::showTrayIcon, SettingsPage::General, ex(Expander::Appearance)));
+    CHECK(placed(&Settings::startHidden, SettingsPage::General, ex(Expander::Appearance)));
     CHECK(placed(&Settings::debugLogging, SettingsPage::General, -1));
 
     // Collapsed (the default): the Typing page's top level is short — sections, the method,
@@ -477,7 +478,7 @@ TEST(settings_captions_are_short) {
         S::FilterSensitiveDesc, S::UnderlineMisspelledDesc, S::AutoOffFullscreenDesc, S::GameModeDesc,
         S::GameModeHotkeyDesc, S::SwitchIndicatorDesc, S::ConflictDesc, S::WinHotkeyDesc,
         S::DefaultInputDesc, S::TextToolsNoTray, S::LearnWordsDesc, S::ClearLearnedDesc, S::TrayStyleDesc,
-        S::RetroEnglishDesc, S::EnglishByFrequencyDesc, S::StartEnglishDesc, S::MixedCardDesc,
+        S::RetroEnglishDesc, S::EnglishByFrequencyDesc, S::StartEnglishDesc, S::StartHiddenDesc, S::MixedCardDesc,
         S::ProfilePickerIntro, S::ProfileCustomDesc, S::ProfileViEx, S::ProfileMixedEx, S::ProfileEnEx,
         S::TypingAdvancedSummary, S::MixedAdvancedSummary, S::SwitchAdvancedSummary, S::GamesSummary,
         S::AppearanceSummary, S::MixedVniNote, S::PortableHintsNote, S::ReEditWordPortableDesc,

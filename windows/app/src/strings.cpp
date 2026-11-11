@@ -458,6 +458,9 @@ const Pair kStrings[] = {
      L"copy steps aside, and the keyboard list has no other keyboard to switch to.\n\nAdd an English (US) keyboard "
      L"in Windows Settings → Time & language → Language & region, then pick it with Win+Space: the portable copy types "
      L"Vietnamese there."},
+    {L"Mở app không hiện cửa sổ Cài đặt", L"Start without the Settings window"},
+    {L"Mở VietTelex thì chỉ chạy nền. Mở lần nữa khi đang chạy để hiện Cài đặt.",
+     L"Opening VietTelex only runs it in the background. Open it again to show Settings."},
 };
 static_assert(sizeof(kStrings) / sizeof(kStrings[0]) == static_cast<size_t>(S::Count), "string table size");
 }  // namespace

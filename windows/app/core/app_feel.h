@@ -53,6 +53,13 @@ bool isNewUser(bool settingsStored, bool setupDone, bool welcomeShown);
 // they cannot simply change there): the tray icon is on.
 void applyNewUserDefaults(Settings& s);
 
+// ---- start without the Settings window (#159) ---------------------------------------------
+// A start with no command: does the Settings window open? `background` = --background
+// (autostart), `explicitSettings` = --settings (installer, tray), `startHidden` = the user's
+// "Mở app không hiện cửa sổ Cài đặt". A second start while the app runs is not decided here:
+// it always opens Settings, so a user with the tray icon hidden is never locked out.
+bool opensSettingsAtStart(bool background, bool explicitSettings, bool startHidden);
+
 // ---- §2/§3 tray icon state + left click ---------------------------------------------------
 enum class TrayState { Vietnamese, English, Off };
 // `tipProp` = kTipLangProp on the foreground root (1 VI, 2 EN, 0 none), `fgLangId` =

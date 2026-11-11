@@ -96,6 +96,23 @@ TEST(feel_new_user_gets_tray_existing_keeps_choice) {
     CHECK(n == d);
 }
 
+// ---------------------------------------------------------------- #159 start hidden
+
+TEST(feel_start_hidden_keeps_settings_closed_on_plain_start) {
+    CHECK(!Settings().startHidden);                    // off by default: a plain start opens Settings
+    CHECK(opensSettingsAtStart(false, false, false));
+    CHECK(!opensSettingsAtStart(false, false, true));  // the option: tray only
+    CHECK(!opensSettingsAtStart(true, false, false));  // autostart: never a window
+    CHECK(!opensSettingsAtStart(true, false, true));
+    CHECK(opensSettingsAtStart(false, true, true));    // --settings (installer) always opens it
+    // Round trip through the stored snapshot.
+    Settings s;
+    s.startHidden = true;
+    const std::vector<uint8_t> blob = serialize(s);
+    Settings r;
+    CHECK(deserialize(blob.data(), blob.size(), r) && r.startHidden);
+}
+
 // ---------------------------------------------------------------- §2/§3 tray state
 
 TEST(feel_tray_state_installed) {

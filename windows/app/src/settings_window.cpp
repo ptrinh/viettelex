@@ -146,6 +146,7 @@ const ToggleDef kToggles[] = {
     {&Settings::retroactiveEnglish, S::RetroEnglish, S::RetroEnglishDesc},             // 25
     {&Settings::englishByFrequency, S::EnglishByFrequency, S::EnglishByFrequencyDesc}, // 26
     {&Settings::startEnglish, S::StartEnglish, S::StartEnglishDesc},                   // 27
+    {&Settings::startHidden, S::StartHidden, S::StartHiddenDesc},                      // 28
 };
 constexpr int kToggleCount = static_cast<int>(sizeof(kToggles) / sizeof(kToggles[0]));
 

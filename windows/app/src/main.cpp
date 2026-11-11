@@ -773,6 +773,7 @@ int waitInstall(unsigned long pid, bool uninstall) {
 unsigned long g_waitPid = 0;
 bool g_waitUninstall = false;  // --wait-install <pid> --uninstall
 SetupTrigger g_setupTrigger = SetupTrigger::Installer;
+bool g_settingsArg = false;  // --settings: opens Settings even with "start hidden" on (#159)
 
 unsigned parseCommandArg(const wchar_t* cmdLine, bool& background, int& oneShot) {
     int argc = 0;
@@ -790,7 +791,10 @@ unsigned parseCommandArg(const wchar_t* cmdLine, bool& background, int& oneShot)
     for (int i = 1; argv && i < argc; ++i) {
         std::wstring a = argv[i];
         if (a == L"--background") background = true;
-        else if (a == L"--settings") background = false;  // installer: open Settings
+        else if (a == L"--settings") {  // installer: open Settings
+            background = false;
+            g_settingsArg = true;
+        }
         else if (a == L"--setup-user") oneShot = 1;
         else if (a == L"--cleanup-user") oneShot = 2;
         else if (a == L"--set-profile-icon" && i + 1 < argc) {
@@ -1061,7 +1065,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         if (cmd && cmd != static_cast<unsigned>(vtx::AppCommand::OpenSettings)) runCommand(cmd);
     } else if (cmd) {
         runCommand(cmd);
-    } else if (!background) {
+    } else if (vtx::opensSettingsAtStart(background, g_settingsArg, g_settings.startHidden)) {
         showSettings(Tab::Typing);
     }
     autoUpdateTick();  // due: check now; else a one-shot timer for the rest of the day
