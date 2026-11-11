@@ -92,6 +92,10 @@ SecureInputMonitor.shared.start()
 // 15/08/2026). Xem StickyInputSource.swift.
 StickyInputSource.shared.start()
 
+// #158: app sandbox có file đệm danh sách bộ gõ tạo trước khi cài VietTelex thì không thấy
+// VietTelex và crash khi đổi bộ gõ — tự làm mới file đệm đó. Xem InputSourceCacheRefresher.swift.
+InputSourceCacheRefresher.start()
+
 // Icon menu bar user chọn: SelfUpdater tráo nguyên bundle mỗi lần cập nhật nên
 // MenuIcon.pdf quay về mặc định — áp lại lựa chọn đã lưu ở mỗi lần khởi động
 // (no-op khi nội dung đã đúng, tức bundle chỉ bị chạm khi user thật sự đổi icon).
