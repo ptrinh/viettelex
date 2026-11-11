@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VietTelex — Vietnamese input method for macOS &amp; iPhone</title>
-<meta name="description" content="VietTelex (ViệtTelex) — a free, open-source Telex Vietnamese input method for macOS. No underline, smooth ~130ns/key, works in Terminal/iTerm/Chrome. Install via installer or Homebrew.">
-<meta name="keywords" content="Vietnamese input method, type Vietnamese macOS, Vietnamese iPhone keyboard, Telex, Mac input method, ViệtTelex, VietTelex, unikey mac, vietnamese typing terminal">
+<title>VietTelex — Vietnamese keyboard for iPhone, Android, macOS, Windows, Linux</title>
+<meta name="description" content="VietTelex (ViệtTelex) — a free, open-source Telex/VNI Vietnamese input method for iPhone, iPad, Android, macOS, Windows and Linux. Fast, light, keeps English words intact, and types correctly in terminals and browsers.">
+<meta name="keywords" content="Vietnamese input method, Vietnamese keyboard, type Vietnamese, Vietnamese iPhone keyboard, Vietnamese Android keyboard, type Vietnamese macOS, type Vietnamese Windows, type Vietnamese Linux, Telex, VNI, ViệtTelex, VietTelex">
 <link rel="canonical" href="https://ptrinh.github.io/viettelex/en/">
 <link rel="alternate" hreflang="vi" href="https://ptrinh.github.io/viettelex/">
 <link rel="alternate" hreflang="en" href="https://ptrinh.github.io/viettelex/en/">
 <link rel="alternate" hreflang="x-default" href="https://ptrinh.github.io/viettelex/">
 <link rel="icon" href="../assets/VietTelex-logo.png">
 <meta property="og:type" content="website">
-<meta property="og:title" content="VietTelex — Vietnamese input method for macOS &amp; iPhone">
-<meta property="og:description" content="A free, open-source Telex input method: no underline, smooth, works in Terminal and Chrome too.">
+<meta property="og:title" content="VietTelex — Vietnamese input method for every platform">
+<meta property="og:description" content="A free, open-source Telex/VNI input method for iPhone, Android, macOS, Windows and Linux.">
 <meta property="og:image" content="https://ptrinh.github.io/viettelex/assets/VietTelex-logo.png">
 <meta property="og:url" content="https://ptrinh.github.io/viettelex/en/">
 <meta property="og:locale" content="en_US">
@@ -23,9 +23,9 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "VietTelex",
-  "operatingSystem": "macOS 13+",
+  "operatingSystem": "iOS, iPadOS, Android, macOS, Windows, Linux",
   "applicationCategory": "UtilitiesApplication",
-  "description": "A Telex Vietnamese input method for macOS: no underline, caret always at the end, works in Terminal/iTerm/Chrome.",
+  "description": "A Telex/VNI Vietnamese input method for iPhone, iPad, Android, macOS, Windows and Linux: fast, light, keeps English words intact.",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
   "author": { "@type": "Person", "name": "Phil Trịnh" },
   "downloadUrl": "https://github.com/ptrinh/viettelex/releases/latest",
@@ -96,6 +96,7 @@
   .card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
   .card h3 { font-size: 1.02rem; font-weight: 700; margin-bottom: 6px; }
   .card h3 .dot { color: var(--red); }
+  .card h3 a { text-decoration: none; }
   .card p { font-size: .92rem; color: var(--ink-soft); }
   .card code, .step code { font-family: var(--mono); font-size: .84em; background: #f3f1ea; padding: 1px 5px; border-radius: 5px; }
 
@@ -103,19 +104,6 @@
   .philosophy-panel .phi-key { display: block; color: var(--gold); font-weight: 800; font-size: 1.15rem; margin-bottom: 4px; }
   .philosophy-panel .phi-desc { font-size: .9rem; color: #c6ccdb; }
   @media (max-width: 620px) { .philosophy-panel { grid-template-columns: 1fr; gap: 16px; padding: 22px; } }
-
-  .shots { display: grid; grid-template-columns: 1fr 2fr; gap: 18px; align-items: start; }
-  .shots figure { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
-  .shots img { border-radius: 8px; }
-  .shots figcaption { font-size: .82rem; color: var(--ink-soft); margin-top: 10px; }
-  @media (max-width: 720px) { .shots { grid-template-columns: 1fr; } }
-
-  .steps { counter-reset: step; display: grid; gap: 14px; }
-  .step { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px 20px 64px; position: relative; }
-  .step::before { counter-increment: step; content: counter(step); position: absolute; left: 20px; top: 20px; width: 28px; height: 28px; border-radius: 8px; background: var(--navy); color: var(--gold); font-weight: 800; font-size: .9rem; display: grid; place-items: center; }
-  .step strong { display: block; margin-bottom: 2px; }
-  .step p { font-size: .92rem; color: var(--ink-soft); }
-  .step img { margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; }
 
   table.telex { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--line); }
   table.telex th, table.telex td { padding: 12px 16px; text-align: left; font-size: .95rem; border-bottom: 1px solid var(--line); }
@@ -146,7 +134,7 @@
   <div class="hero-inner">
     <img class="logo" src="../assets/VietTelex-logo.png" alt="VietTelex logo — red keycap with the letters VT" width="96" height="96">
     <h1>Type Vietnamese on every&nbsp;platform,<br>fast, smooth, <span class="accent">right for 2026</span></h1>
-    <p class="sub">VietTelex (ViệtTelex) is a free, open-source Telex input method for macOS, built on Apple's InputMethodKit for deep integration — no underline under the word you're typing, the caret always stays at the end, and it works in Terminal and Chrome too.</p>
+    <p class="sub">VietTelex (ViệtTelex) is a free, <a href="https://github.com/ptrinh/viettelex" rel="noopener" style="color:var(--gold);text-decoration:underline;text-underline-offset:3px">open-source</a> Telex and VNI input method for iPhone, Android, macOS, Windows and Linux: fast, light, and correct in every app.</p>
 
     <div class="typebox" aria-label="Telex typing demo">
       <div class="keys" id="keys">&nbsp;</div>
@@ -165,40 +153,34 @@
 <section id="features">
   <div class="wrap">
     <h2>Why VietTelex?</h2>
-    <p class="lead">Rewritten from scratch after nearly 20 years on macOS without a Vietnamese input method that felt truly good, correct and smooth.</p>
+    <p class="lead">One way to type on every device: phone or computer, the same keys give the same text.</p>
     <div class="philosophy-panel" aria-label="Philosophy: Minimalist · Intuitive · Performant">
-      <div><span class="phi-key">Minimalist</span><span class="phi-desc">Telex only, precomposed Unicode only — no extra features.</span></div>
-      <div><span class="phi-key">Intuitive</span><span class="phi-desc">Behaves exactly like a system input method — nothing to relearn.</span></div>
-      <div><span class="phi-key">Performant</span><span class="phi-desc">~130 ns/key, no background process — smooth no matter how fast you type.</span></div>
+      <div><span class="phi-key">Minimalist</span><span class="phi-desc">Install and type. Advanced options are there when you need them.</span></div>
+      <div><span class="phi-key">Intuitive</span><span class="phi-desc">Behaves like a system keyboard — nothing to relearn.</span></div>
+      <div><span class="phi-key">Performant</span><span class="phi-desc">~130 ns per key (measured on a Mac) — smooth however fast you type.</span></div>
     </div>
     <div class="grid">
-      <div class="card"><h3><span class="dot">●</span> Native to Apple's IMKit</h3><p>A real system input method, not a key-blocking app — so per-app typing modes, macOS spelling/prediction/undo/VoiceOver all work correctly.</p></div>
-      <div class="card"><h3><span class="dot">●</span> Fast — ~130 nanoseconds/key</h3><p>Spelling rules compiled into a state machine, zero allocation while typing. Type as fast as you like — no lost or scrambled characters.</p></div>
-      <div class="card"><h3><span class="dot">●</span> Works in Terminal &amp; Chrome</h3><p>Terminal/iTerm keep the shell's autocomplete; Chrome's address bar, Excel cells and Spotlight all type correctly — where other input methods often break.</p></div>
-      <div class="card"><h3><span class="dot">●</span> Smart with English &amp; code</h3><p>Auto-restores <code>google</code>, <code>github</code>…; recognizes camelCase tokens (<code>OmS</code>, <code>JavaScript</code>) so it won't add tone marks by mistake; strict Telex mode for devs.</p></div>
-      <div class="card"><h3><span class="dot">●</span> Light &amp; private</h3><p>No background CPU drain, no network connections, collects no data whatsoever.</p></div>
+      <div class="card"><h3><span class="dot">●</span> A real system keyboard</h3><p>Built into iOS, Android, macOS, Windows and Linux — not a key-blocking app.</p></div>
+      <div class="card"><h3><span class="dot">●</span> Telex and VNI</h3><p>Free tone placement, spell-check while typing, text shortcuts.</p></div>
+      <div class="card"><h3><span class="dot">●</span> Smart with English &amp; code</h3><p>Keeps <code>google</code>, <code>github</code>, <code>JavaScript</code>… free of stray tone marks.</p></div>
+      <div class="card"><h3><span class="dot">●</span> Correct in the hard places</h3><p>Terminals, browser address bars, Excel, Word.</p></div>
+      <div class="card"><h3><span class="dot">●</span> Complete on phones</h3><p>Suggestions, swipe typing, templates, clipboard, emoji, themes.</p></div>
+      <div class="card"><h3><span class="dot">●</span> Light &amp; private</h3><p>Collects nothing you type, no ads, no tracking. <a href="../privacy-policy.html">Details</a>.</p></div>
     </div>
   </div>
 </section>
 
-<section id="shots" style="padding-top:0">
-  <div class="wrap">
-    <div class="shots">
-      <figure><img src="../assets/Menu-Bar-Screenshot.png" alt="VietTelex menu in the macOS menu bar" loading="lazy"><figcaption>The VT badge in the menu bar — pick the input source like any system one.</figcaption></figure>
-      <figure><img src="../assets/Settings-Screenshot.png" alt="VietTelex Settings window" loading="lazy"><figcaption>Settings: Simple Telex, free tone placement, old/new style, spell-check, shortcuts.</figcaption></figure>
-    </div>
-  </div>
-</section>
-
-<section id="install">
+<section id="install" style="padding-top:0">
   <div class="wrap">
     <h2>Install in a minute</h2>
-    <p class="lead">Choose one install method: the signed .pkg or Homebrew. Both install the app to <code>~/Library/Input Methods/VietTelex.app</code>; do not install both at once because they manage the same app. iPhone, Android, Windows, Linux: see the <a href="download/">download page</a>.</p>
-    <div class="steps">
-      <div class="step"><strong>Install through one channel</strong><p>Download <a href="https://github.com/ptrinh/viettelex/releases/latest" rel="noopener">VietTelex-x.y.z.pkg</a> (signed + notarized by Apple) and double-click, or run <code>brew install --cask ptrinh/viettelex/viettelex</code>. Uninstall the current app before switching channels.</p></div>
-      <div class="step"><strong>Add the input method</strong><p>System Settings → Keyboard → Input Sources → <b>Edit… / ＋</b> → Vietnamese → <b>ViệtTelex</b> → Add.</p>
-        <img src="../assets/instructions-2.png" alt="Adding ViệtTelex in Input Sources" loading="lazy" style="max-width:560px"></div>
-      <div class="step"><strong>Give it a try</strong><p>Switch to ViệtTelex with the 🌐 key or ⌃Space. To type in Terminal/iTerm/Chrome, enable VietTelex in Privacy &amp; Security → Accessibility (macOS 26 and earlier) / Device Control and Data Access (macOS 27). If an Xcode Debug build is open, quit it and launch the installed app; its permission identity is separate.</p></div>
+    <p class="lead">Pick your platform to download and see step-by-step instructions.</p>
+    <div class="grid">
+      <div class="card"><h3><a href="download/?os=ios">iPhone &amp; iPad →</a></h3><p>Get it on the App Store, then add VietTelex in Settings → Keyboard. iOS 16 or later.</p></div>
+      <div class="card"><h3><a href="download/?os=android">Android →</a></h3><p>Install from Google Play or the APK, open the app and tap <b>Enable VietTelex</b>. Android 8 or later.</p></div>
+      <div class="card"><h3><a href="download/?os=macos">macOS →</a></h3><p>Download the signed <a href="https://github.com/ptrinh/viettelex/releases/latest" rel="noopener">.pkg</a> or install with Homebrew, then add ViệtTelex in Input Sources. macOS 13 or later.</p></div>
+      <div class="card"><h3><a href="download/?os=windows">Windows →</a></h3><p>Install from the Microsoft Store or the .msi and start typing. Portable build available. Windows 10 / 11.</p></div>
+      <div class="card"><h3><a href="download/?os=linux">Linux →</a></h3><p>One command to install. Ubuntu, Debian, Fedora, Arch; Fcitx5 or IBus.</p></div>
+      <div class="card"><h3><a href="guide/">User guide →</a></h3><p>Typing styles, shortcuts, gestures and tips for each platform.</p></div>
     </div>
   </div>
 </section>

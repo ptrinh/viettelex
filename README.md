@@ -9,35 +9,51 @@
   <a href="https://github.com/ptrinh/viettelex/releases/latest"><img src="https://img.shields.io/github/v/release/ptrinh/viettelex?color=c22727" alt="Release"></a>
   <a href="https://github.com/ptrinh/viettelex/releases"><img src="https://img.shields.io/github/downloads/ptrinh/viettelex/total?label=Downloads&color=4c1" alt="Downloads"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/ptrinh/viettelex?color=555" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/macOS-13%2B-17233d" alt="macOS 13+">
+  <img src="https://img.shields.io/badge/iOS%20%C2%B7%20Android%20%C2%B7%20macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-17233d" alt="iOS · Android · macOS · Windows · Linux">
 </p>
 
-**VietTelex** (ViệtTelex / ViếtTelex) là bộ gõ tiếng Việt cho macOS, hỗ trợ **Telex** và **VNI**. VietTelex tích hợp trực tiếp với macOS, tự chọn cách nhập phù hợp cho từng ứng dụng để chữ hiện đúng vị trí và hạn chế gạch chân. Bạn có thể dùng trong **Terminal**, trình duyệt, bảng tính và nhiều ứng dụng khác.
+**VietTelex** (ViệtTelex / ViếtTelex) là bộ gõ tiếng Việt **Telex** và **VNI**, miễn phí và mã nguồn mở, cho **iPhone, iPad, Android, macOS, Windows và Linux**. Cài xong là gõ; nhanh, gọn, gõ đúng trong mọi app.
 
-Thiết kế gọn nhẹ, dễ bắt đầu: cài đặt xong là có thể gõ ngay; các tuỳ chọn nâng cao luôn sẵn nếu bạn cần.
+| Nền tảng | Yêu cầu | Cách cài | Mã nguồn |
+|---|---|---|---|
+| [iPhone & iPad](https://viettelex.com/download/?os=ios) | iOS 16+ | App Store | [`iOS/`](iOS) |
+| [Android](https://viettelex.com/download/?os=android) | Android 8+ | Google Play, APK | [`android/`](android) |
+| [macOS](https://viettelex.com/download/?os=macos) | macOS 13+ | `.pkg`, Homebrew | [`App/`](App) |
+| [Windows](https://viettelex.com/download/?os=windows) | Windows 10 / 11 | Microsoft Store, `.msi`, portable | [`windows/`](windows) |
+| [Linux](https://viettelex.com/download/?os=linux) | Ubuntu, Debian, Fedora, Arch | một lệnh cài | [`linux/`](linux) |
 
-> Dự án của **Phil Trịnh**, viết lại từ đầu sau gần 20 năm dùng macOS mà chưa thấy bộ gõ tiếng Việt nào thật sự *ngon, chuẩn, mượt*.
+> Dự án của **Phil Trịnh**, bắt đầu trên macOS sau gần 20 năm chưa thấy bộ gõ tiếng Việt nào thật sự *ngon, chuẩn, mượt*, nay có đủ cho điện thoại và máy tính.
 
 https://github.com/user-attachments/assets/1d9bdef1-f814-4070-9b2d-01436f7d3020
 
-<p align="center"><sub>VietTelex trong 33 giây — gõ Telex/VNI trên Mac và điện thoại, giữ nguyên từ tiếng Anh, có gõ vuốt và nhiều tính năng tiện dụng.</sub></p>
+<p align="center"><sub>VietTelex trong 33 giây — gõ Telex/VNI trên máy tính và điện thoại, giữ nguyên từ tiếng Anh, có gõ vuốt và nhiều tính năng tiện dụng.</sub></p>
 
 ## Điểm nổi bật
 
-- **Tích hợp với macOS** — hoạt động như một bộ gõ của hệ thống, tương thích với tính năng tự đổi bộ gõ theo ứng dụng, cùng chính tả, hoàn tác và VoiceOver.
-- **Phản hồi nhanh** — xử lý mỗi phím trong khoảng **130 ns** theo benchmark; gõ liên tục vẫn mượt.
-- **Dùng được trong nhiều ứng dụng** — từ Terminal/iTerm đến thanh địa chỉ Chrome, Excel và Spotlight; VietTelex tự tìm cách gõ phù hợp cho từng ứng dụng.
-- **Giữ nguyên tiếng Anh và mã lệnh** — tự khôi phục các từ như `google`, `github`, nhận diện cách viết camelCase (`OmS`, `JavaScript`) và có tuỳ chọn Telex nghiêm ngặt.
-- **Độ chính xác được kiểm thử** — trong bộ kiểm thử 9.091 trường hợp, VietTelex xử lý đúng **100%** từ tiếng Việt và khôi phục **98,9%** từ tiếng Anh bị biến dạng. Xem [`docs/REGRESSION.md`](docs/REGRESSION.md) để biết thêm kết quả và giới hạn.
-- **Tôn trọng quyền riêng tư** — VietTelex không thu thập nội dung bạn gõ. Ứng dụng kết nối mạng khi kiểm tra cập nhật (theo yêu cầu của bạn hoặc lịch hằng tuần đã bật) và khi bạn chủ động tải gói ngôn ngữ Apple trong Cài đặt. Bản cập nhật chỉ tải khi bạn chọn cập nhật. Văn bản được dịch ngay trên máy Mac, không gửi đi nơi khác.
+- **Bàn phím thật của hệ thống** — tích hợp thẳng vào iOS, Android, macOS, Windows và Linux; không phải ứng dụng chặn phím.
+- **Phản hồi nhanh** — xử lý mỗi phím trong khoảng **130 ns** theo benchmark trên Mac; gõ liên tục vẫn mượt.
+- **Gõ đúng ở những chỗ khó** — terminal, thanh địa chỉ trình duyệt, Excel, Word.
+- **Giữ nguyên tiếng Anh và mã lệnh** — `google`, `github`, `JavaScript`… không bị bỏ dấu nhầm.
+- **Đầy đủ trên điện thoại** — gợi ý từ, gõ vuốt, mẫu câu, clipboard, emoji, giao diện tuỳ chỉnh.
+- **Độ chính xác được kiểm thử** — 9.091 trường hợp: đúng **100%** từ tiếng Việt, khôi phục **98,9%** từ tiếng Anh ([chi tiết](docs/REGRESSION.md)).
+- **Riêng tư** — không thu thập nội dung bạn gõ, không quảng cáo, không theo dõi ([chi tiết](https://viettelex.com/privacy-policy.html)).
 
-| Menu trên thanh menu | Cửa sổ Cài đặt |
+| macOS: menu trên thanh menu | macOS: cửa sổ Cài đặt |
 |---|---|
 | ![Menu bộ gõ](assets/Menu-Bar-Screenshot.png) | ![Cửa sổ Cài đặt](assets/Settings-Screenshot.png) |
 
 ## Cài đặt
 
-**Tải cho mọi nền tảng:** [viettelex.com/download](https://viettelex.com/download/) (iPhone/iPad · [Android](https://viettelex.com/download/?os=android) · [macOS](https://viettelex.com/download/?os=macos) · [Windows](https://viettelex.com/download/?os=windows) · [Linux](https://viettelex.com/download/?os=linux)) · **Homebrew:** `brew install --cask ptrinh/viettelex/viettelex`
+Tải và hướng dẫn từng bước: **[viettelex.com/download](https://viettelex.com/download/)** · Hướng dẫn sử dụng: [viettelex.com/hdsd](https://viettelex.com/hdsd/)
+
+- **iPhone & iPad** — [App Store](https://apps.apple.com/app/id6794425455), rồi thêm VietTelex trong Cài đặt → Bàn phím.
+- **Android** — [Google Play](https://play.google.com/store/apps/details?id=com.viettelex.android) hoặc APK, mở app rồi bấm **Bật VietTelex**.
+- **Windows** — [Microsoft Store](https://apps.microsoft.com/detail/xp9cbqk2f77356), `.msi` hoặc bản portable; cài xong là gõ được.
+- **Linux** — `curl -fsSL https://viettelex.com/install.sh | bash`
+- **macOS** — `.pkg` hoặc `brew install --cask ptrinh/viettelex/viettelex`
+
+<details>
+<summary><strong>macOS: các bước cài</strong></summary>
 
 Chọn **một** cách cài: Homebrew hoặc `.pkg`. Cả hai cài cùng app đã ký vào
 `~/Library/Input Methods/VietTelex.app`; không cài song song vì hai bộ quản lý sẽ
@@ -54,17 +70,20 @@ sang ABC, thoát VietTelex, xoá app ở đường dẫn trên rồi mới chạ
 | ![Input Sources → Edit](assets/instructions-1.png) | ![Add ViệtTelex](assets/instructions-2.png) |
 
 Để gõ trong **Terminal, iTerm, Chrome/Edge/Brave**: cấp quyền cho VietTelex trong Privacy & Security → **Accessibility** (macOS 26 trở về trước) / **Device Control and Data Access** (macOS 27). Chuyển Việt/Anh bằng phím 🌐 hoặc ⌃Space (macOS nhớ theo từng app).
+</details>
 
 ## Cách gõ
 
 `s f r x j` = sắc huyền hỏi ngã nặng · `aa ee oo` = â ê ô · `aw ow uw` = ă ơ ư · `dd` = đ · `z` xóa dấu.
 Ví dụ: `vieejt` → việt · `truowngf` → trường · `hoas` → hóa.
 
-Các tuỳ chọn về kiểu gõ nằm trong menu bộ gõ → **Cài đặt…** → tab **Gõ phím**. Tuỳ chọn công cụ và gợi ý nằm trong tab **Công cụ & gợi ý**; danh sách gõ tắt có tab riêng.
+Chọn Telex hay VNI và các tuỳ chọn khác trong Cài đặt của VietTelex trên từng nền tảng.
 
-**Gõ kiểu VNI:** menu bộ gõ → **Cài đặt…** → tab **Gõ phím** → chọn **VNI**. Dấu gõ bằng số: `1-5` = sắc/huyền/hỏi/ngã/nặng, `6` = â/ê/ô, `7` = ơ/ư, `8` = ă, `9` = đ, `0` = bỏ dấu (ví dụ `Vie6t5` → Việt). Nên bật **Kiểm tra chính tả khi gõ** để các chuỗi như `mp3` không bị hiểu nhầm thành dấu.
+**Gõ kiểu VNI:** dấu gõ bằng số: `1-5` = sắc/huyền/hỏi/ngã/nặng, `6` = â/ê/ô, `7` = ơ/ư, `8` = ă, `9` = đ, `0` = bỏ dấu (ví dụ `Vie6t5` → Việt). Nên bật **Kiểm tra chính tả khi gõ** để các chuỗi như `mp3` không bị hiểu nhầm thành dấu.
 
 ## FAQ — câu hỏi thường gặp
+
+Các câu dưới đây dành cho **macOS**. Windows, Linux, iPhone và Android: xem [hướng dẫn sử dụng](https://viettelex.com/hdsd/).
 
 <details>
 <summary><strong>Cài xong gõ vẫn bị gạch chân?</strong></summary>
@@ -106,7 +125,7 @@ Menu bộ gõ → **Cài đặt…** → tab **Ứng dụng** → chọn ứng d
 <details>
 <summary><strong>Có hỗ trợ VNI không?</strong></summary>
 
-Có: **Cài đặt…** → tab **Gõ phím** → chọn **VNI**.
+Có, trên mọi nền tảng. Trên macOS: **Cài đặt…** → tab **Gõ phím** → chọn **VNI**.
 </details>
 
 <details>
@@ -118,7 +137,7 @@ VietTelex tự tắt trong secure field — đúng hành vi bảo mật, không 
 <details>
 <summary><strong>Mở máy từ sleep, đang mở 1Password thì không gõ được Telex?</strong></summary>
 
-Không riêng VietTelex: EVKey, OpenKey, GoTiengViet cũng chết. 1Password giữ **Secure Input** của macOS sau khi ngủ (ô khoá vault vẫn “focus” dù bạn đang ở app khác) — macOS lúc đó vô hiệu mọi bộ gõ bên thứ ba.
+Không riêng VietTelex: mọi bộ gõ bên thứ ba đều bị. 1Password giữ **Secure Input** của macOS sau khi ngủ (ô khoá vault vẫn “focus” dù bạn đang ở app khác) — macOS lúc đó vô hiệu mọi bộ gõ bên thứ ba.
 
 Gỡ nhanh: bấm vào cửa sổ 1Password rồi bấm ra, hoặc **Quit 1Password**. Icon `Vᵀ⃠` trên menu bar (khi đang bị chặn) sẽ chỉ đúng hướng đó. Bộ gõ có sẵn của Apple (Simple Telex) thường vẫn dùng được vì không bị disable theo lớp IME bên thứ ba.
 
