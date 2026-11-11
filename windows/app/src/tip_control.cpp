@@ -80,29 +80,14 @@ bool callSetDefaultLayoutOrTip() {
     return ok;
 }
 
-// Set-WinDefaultInputMethodOverride (documented, per user) in a hidden powershell.exe.
-bool runSetOverride() {
+// "Override for default input method": the per-user registry value the documented
+// Set-WinDefaultInputMethodOverride cmdlet stores. Written directly — launching a hidden
+// shell for the cmdlet got the exe flagged by antivirus heuristics (issue #157, 1.3.15–1.3.21).
+bool writeOverride() {
     const std::string spec = inputMethodOverrideSpec(vtx::reg::kLangId, vtx::reg::kClsid, vtx::reg::kProfile);
-    wchar_t sys[MAX_PATH];
-    const UINT n = GetSystemDirectoryW(sys, MAX_PATH);
-    if (n == 0 || n >= MAX_PATH) return false;
-    const std::wstring exe = std::wstring(sys, n) + L"\\WindowsPowerShell\\v1.0\\powershell.exe";
-    const std::string args = setOverrideArgs(spec);
-    std::wstring cmd = L"\"" + exe + L"\" " + std::wstring(args.begin(), args.end());
-    STARTUPINFOW si = {};
-    si.cb = sizeof si;
-    si.dwFlags = STARTF_USESHOWWINDOW;
-    si.wShowWindow = SW_HIDE;
-    PROCESS_INFORMATION pi = {};
-    if (!CreateProcessW(exe.c_str(), cmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si,
-                        &pi))
-        return false;
-    const bool done = WaitForSingleObject(pi.hProcess, 10000) == WAIT_OBJECT_0;
-    DWORD code = 1;
-    if (done) GetExitCodeProcess(pi.hProcess, &code);
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
-    return done && code == 0;
+    const std::wstring w(spec.begin(), spec.end());
+    return RegSetKeyValueW(HKEY_CURRENT_USER, L"Control Panel\\International\\User Profile", L"InputMethodOverride",
+                           REG_SZ, w.c_str(), static_cast<DWORD>((w.size() + 1) * sizeof(wchar_t))) == ERROR_SUCCESS;
 }
 }  // namespace
 
@@ -117,13 +102,14 @@ OverrideState inputMethodOverride() {
 }
 
 bool setDefaultKeyboardForUser() {
+    // Override first, so SetDefaultLayoutOrTip (which applies to the running session)
+    // already sees it.
+    const bool wrote = inputMethodOverride() == OverrideState::VietTelex || writeOverride();
     const bool set = callSetDefaultLayoutOrTip();
-    if (inputMethodOverride() == OverrideState::VietTelex) return true;
-    const bool ran = runSetOverride();
     const OverrideState after = inputMethodOverride();
-    appLog("app", std::string("default input method override: ") + (ran ? "set" : "powershell failed") +
+    appLog("app", std::string("default input method override: ") + (wrote ? "set" : "write failed") +
                       (after == OverrideState::VietTelex ? " -> VietTelex" : " -> not VietTelex"));
-    return after == OverrideState::VietTelex || (!ran && set && after == OverrideState::None);
+    return after == OverrideState::VietTelex || (!wrote && set && after == OverrideState::None);
 }
 
 unsigned defaultInputLangId() {

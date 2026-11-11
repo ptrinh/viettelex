@@ -149,6 +149,18 @@ verify() {  # verify <file>... — read the signature back off the bytes, with t
 rm -f "$DIST/bin/x86/VietTelex.exe"  # the app ships x64/arm64 only; x86 is just the 32-bit TIP
 BINS=()
 while IFS= read -r f; do BINS+=("$f"); done < <(find "$DIST/bin" -type f \( -name '*.dll' -o -name '*.exe' \) | sort)
+# Issue #157: an exe that carried a hidden-shell command line was deleted by antivirus
+# heuristics (HEUR:Trojan.PowerShell.Generic). No shipped binary may name a shell.
+python3 - "${BINS[@]}" <<'PY' || { echo "a binary names a script shell (issue #157)" >&2; exit 1; }
+import sys
+bad = 0
+for path in sys.argv[1:]:
+    data = open(path, "rb").read().lower()
+    for word in ("powershell", "cmd.exe", "wscript", "cscript", "mshta"):
+        if word.encode() in data or word.encode("utf-16-le") in data:
+            print(f"{path}: contains '{word}'", file=sys.stderr); bad = 1
+sys.exit(bad)
+PY
 echo "-- signing ${#BINS[@]} binaries"
 sign "${BINS[@]}"
 verify "${BINS[@]}"

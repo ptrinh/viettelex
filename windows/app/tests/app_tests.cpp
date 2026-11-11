@@ -1055,10 +1055,6 @@ TEST(default_input_method_override) {
     CHECK(overrideState(true, "0409:00000409", 0x042A, clsid, prof) == OverrideState::Other);
     // Windows' own Vietnamese keyboard forced as default: same language, not VietTelex.
     CHECK(overrideState(true, "042A:0000042A", 0x042A, clsid, prof) == OverrideState::Other);
-    CHECK_EQ(setOverrideArgs(spec),
-             std::string("-NoProfile -NonInteractive -WindowStyle Hidden -Command \"Set-WinDefaultInputMethodOverride "
-                         "-InputTip '042A:{12345678-1234-1234-1234-123456789ABC}{87654321-4321-4321-4321-CBA987654321}'\""));
-
     const unsigned enUS = 0x0409;
     CHECK(defaultInputAdvice(SwitchHotkey::CtrlShift, 0x042A, OverrideState::Other) ==
           DefaultInputAdvice::MakeVietTelexDefault);  // vi-VN default, but not VietTelex

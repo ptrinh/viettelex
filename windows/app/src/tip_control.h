@@ -14,11 +14,10 @@ namespace vtx::app {
 bool addKeyboardForUser();     // InstallLayoutOrTip("042A:{CLSID}{PROFILE}")
 bool removeKeyboardForUser();  // same with ILOT_UNINSTALL
 // Make VietTelex Windows' default input method for this user (SetDefaultLayoutOrTip, then
-// the "Override for default input method" through Set-WinDefaultInputMethodOverride if it
-// does not already name VietTelex): new app windows then start in VietTelex (input_switch.h,
+// the "Override for default input method" registry value if it does not already name
+// VietTelex): new app windows then start in VietTelex (input_switch.h,
 // 2026-10 Ctrl+Shift report; 1.3.14 field report). True = the override names VietTelex
-// (or, where it cannot be read, SetDefaultLayoutOrTip succeeded). Blocks up to ~10 s
-// (PowerShell) only when the override has to be written.
+// (or, where it cannot be read, SetDefaultLayoutOrTip succeeded). Starts no other process.
 bool setDefaultKeyboardForUser();
 // HKCU\Control Panel\International\User Profile\InputMethodOverride vs VietTelex.
 OverrideState inputMethodOverride();

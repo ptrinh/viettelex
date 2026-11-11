@@ -81,11 +81,6 @@ OverrideState overrideState(bool present, const std::string& value, unsigned lan
                                                                             : OverrideState::Other;
 }
 
-std::string setOverrideArgs(const std::string& spec) {
-    return "-NoProfile -NonInteractive -WindowStyle Hidden -Command \"Set-WinDefaultInputMethodOverride -InputTip '" +
-           spec + "'\"";
-}
-
 DefaultInputAdvice defaultInputAdvice(SwitchHotkey h, unsigned defaultLangId, OverrideState o) {
     if (h != SwitchHotkey::CtrlShift && h != SwitchHotkey::AltZ) return DefaultInputAdvice::None;
     switch (o) {

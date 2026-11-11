@@ -124,10 +124,11 @@ std::string defaultLayoutOrTipSpec(unsigned langId, const std::string& clsid, co
 // Windows Settings → Typing → Advanced keyboard settings → "Override for default input
 // method": the keyboard every new window starts with, whatever the language order. The
 // reporter (Windows 10, fresh 1.3.14) still had to pick "Vietnamese - VietTelex" there by
-// hand after SetDefaultLayoutOrTip. The documented per-user setter is PowerShell's
-// Set-WinDefaultInputMethodOverride -InputTip "<LANGID>:{CLSID}{PROFILE}" (International
-// module, no admin); Windows keeps it in HKCU\Control Panel\International\User Profile,
-// value InputMethodOverride (read back to check).
+// hand after SetDefaultLayoutOrTip. Windows keeps it in
+// HKCU\Control Panel\International\User Profile, value InputMethodOverride, as
+// "<LANGID>:{CLSID}{PROFILE}" (what the documented Set-WinDefaultInputMethodOverride cmdlet
+// stores). The app writes that value itself and never starts a shell: a hidden shell
+// launch got the exe removed by antivirus heuristics (issue #157).
 std::string inputMethodOverrideSpec(unsigned langId, const std::string& clsid, const std::string& profile);
 enum class OverrideState {
     None,       // no override: the first language's default keyboard
@@ -137,8 +138,6 @@ enum class OverrideState {
 // `present` = the registry value exists. Case-insensitive; "0x" and a trailing ';' tolerated.
 OverrideState overrideState(bool present, const std::string& value, unsigned langId, const std::string& clsid,
                             const std::string& profile);
-// powershell.exe arguments that set it (spec from inputMethodOverrideSpec: hex + GUIDs only).
-std::string setOverrideArgs(const std::string& spec);
 // The Kiểu gõ card with the override known: VietTelex there -> nothing to offer; another
 // keyboard forced -> offer (even when that keyboard is a Vietnamese one: the default
 // language is then vi-VN although VietTelex is not what new windows get); none -> by
