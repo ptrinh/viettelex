@@ -46,6 +46,8 @@ object KeyKind {
     const val PAD = 13
     /** Ô bảng sửa văn bản: insert = tên [EditAction]; hành động lúc chạm (lặp khi giữ) / nhấc. */
     const val EDIT = 14
+    /** 📋 bàn số (PHONE / NUMPAD): dán clipboard đã lọc theo ô ([com.viettelex.keyboard.NumericPaste]), lúc nhấc. */
+    const val PASTE = 15
 
     fun isSpecial(k: Int) = when (k) {
         LETTER, CHAR, PUNCT, SPACE, PAD -> false
@@ -578,10 +580,12 @@ object KeyLayout {
     /**
      * Bàn số kiểu Gboard — lưới 3×4 số ở giữa, cột phụ 0.17 W hai bên, KHÔNG có ô trống:
      *  PHONE : trái  + · − · ( ) · ?123 | lưới 1…9, * 0 # (chữ ABC… dưới số) |
-     *          phải  ⌫ · , ; (pause/wait) · space · enter
+     *          phải  ⌫ · , ; (pause/wait) · [space | 📋] · enter
      *  NUMPAD: trái  (chỉ khi có) − nếu SIGNED; DATETIME: / : − — chia đều cả cột
      *          lưới 1…9, [, 0 .] — dấu thập phân chỉ khi DECIMAL, không có thì 0 nở rộng
-     *          phải  ⌫ · space · ?123 · enter
+     *          phải  ⌫ · [space | 📋] · ?123 · enter
+     * 📋 Dán (báo lỗi 13/11/2026: ô số điện thoại không có cách dán số vừa copy) chia đôi khe space
+     * — trước đây cả khe là space không nhãn, người dùng tưởng ô trống.
      * Phím không hợp cờ của ô thì không có (không gõ được ký tự ô từ chối).
      */
     private fun numberPad(out: MutableList<LaidKey>, c: LayoutConfig, rowH: Float) {
@@ -638,15 +642,21 @@ object KeyLayout {
                 pad(sym, leftX, leftX + sideW, t, t + h, side = true)
             }
         }
+        // Khe space cột phải chia đôi: [space | 📋 Dán].
+        fun spacePaste(r: Int) {
+            val hw = (sideW - gap) / 2
+            out += LaidKey(KeyKind.SPACE, "", "", " ", rightX, top(r), rightX + hw, bot(r))
+            out += LaidKey(KeyKind.PASTE, "", "", "", rightX + hw + gap, top(r), rightX + sideW, bot(r))
+        }
         // cột phải
         out += LaidKey(KeyKind.BACKSPACE, "", "", "", rightX, top(0), rightX + sideW, bot(0))
         if (phone) {
             val hw = (sideW - gap) / 2
             pad(",", rightX, rightX + hw, top(1), bot(1), side = true)
             pad(";", rightX + hw + gap, rightX + sideW, top(1), bot(1), side = true)
-            out += LaidKey(KeyKind.SPACE, "", "", " ", rightX, top(2), rightX + sideW, bot(2))
+            spacePaste(2)
         } else {
-            out += LaidKey(KeyKind.SPACE, "", "", " ", rightX, top(1), rightX + sideW, bot(1))
+            spacePaste(1)
             out += LaidKey(KeyKind.MORE, "?123", "?123", "?123", rightX, top(2), rightX + sideW, bot(2))
         }
         out += LaidKey(KeyKind.RETURN, c.returnLabel, c.returnLabel, "\n", rightX, top(3), rightX + sideW, bot(3))

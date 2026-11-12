@@ -3255,6 +3255,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             || builtAlts != activeAlts
             || builtSplit != split
             || builtKeypad != keypadStyle
+            || builtKeypadPaste != keypadPasteEnabled
             || builtGeom != geomSig
             || builtKeyStyle != keyStyle
             || builtAssetsSig != themeAssets?.signature
@@ -3305,6 +3306,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         builtAlts = activeAlts
         builtSplit = split
         builtKeypad = keypadStyle
+        builtKeypadPaste = keypadPasteEnabled
         builtGeom = geomSig
         dropAltHold()                            // phím cũ sắp bị gỡ
         commaTimer?.cancel(); commaTimer = nil; commaFired = false
@@ -4498,6 +4500,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Kiểu bàn số lớn của ô hiện tại (nil = ô thường). Đặt qua configureInputKind.
     private var keypadStyle: NumericKeypad.Style?
     private var builtKeypad: NumericKeypad.Style?
+    private var builtKeypadPaste = false
+    /// 📋 trên bàn số lớn (controller bật khi có Toàn quyền). Đổi ⇒ dựng lại nếu đang ở bàn số.
+    var keypadPasteEnabled = false {
+        didSet { if oldValue != keypadPasteEnabled, plane == .keypad { rebuild() } }
+    }
+    /// Chạm 📋 bàn số — controller đọc clipboard, lọc (`NumericKeypad.cleanPaste`) rồi chèn.
+    var onKeypadPaste: (() -> Void)?
     /// Nhãn số + chữ cái phụ của plane bàn số đã dựng (cỡ chữ đổi theo hướng tại chỗ).
     private var keypadLabels: [(digit: UILabel, letters: UILabel)] = []
     private var keypadLandscape: Bool?
@@ -4519,12 +4528,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             if firstDigit == nil { firstDigit = keys[0] }
         }
         var corner: [UIView] = []
-        for c in NumericKeypad.corner(style: style, needsGlobe: needsGlobe) {
+        for c in NumericKeypad.corner(style: style, needsGlobe: needsGlobe, paste: keypadPasteEnabled) {
             switch c {
             case .globe: corner.append(makeGlobeKey())
             case .letters:
                 corner.append(makePlaneKey("ABC"))
             case .text(let t): corner.append(keypadSymbol(t, style: style))
+            case .paste: corner.append(makeKeypadPasteKey())
             }
         }
         let zero = keypadDigit("0", style: style)
@@ -4576,6 +4586,16 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         armCommit(b) { [weak self] in self?.tapped(.text(d)) }
         let hold = NumericKeypad.holdChoices(for: d, style: style)
         if !hold.isEmpty { armDomainHold(b, choices: hold, variants: true) }
+        return b
+    }
+
+    /// 📋 Dán ở ô góc bàn số (icon như nút lịch sử clipboard trên dải).
+    private func makeKeypadPasteKey() -> KeyButton {
+        let b = controlButton(title: "") { [weak self] in self?.onKeypadPaste?() }
+        b.setImage(UIImage(systemName: "doc.on.clipboard",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .regular)), for: .normal)
+        b.tintColor = fnInk
+        b.accessibilityLabel = L("Dán")
         return b
     }
 

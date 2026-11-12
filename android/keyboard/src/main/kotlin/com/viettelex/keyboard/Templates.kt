@@ -62,6 +62,16 @@ object Templates {
         return current.toMutableList().also { it[index] = TemplateItem(l, t) }
     }
 
+    /**
+     * "Hoàn tác" sau khi vuốt xoá (báo lỗi 13/11/2026: vuốt nhầm mất mẫu câu): chèn lại [item]
+     * (cả label) đúng vị trí [index] cũ — kẹp vào cuối nếu danh sách đã ngắn hơn. Câu đã có lại
+     * (vừa thêm tay) ⇒ giữ nguyên, không nhân đôi.
+     */
+    fun restore(current: List<TemplateItem>, index: Int, item: TemplateItem): List<TemplateItem> {
+        if (current.any { it.text == item.text }) return current
+        return current.toMutableList().also { it.add(index.coerceIn(0, it.size), item) }
+    }
+
     /** Thêm mới: null = không thêm (lý do: [tryAdd]). */
     fun add(current: List<TemplateItem>, label: String, text: String): List<TemplateItem>? =
         (tryAdd(current, label, text) as? AddResult.Added)?.list

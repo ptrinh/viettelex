@@ -1664,6 +1664,23 @@ class KeyboardSession(
         lastCommit = null
     }
 
+    /**
+     * Phím 📋 bàn số: dán clipboard sau khi [filter] (vd [NumericPaste.clean]) — như nút Dán trên
+     * dải (đánh dấu mục đã dùng ⇒ lời mời Dán không hiện lại). Trả chữ đã chèn ("" = không chèn).
+     */
+    fun pasteFiltered(proxy: TextProxy, filter: (String) -> String): String {
+        clearSwipe(); clearUndo()
+        val cb = clipboard
+        val s = cb?.readText()?.let(filter).orEmpty()
+        if (s.isNotEmpty()) proxy.insertText(s)
+        pasteUsedChange = cb?.changeCount ?: -1
+        pasteOnce.used(pasteId)
+        pasteCached = false
+        bridge.reset(); lastWord = null; lastWord2 = null
+        lastCommit = null
+        return s
+    }
+
     // MARK: chạm gợi ý
 
     /**

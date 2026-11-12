@@ -217,6 +217,7 @@ final class KeyboardViewController: UIInputViewController {
             if side != .off { UserDefaults.standard.set(side.rawValue, forKey: OneHand.lastSideKey) }
         }
         keyboard.onOpenClipboard = { [weak self] in self?.toggleClipboardPanel() }
+        keyboard.onKeypadPaste = { [weak self] in self?.pasteIntoKeypad() }
         keyboard.onPasteOfferVisible = { [weak self] on in
             guard let self else { return }
             if on { self.pasteOnce.displayed(self.pasteSeenChange) } else { self.pasteOnce.ended() }
@@ -457,6 +458,7 @@ final class KeyboardViewController: UIInputViewController {
         suggestAnywaySetting = settings.suggestInNoSuggestFields
         appliedFullAccess = hasFullAccess
         keyboard.setClipboardButton(visible: clip.historyEnabled && appliedFullAccess)
+        keyboard.keypadPasteEnabled = appliedFullAccess
         filterSensitive = settings.filterSensitive
         SwipeVocab.filterSensitive = settings.filterSensitive   // gõ vuốt theo cùng công tắc
         SwipeVocab.teencode = settings.teencode && !settings.vniMode   // er → ẻ (nét Telex)
@@ -2478,6 +2480,7 @@ final class KeyboardViewController: UIInputViewController {
         TouchLog.write("fullAccess willAppear=\(appliedFullAccess ? 1 : 0) didAppear=\(fa ? 1 : 0)")
         appliedFullAccess = fa
         keyboard?.setClipboardButton(visible: clip.historyEnabled && fa)
+        keyboard?.keypadPasteEnabled = fa
         KeyboardView.hapticsEnabled = hapticSetting && fa
         if fa { reportStatusToApp() }
     }
@@ -2507,6 +2510,22 @@ final class KeyboardViewController: UIInputViewController {
         pasteCached = false
         bridge.reset(); lastWord = nil; lastWord2 = nil
         return pasted
+    }
+
+    /// 📋 bàn số lớn: dán clipboard đã lọc theo kiểu bàn số ("0903 389 710" → "0903389710").
+    private func pasteIntoKeypad() {
+        guard let style = fieldTraits?.keypadStyle(isPad: UIDevice.current.userInterfaceIdiom == .pad) else { return }
+        applyingEdit = true
+        defer { applyingEdit = false }
+        let pb = pasteboard
+        let s = NumericKeypad.cleanPaste(pb.string, style: style)
+        if !s.isEmpty { textProxy.insertText(s) }
+        if TouchLog.enabled { TouchLog.write("keypadPaste inserted=\(s.count)") }
+        pasteUsedChange = pb.changeCount
+        pasteOnce.used(pasteUsedChange)
+        pasteCached = false
+        bridge.reset(); lastWord = nil; lastWord2 = nil
+        updateSuggestions()
     }
 
     /// Tap gợi ý (hành vi QuickType): emoji thay hẳn từ; từ tiếng Việt thay

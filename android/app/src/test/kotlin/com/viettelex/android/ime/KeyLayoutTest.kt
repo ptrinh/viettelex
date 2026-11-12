@@ -428,6 +428,22 @@ class KeyLayoutTest {
         assertEquals("?123", both.first { it.kind == KeyKind.MORE }.label)
     }
 
+    /** Báo lỗi 13/11/2026: bàn số không có cách dán số điện thoại vừa copy ⇒ 📋 chia đôi khe space. */
+    @Test fun everyPadHasPasteKeyBesideSpace() {
+        for (k in listOf(pad(Plane.PHONE, InputKind.PHONE), pad(Plane.NUMPAD, InputKind.NUMBER),
+                         pad(Plane.NUMPAD, InputKind.DATETIME), pad(Plane.NUMPAD, InputKind.NUMBER, signed = true, decimal = true))) {
+            val paste = k.single { it.kind == KeyKind.PASTE }
+            val space = k.single { it.kind == KeyKind.SPACE }
+            val bs = k.first { it.kind == KeyKind.BACKSPACE }
+            near(paste.top, space.top); near(paste.bottom, space.bottom)
+            assertTrue(space.right < paste.left)
+            near(space.left, bs.left); near(paste.right, bs.right)
+            near(paste.width, space.width)
+            assertEquals(KeyKind.PASTE, KeyLayout.hit(k, Plane.NUMPAD, paste.centerX, paste.centerY, 4f, d)?.kind)
+            assertTrue(KeyKind.isSpecial(KeyKind.PASTE))
+        }
+    }
+
     @Test fun datetimePadHasSeparators() {
         val k = padLabels(pad(Plane.NUMPAD, InputKind.DATETIME))
         assertTrue(k.containsAll(listOf("/", ":", "-")))

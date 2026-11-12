@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,6 +39,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
 import com.viettelex.android.plus.PlusController
@@ -101,13 +104,25 @@ fun RootScreen(
             }
         }
     }
-    // Cuộn tay ⇒ đóng bàn phím (scrollDismissesKeyboard(.immediately)).
-    val dismissOnScroll = remember(focus) {
+    // Cuộn tay ⇒ đóng bàn phím (scrollDismissesKeyboard(.immediately)) — CHỈ khi trang thật sự
+    // cuộn ≥ [ScrollDismiss.THRESHOLD_DP] (báo lỗi 13/11/2026 "bàn phím hay bị ẩn, chỉ trong app cài
+    // đặt"): trước đây MỌI onPreScroll do tay (kể cả cú kéo trong ô nhập nhiều dòng của Mẫu câu,
+    // ngón trượt nhẹ khi chạm ô, kéo ở trang không cuộn được / mép trang) đều clearFocus ⇒ bàn phím
+    // vừa hiện đã bị đóng.
+    val dismissOnScroll = remember(focus, scroll) {
+        val tracker = ScrollDismiss(with(density) { ScrollDismiss.THRESHOLD_DP.dp.toPx() })
         object : NestedScrollConnection {
+            private var before = 0
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (source == NestedScrollSource.UserInput) focus.clearFocus()
+                before = scroll.value
                 return Offset.Zero
             }
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (tracker.onScroll(source == NestedScrollSource.UserInput, (scroll.value - before).toFloat()))
+                    focus.clearFocus()
+                return Offset.Zero
+            }
+            override suspend fun onPreFling(available: Velocity): Velocity { tracker.reset(); return Velocity.Zero }
         }
     }
     val keyboardShown = WindowInsets.ime.getBottom(density) > 0
@@ -149,6 +164,12 @@ fun RootScreen(
             }
         }
 
+        // Thanh báo (vd "Đã xoá mẫu câu · Hoàn tác") — nổi trên tab bar / bàn phím.
+        SnackbarHost(AppSnackbar.host, Modifier.align(Alignment.BottomCenter).navigationBarsPadding()
+            .padding(bottom = if (keyboardShown) 8.dp else 76.dp)) { data ->
+            Snackbar(data, containerColor = c.label, contentColor = c.groupedBg, actionColor = c.accent)
+        }
+
         if (!keyboardShown) {
             Box(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 8.dp)) {
                 // Chạm tab ⇒ về trang chính của tab (Tính Năng tự về vì trạng thái nằm trong tab).
@@ -156,4 +177,27 @@ fun RootScreen(
             }
         }
     }
+}
+
+/**
+ * Cuộn trang đóng bàn phím (hàm thuần để test): chỉ cú kéo TAY làm trang dịch tổng cộng ≥
+ * [thresholdPx] trong một lần kéo; [reset] khi nhả tay (onPreFling). Kéo không làm trang dịch
+ * (ô nhập tự cuộn, trang ngắn, mép trang) không tính.
+ */
+class ScrollDismiss(private val thresholdPx: Float) {
+    private var moved = 0f
+    private var fired = false
+
+    /** Một lượt cuộn; true = đóng bàn phím (một lần mỗi cú kéo). */
+    fun onScroll(userInput: Boolean, pageDeltaPx: Float): Boolean {
+        if (!userInput || pageDeltaPx == 0f || fired) return false
+        moved += kotlin.math.abs(pageDeltaPx)
+        if (moved < thresholdPx) return false
+        fired = true
+        return true
+    }
+
+    fun reset() { moved = 0f; fired = false }
+
+    companion object { const val THRESHOLD_DP = 24f }
 }
