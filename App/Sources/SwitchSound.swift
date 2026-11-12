@@ -15,8 +15,9 @@ enum SwitchSound {
     static let leadMs = 30       // lặng đầu: thiết bị âm thanh có thể cắt mất phần mở đầu
     static let noteMs = 90
     static let gapMs = 20        // nghỉ giữa hai nốt để nghe ra hai nốt
-    static let lowHz = 261.63    // C4
-    static let highHz = 392.00   // G4: trầm, êm, cách nhau một quãng năm
+    // Tiếng gõ gỗ ("tóc"): mỗi nốt gõ một cái rồi tắt ngay trong nốt, không ngân.
+    static let lowHz = 250.0
+    static let highHz = 375.0    // cao hơn một quãng năm
 
     // MARK: - Phần thuần (có test)
 
@@ -47,9 +48,13 @@ enum SwitchSound {
         for _ in 0..<lead { u16(0) }
         for (n, hz) in notes.enumerated() {
             for i in 0..<perNote {
-                // Cửa sổ Hann trên cả nốt: phồng lên rồi tắt dần, không có tiếng gõ.
-                let env = 0.5 - 0.5 * cos(2 * Double.pi * Double(i) / Double(perNote - 1))
-                let v = sin(2 * Double.pi * hz * Double(i) / Double(sampleRate)) * env * 0.20
+                // Mõ gỗ: âm cơ bản gõ rồi tắt nhanh, thêm hai bội âm lệch tắt còn nhanh hơn.
+                let t = Double(i) / Double(sampleRate)
+                let attack = t < 0.002 ? t / 0.002 : 1.0
+                let w0 = 2 * Double.pi * hz * t
+                let v = attack * (0.15 * exp(-t / 0.022) * sin(w0)
+                                  + 0.035 * exp(-t / 0.008) * sin(2.7 * w0)
+                                  + 0.012 * exp(-t / 0.004) * sin(5.2 * w0))
                 u16(UInt16(bitPattern: Int16((v * 32767).rounded())))
             }
             if n == 0 { for _ in 0..<gap { u16(0) } }
