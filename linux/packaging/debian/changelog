@@ -1,3 +1,16 @@
+viettelex (1.0.26) UNRELEASED; urgency=medium
+
+  * Tuỳ chọn mới "Phát tiếng khi đổi Việt/Anh" (tắt sẵn): tiếng đi lên là tiếng
+    Việt, đi xuống là tiếng Anh, chỉ khi bạn tự đổi bằng phím chuyển hoặc menu
+    bộ gõ. Cần pw-play, paplay hoặc aplay.
+  * ---
+  * New option "Play a sound when switching Vietnamese/English" (off by
+    default): a rising tone means Vietnamese, a falling one English, only when
+    you switch with the toggle hotkey or the input method menu. Needs pw-play,
+    paplay or aplay.
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Thu, 12 Nov 2026 14:30:00 +0700
+
 viettelex (1.0.25) UNRELEASED; urgency=medium
 
   * Sửa: gõ tắt có dấu hai chấm (:D) không còn biến mất; đọc đúng file gõ tắt
