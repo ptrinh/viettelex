@@ -1097,6 +1097,7 @@ final class ThemeSetTests: XCTestCase {
         let rgb = try XCTUnwrap(KeyboardTheme.rgb.spec)
         XCTAssertEqual(rgb.nameEn, "Gaming RGB")
         XCTAssertEqual(rgb.sound, "mechanical"); XCTAssertEqual(rgb.effect, "glitch")
+        XCTAssertEqual(KeyboardTheme.neon.spec?.effect, "keyglow", "Neon: Phím sáng (Phil 13/11)")
         for dark in [false, true] {
             XCTAssertTrue(KeyboardTheme.rgb.palette(systemDark: dark).rainbowBorder)
             XCTAssertNil(KeyboardTheme.rgb.palette(systemDark: dark).keyBorder, "viền thường nhường chỗ cầu vồng")

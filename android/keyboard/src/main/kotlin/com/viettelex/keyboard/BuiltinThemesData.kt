@@ -60,7 +60,7 @@ internal object BuiltinThemesData {
                "fn": "#4A5E45"}
     },
     {
-      "v": 1, "id": "neon", "name": {"vi": "Neon", "en": "Neon"}, "swipe": "neon",
+      "v": 1, "id": "neon", "name": {"vi": "Neon", "en": "Neon"}, "swipe": "neon", "effect": "keyglow",
       "light": {"bg": "#05080A", "key": "#0E2A2E", "special": "#15393E", "ink": "#5FF5E8", "accent": "#00BFB2",
                 "border": "#B200E5D4"},
       "dark": "same"

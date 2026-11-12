@@ -405,6 +405,7 @@ class ThemeSetTests {
         assertEquals(80, tw.corner)
         val rgb = KeyboardTheme.RGB.spec!!
         assertEquals("mechanical", rgb.sound); assertEquals("glitch", rgb.effect)
+        assertEquals("Neon: Phím sáng (Phil 13/11)", "keyglow", KeyboardTheme.NEON.spec!!.effect)
         for (dk in listOf(false, true)) {
             assertTrue(KeyboardTheme.RGB.palette(dk)!!.rainbowBorder)
             assertNull("viền thường nhường chỗ cầu vồng", KeyboardTheme.RGB.palette(dk)!!.keyBorder)
