@@ -136,6 +136,7 @@ void TypingSession::reset() {
     shown_.clear();
     droppedSig_.clear();
     undoneSig_.clear();
+    wordStartCtx_.clear();
     rewritePending_ = false;
     overflow_ = false;
     reopenArmed_ = false;
@@ -499,6 +500,22 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
                 wordMode_ = OutputMode::Composition;
                 stale = false;
             }
+            // The same IMM host, the caret after EXISTING text (2026-11, Edge's Save As: the
+            // file name edited at its end, "read 1, word 1" on every key — no key ever typed):
+            // the first letter of the word was let through and lost, the store shows exactly
+            // what it showed before that letter. Not empty, so the branch above never saw it;
+            // each next key dropped the word and was lost the same way. Same answer: keep the
+            // word and compose all of it, this field composes from now on.
+            if (stale && !afterRewrite && !before.empty() && shown_.size() == 1 && !dropsPassedKeys_ &&
+                !passedKeysReachApp_ && !wordStartCtx_.empty() &&
+                sink.textBeforeCaret(kWordStartCtx) == wordStartCtx_) {
+                fallBack("in-place: the first letter never reached the field -> composition for this field");
+                if (opt_.log)
+                    opt_.log("in-place: letters let through never reached the app (IMM host) -> composing them");
+                setHostDropsPassedKeys(true);
+                wordMode_ = OutputMode::Composition;
+                stale = false;
+            }
             if (stale && !afterRewrite)
                 note(staleNote("in-place: text before the caret no longer ends with the word -> word dropped, "
                                "this key starts a new word",
@@ -510,6 +527,13 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
     if (vtx_is_empty(engine_)) {
         undoneSig_.clear();
         wordMode_ = effectiveMode();
+        // What stands before the caret as this word starts — only where a letter let
+        // through may be lost (an IMM host not yet proven, see "the first letter never
+        // reached the field" above): one short read per word there, none elsewhere.
+        wordStartCtx_.clear();
+        if (wordMode_ == OutputMode::InPlace && !sink.blind() && !dropsPassedKeys_ && !passedKeysReachApp_ &&
+            !asyncStore_ && !notTextField_)
+            wordStartCtx_ = sink.textBeforeCaret(kWordStartCtx);
         if (wordMode_ == OutputMode::InPlace && !sink.blind() && !sink.canReadContext()) {
             fallBack("in-place: cannot read the text around the caret -> composition for this field");
             wordMode_ = OutputMode::Composition;

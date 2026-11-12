@@ -361,6 +361,8 @@ private:
     bool notTextField_ = false;          // see notTextField()
     bool compositionMustShow_ = false;   // see setCompositionMustShow()
     int emptyStoreHits_ = 0;             // words whose letters the store never showed
+    static constexpr int kWordStartCtx = 8;
+    std::u16string wordStartCtx_;        // text before the caret when this word started (IMM-host check)
     bool storeMisreads_ = false;         // see storeMisreads()
     bool passingWord_ = false;           // see passingWord()
     // Gõ tắt with symbol / digit keys ("=>", "<>", "->": shortcuts.h findTokenShortcut).

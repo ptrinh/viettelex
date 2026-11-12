@@ -2313,6 +2313,42 @@ TEST(edit_dropping_claimed_keys_still_composes_them) {
     CHECK(s.hostDropsPassedKeys());
 }
 
+TEST(edit_dropping_claimed_keys_after_existing_text_composes_them) {
+    // 2026-11 report (Edge's Save As on Windows 10, the file name edited at its end): the
+    // parent store READS the Edit, the Edit drops claimed keys let through. The store showed
+    // the old text, not empty -> "no longer ends with the word -> word dropped" on every
+    // key ("read 1, word 1"), each key lost the same way: no key typed anything while
+    // Vietnamese was on. Now the unchanged text before the caret proves the first letter
+    // never arrived: the word is composed whole.
+    Settings st;
+    TypingSession s;
+    notepadSession(s, st);
+    NotepadEdit d;
+    const std::string name = "H\xc4\x90 s\xe1\xbb\xad" "a (YKT\xc4\x90)";  // "HĐ sửa (YKTĐ)"
+    d.app.setText(utf8ToUtf16(name));
+    CHECK_EQ(typeNotepad(s, d, " cos comment thaamr ddinhj ", true),
+             name + " c\xc3\xb3 comment th\xe1\xba\xa9m \xc4\x91\xe1\xbb\x8bnh ");  // " có comment thẩm định "
+    CHECK(s.hostDropsPassedKeys());
+    CHECK(s.contextFellBack());
+    CHECK(!s.storeMisreads());
+}
+
+TEST(edit_caret_moved_after_the_first_letter_is_not_an_imm_host) {
+    // The letter DID arrive, then the caret moved (a click): the text before the caret is
+    // not what it was when the word started -> the word is dropped as before, in place.
+    Settings st;
+    TypingSession s;
+    notepadSession(s, st);
+    NotepadEdit d;
+    d.app.setText(utf8ToUtf16("abc def"));
+    typeNotepad(s, d, "t");
+    d.app.caret = d.app.anchor = 3;  // after "abc"
+    typeNotepad(s, d, "i");
+    CHECK(!s.hostDropsPassedKeys());
+    CHECK(!s.contextFellBack());
+    CHECK_EQ(utf16ToUtf8(d.app.text), std::string("abci deft"));
+}
+
 TEST(passing_word_ends_at_a_non_word_key_and_with_the_focus) {
     Settings st;
     TypingSession s;
