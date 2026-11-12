@@ -131,6 +131,8 @@ object Keys {
     const val BUDDY_PAD_TOP = "buddyPadTop"
     /** String — "Hiệu ứng nét vuốt" ([SwipeTrailStyle.id]): none|simple|fire|electric|brush|rainbow|neon|stardust|firework|theme, mặc định simple. Tên như iOS App Group. */
     const val SWIPE_TRAIL = "swipeTrail"
+    /** String — "Âm thanh nét vuốt" ([SwipeSoundStyle.id]): none|pencil|brush|chalk|marker, mặc định none. Tên như iOS App Group. */
+    const val SWIPE_SOUND = "swipeSound"
     /** Int −10…18 (dp mỗi hàng; [KeyboardSettings.ROW_HEIGHT_MAX], trên +10 còn kẹp theo cao màn hình). */
     const val ROW_HEIGHT_ADJUST = "rowHeightAdjust"
     /** Bool — hàng phím số trên plane chữ (tên như iOS App Group). */

@@ -121,7 +121,7 @@ Mỗi nền tảng: test hiện có xanh; test mới cho (a) bộ chọn hồ s�
 | Khi… | Ẩn (cùng nhóm) | Làm mờ + lý do (trang khác) |
 |---|---|---|
 | Chọn VNI | Telex đơn giản, Bỏ dấu tự do, Gõ nhanh (cc→ch); nhóm Gõ lẫn tiếng Anh (§1) | Mobile: Tự sửa từ gõ sai, Chọn phím thông minh — "Chỉ áp dụng cho Telex" |
-| Tắt Gõ vuốt (mobile) | Vuốt từ tiếng Anh, Mô hình neural + ghi công, Luyện vuốt, Hiệu ứng nét vuốt | |
+| Tắt Gõ vuốt (mobile) | Vuốt từ tiếng Anh, Mô hình neural + ghi công, Luyện vuốt, Hiệu ứng nét vuốt, Âm thanh nét vuốt | |
 | Tắt Thanh gợi ý (mobile) | Số từ gợi ý, Gợi ý cả khi app tắt gợi ý, Gợi ý số tiền, Kết quả phép tính, Gợi ý emoji, Nút Dán, Thêm dấu, Sửa lỗi bằng Apple Intelligence | Gợi ý sửa lỗi chạm trượt — "Cần bật Thanh gợi ý" |
 | Tắt Tự khôi phục từ tiếng Anh (desktop) | Khi từ vừa Anh vừa Việt, Đoán từ trùng theo tần suất | |
 | Tắt Quyết định theo ngữ cảnh | Tự sửa từ phía trước, Đoán từ trùng theo tần suất | |

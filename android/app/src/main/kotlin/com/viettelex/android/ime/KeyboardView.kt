@@ -64,6 +64,8 @@ class KeyboardView(
     /** Vệt gõ vuốt (overlay cùng toạ độ); null = không vẽ ("Hiệu ứng nét vuốt" = Tắt — IME đặt lúc hiện). */
     var trail: SwipeTrailView? = null,
 ) : View(context) {
+    /** "Âm thanh nét vuốt": null = Tắt (IME đặt lúc hiện) ⇒ đường vuốt chỉ đọc một biến null. */
+    var swipeSound: SwipeSoundPlayer? = null
 
     interface Listener {
         fun onKey(key: Key)
@@ -2099,7 +2101,7 @@ class KeyboardView(
     private fun swipePoint(x: Float, y: Float, t: Long) {
         val p = swipePath ?: return
         p.add(x, y - yOffPx, t / 1000.0)
-        if (swiping) { trail?.add(x, y, t); return }
+        if (swiping) { trail?.add(x, y, t); swipeSound?.move(x / d, (y - yOffPx) / d, t); return }   // cùng toạ độ swipePath (begin)
         // Đang là ứng viên vuốt-lên-ra-lệnh: chưa cho thành gõ vuốt (bị loại ⇒ chạy tiếp với cả đường).
         if (swipePid == keyCmdPid && keyCmd?.live == true) return
         when (classifier.move(x / d, y / d, t)) {
@@ -2117,6 +2119,10 @@ class KeyboardView(
         swipeKey?.let { hideBalloon(it) }
         // Chữ đầu đã huỷ ⇒ shift một-lần bị nhả lúc chạm phải bật lại (từ vuốt viết hoa).
         if (swipeShift == Shift.ON && shift == Shift.OFF) { shift = Shift.ON; invalidate() }
+        swipeSound?.let { s ->
+            val j = p.count - 1
+            if (j >= 0) s.begin(p.xs[j] / d, p.ys[j] / d, (p.ts[j] * 1000).toLong())
+        }
         val tr = trail ?: return
         tr.begin()
         for (j in 0 until p.count) tr.add(p.xs[j], p.ys[j] + yOffPx, (p.ts[j] * 1000).toLong())
@@ -2126,6 +2132,7 @@ class KeyboardView(
         ptrKey[pid]?.let { hideBalloon(it) }
         ptrKey[pid] = null
         val p = swipePath
+        swipeSound?.end()
         if (cancelled || p == null) {
             trail?.end(fade = false)
             listener?.onSwipeTypingCancel()
@@ -2153,6 +2160,7 @@ class KeyboardView(
         if (!was) return
         if (pid in 0 until MAX_PTR) { ptrKey[pid]?.let { hideBalloon(it) }; ptrKey[pid] = null }
         trail?.end(fade = false)
+        swipeSound?.end()
         listener?.onSwipeTypingCancel()
     }
 

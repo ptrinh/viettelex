@@ -139,10 +139,10 @@ enum SettingsDeps {
 
     // MARK: Gõ vuốt
 
-    enum SwipeRow: CaseIterable, Hashable { case swipeEnglish, neuralModel, trailEffect, practice }
+    enum SwipeRow: CaseIterable, Hashable { case swipeEnglish, neuralModel, trailEffect, trailSound, practice }
 
     /// Tắt Gõ vuốt ⇒ ẩn mọi dòng bên dưới công tắc (cùng trang): Vuốt từ tiếng Anh, Mô hình neural +
-    /// ghi công, Hiệu ứng nét vuốt, Luyện vuốt.
+    /// ghi công, Hiệu ứng nét vuốt, Âm thanh nét vuốt, Luyện vuốt.
     static func swipeRows(swipeTyping: Bool) -> [SwipeRow] {
         swipeTyping ? SwipeRow.allCases : []
     }

@@ -5515,6 +5515,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// "Âm thanh phím" (setting keySound + Full Access): BẬT ⇒ tiếng riêng qua KeySound,
     /// KHÔNG kèm playInputClick (không kêu đôi). TẮT ⇒ y như cũ (click hệ thống).
     nonisolated(unsafe) static var customSoundEnabled = false
+    /// "Âm thanh nét vuốt" (SwipeSound): nil = Tắt / thiếu Full Access (controller đặt lúc hiện) ⇒ đường vuốt chỉ đọc
+    /// một optional.
+    nonisolated(unsafe) static var swipeSound: SwipeSound?
     /// Kiểu "Piano" / "Đàn tranh" (cùng customSoundEnabled): mỗi phím một nốt theo nhãn phím (`pianoMap`) —
     /// controller bật khi kiểu là nhạc cụ (KeyInstrument). Kiểu khác: đường 3 tiếng như cũ.
     nonisolated(unsafe) static var pianoEnabled = false
@@ -7520,6 +7523,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let p = TouchGeometry.keySelectionPoint(raw)
         swipePath?.add(x: Float(p.x), y: Float(p.y), t: time)
         if swipeActive {
+            Self.swipeSound?.move(x: Double(p.x), y: Double(p.y), t: time)   // cùng toạ độ swipePath (begin)
             trail?.add(raw, time)   // hạt (pháo hoa…) vẫn bắn theo từng điểm
             return trail != nil
         }
@@ -7546,6 +7550,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if shiftBeforeLastLetter == .on, shift == .off { shift = .on; applyShiftAppearance() }
         swipeCase = shift == .caps ? .upper : (shift == .on ? .capitalized : .lower)
         onSwipeBegan?()
+        if let s = Self.swipeSound, let path = swipePath, path.count > 0 {
+            let j = path.count - 1
+            s.begin(x: Double(path.xs[j]), y: Double(path.ys[j]), t: path.ts[j])
+        }
         guard trailStyle != .none else { return }
         let t = trail ?? SwipeTrailRenderer()
         if trail == nil {
@@ -7575,6 +7583,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         swipeTouchID = nil
         classifier = nil
         trail?.fadeOut(reduceMotion: false)   // Giảm chuyển động KHÔNG tắt hiệu ứng (Phil 11/2026)
+        Self.swipeSound?.end()
         if shift == .on { shift = .off; applyShiftAppearance() }
         #if DEBUG
         debugSwipeUps += 1
@@ -7588,6 +7597,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         swipeTouchID = nil
         classifier = nil
         trail?.fadeOut(reduceMotion: true)
+        Self.swipeSound?.end()
     }
 
     #if DEBUG

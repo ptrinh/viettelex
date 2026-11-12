@@ -117,6 +117,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         return AndroidEditorPort(ic).also { portCache = it }
     }
     private val feedback by lazy { Feedback(this) }
+    /** "Âm thanh nét vuốt" — chỉ tạo khi kiểu khác Tắt ([applySwipeSound]). */
+    private var swipeSoundPlayer: SwipeSoundPlayer? = null
     private val voice by lazy { VoiceInput(this) }
     private var voiceChecked = false
 
@@ -372,6 +374,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         clipboard.release()
         clipboard.onChanged = null
         feedback.releaseSound()
+        swipeSoundPlayer?.release(); swipeSoundPlayer = null
         handler.removeCallbacksAndMessages(null)   // gợi ý / auto-shift / hẹn giờ ẩn còn chờ
         workerThread?.quitSafely()
         session.finishInput()
@@ -522,6 +525,26 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     }
 
     private val tokenRect = FloatArray(4)
+
+    /**
+     * "Âm thanh nét vuốt": kiểu + cổng Plus + Trình tiết kiệm pin + âm lượng Âm thanh phím — đọc MỘT lần mỗi lần hiện.
+     * Tắt / âm lượng 0 / gõ vuốt tắt ⇒ nhả SoundPool, KeyboardView không giữ gì (đường vuốt chỉ đọc một biến null).
+     */
+    private fun applySwipeSound(settings: KeyboardSettings, kb: KeyboardView) {
+        val setting = if (settings.swipeTyping) settings.swipeSound else com.viettelex.keyboard.SwipeSoundStyle.NONE
+        val powerSave = setting.isPlus &&
+            (getSystemService(POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true
+        val style = com.viettelex.keyboard.SwipeSoundPolicy.active(setting,
+            com.viettelex.keyboard.SwipeSoundGate.allows(setting), powerSave, settings.keySoundVolume)
+        if (style == com.viettelex.keyboard.SwipeSoundStyle.NONE) {
+            swipeSoundPlayer?.release(); swipeSoundPlayer = null
+            kb.swipeSound = null
+            return
+        }
+        val p = swipeSoundPlayer ?: SwipeSoundPlayer(this).also { swipeSoundPlayer = it }
+        p.configure(style, settings.keySoundVolume) { worker().post(it) }
+        kb.swipeSound = p
+    }
 
     /**
      * "Hiệu ứng nét vuốt": kiểu + cổng Plus + Trình tiết kiệm pin; "Theo giao diện" ⇒ "swipe" của theme đang dùng —
@@ -846,6 +869,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         applyKeyEffect(settings.keyEffect, th, kb)
         applyBuddy(settings.buddy, settings.buddyStyle, settings.buddyPlacement, th, st)
         applySwipeTrail(settings.swipeTrail, th, kb)
+        applySwipeSound(settings, kb)
         applyMole(th, kb)
         applySpotlight(th, kb, settings.buddy)
         applyKeyFloat(settings.keyEffect, th, kb)
@@ -966,6 +990,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         trackpadMoved = false                  // ô đóng: không auto-shift/gợi ý lúc nhả trackpad
         keyboard?.onHidden()
         feedback.onHidden()                    // âm phím riêng: dừng tiếng đang kêu, GIỮ mẫu đã nạp (nhả ở releaseIdle)
+        swipeSoundPlayer?.onHidden()           // âm thanh nét vuốt: dừng vòng lặp, GIỮ mẫu (nhả ở releaseIdle)
         closeClipboardPane()
         inputShown = false
         session.pasteOnce.ended()              // ẩn bàn phím: lời mời dán đang hiện coi như bỏ qua
@@ -1025,6 +1050,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         templatesCache = null
         // RAM 10/11/2026: SoundPool giữ qua các lần ẩn ngắn, nhả ở đây; cache từ vựng vuốt theo decoder vừa bỏ.
         feedback.releaseSound()
+        swipeSoundPlayer?.release()            // lần hiện kế applySwipeSound nạp lại
         com.viettelex.keyboard.SwipeVocab.release()
         // RAM-AUDIT 10/11/2026: atlas Bạn đồng hành (view đã nhả ở dropWallpaper — cùng người nhảy Night Club, ảnh hiệu
         // ứng phím; nạp lại ở reloadWallpaper trên vt-rewarm) ⇒ bỏ luôn bản cache cấp process.

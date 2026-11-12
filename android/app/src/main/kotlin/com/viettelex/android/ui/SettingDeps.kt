@@ -29,8 +29,8 @@ internal object SettingDeps {
     fun telexOnlyReason(vniMode: Boolean): String? = if (vniMode) MixedTypingUI.TELEX_ONLY else null
 
     /** Dòng của trang Gõ vuốt, theo thứ tự hiển thị. */
-    enum class SwipeRow { Toggle, SwipeEnglish, NeuralModel, Trail, Practice }
+    enum class SwipeRow { Toggle, SwipeEnglish, NeuralModel, Trail, TrailSound, Practice }
 
-    /** Gõ vuốt tắt ⇒ chỉ còn công tắc (Vuốt từ tiếng Anh, neural + ghi công, nét vuốt, luyện vuốt ẩn). */
+    /** Gõ vuốt tắt ⇒ chỉ còn công tắc (Vuốt từ tiếng Anh, neural + ghi công, hiệu ứng + âm thanh nét vuốt, luyện vuốt ẩn). */
     fun swipeRows(swipeOn: Boolean): List<SwipeRow> = if (swipeOn) SwipeRow.entries else listOf(SwipeRow.Toggle)
 }

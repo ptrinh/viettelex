@@ -529,6 +529,8 @@ struct GoVuotPage: View {
     @AppStorage("swipeFuto", store: featureDefaults) private var swipeFuto = false
     /// "Hiệu ứng nét vuốt" (SwipeTrailStyle) — trang con SwipeTrailPickerView.
     @AppStorage(SwipeTrailStyle.key, store: featureDefaults) private var swipeTrailRaw = SwipeTrailStyle.defaultValue.rawValue
+    /// "Âm thanh nét vuốt" (SwipeSoundStyle) — trang con SwipeSoundPickerView.
+    @AppStorage(SwipeSoundStyle.key, store: featureDefaults) private var swipeSoundRaw = SwipeSoundStyle.defaultValue.rawValue
 
     var body: some View {
         // Tắt Gõ vuốt ⇒ ẩn mọi dòng phụ thuộc trên trang này (SettingsDeps.swipeRows, spec §6).
@@ -564,6 +566,19 @@ struct GoVuotPage: View {
                             Spacer()
                             Text(SwipeTrailStyle.displayed(swipeTrailRaw).title)
                                 .foregroundStyle(.secondary).lineLimit(1)
+                        }
+                    }
+                    if rows.contains(.trailSound) {
+                        NavigationLink {
+                            SwipeSoundPickerView()
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(L("Âm thanh nét vuốt"))
+                                if !SwipeSoundGate.allows { SwipeTrailPlusBadge() }
+                                Spacer()
+                                Text(SwipeSoundStyle.displayed(swipeSoundRaw).title)
+                                    .foregroundStyle(.secondary).lineLimit(1)
+                            }
                         }
                     }
                 }
