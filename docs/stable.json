@@ -3,12 +3,12 @@
   "url": "https://github.com/ptrinh/viettelex/releases/tag/v1.9.8",
   "build": 156,
   "windows": {
-    "version": "1.3.25",
-    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.25/VietTelex-1.3.25-x64.msi",
-    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.25/VietTelex-1.3.25-arm64.msi",
-    "notes": "Sửa lỗi bật tiếng Việt thì không gõ được khi sửa tên file trong hộp thoại Save As của Edge (ô đã có sẵn chữ).",
-    "portable_x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.25/VietTelex-1.3.25-portable-x64.zip",
-    "portable_arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.25/VietTelex-1.3.25-portable-arm64.zip"
+    "version": "1.3.26",
+    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.26/VietTelex-1.3.26-x64.msi",
+    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.26/VietTelex-1.3.26-arm64.msi",
+    "notes": "Gỡ bàn phím Vietnamese của Windows không còn sửa thẳng danh sách ngôn ngữ; VietTelex rơi khỏi danh sách thì tự thêm lại.",
+    "portable_x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.26/VietTelex-1.3.26-portable-x64.zip",
+    "portable_arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.26/VietTelex-1.3.26-portable-arm64.zip"
   },
   "linux": {
     "version": "1.0.26",
