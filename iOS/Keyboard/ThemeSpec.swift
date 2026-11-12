@@ -868,7 +868,8 @@ enum ThemeExtraIds {
     /// "swipe": kiểu nét vuốt cụ thể (không có "theme" — theme không trỏ về chính nó).
     static let swipes: Set<String> = Set(SwipeTrailStyle.themeIds)
     /// "swipeSound": kiểu âm nét vuốt tổng hợp (không có "none" / "custom" — file riêng của người dùng không đi theo theme).
-    static let swipeSounds: Set<String> = Set(SwipeSoundStyle.synthesized.map(\.rawValue))
+    /// Mọi kiểu trừ Tắt / Âm của bạn — KHÔNG lấy `synthesized` (thiếu "notes": Piano/Ghi-ta bị từ chối, 13/11/2026).
+    static let swipeSounds: Set<String> = Set(SwipeSoundStyle.allCases.filter { $0 != .none && $0 != .custom }.map(\.rawValue))
     /// "game": trò chơi khi gõ (Android ThemeExtraIds.GAMES y hệt).
     static let games: Set<String> = [MoleGame.themeGame]
     /// "keyShape": dáng phím (Android ThemeExtraIds.KEY_SHAPES y hệt).

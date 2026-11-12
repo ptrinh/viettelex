@@ -131,7 +131,8 @@ class ThemeSwipeExtrasTests {
         }
         val wrong = ThemeSpecParser.parse(base + ""","swipeSound":3}""")
         assertTrue(wrong.issues.any { it.code == ThemeIssue.Code.wrongType && it.path == "swipeSound" })
-        assertEquals(SwipeSoundStyle.SYNTHESIZED.map { it.id }.toSet(), ThemeExtraIds.SWIPE_SOUNDS)
+        assertEquals(SwipeSoundStyle.entries.filter { it != SwipeSoundStyle.NONE && it != SwipeSoundStyle.CUSTOM }.map { it.id }.toSet(), ThemeExtraIds.SWIPE_SOUNDS)
+        assertTrue("notes" in ThemeExtraIds.SWIPE_SOUNDS)   // 13/11/2026: Piano/Ghi-ta bị từ chối khi thiếu
     }
 
     @Test fun effectiveStyleInheritsAndEditDropsSameAsBase() {
@@ -154,8 +155,8 @@ class ThemeSwipeExtrasTests {
     }
 
     @Test fun builtinThemesSwipeSoundMapping() {
-        val want = mapOf("xmas" to "wand", "xmasSnow" to "wand", "sen" to "brush", "typewriter" to "pencil",
-            "rgb" to "lightning", "space" to "plasma", "halloween" to "lightning", "gym" to "whip", "zodiac" to "wand")
+        val want = mapOf("xmas" to "wand", "xmasSnow" to "wand", "sen" to "flute", "typewriter" to "pencil",
+            "rgb" to "lightning", "space" to "plasma", "halloween" to "lightning", "gym" to "whip", "zodiac" to "wand", "piano" to "notes", "guitar" to "notes", "trungthu" to "flute", "drift" to "flute", "sea" to "waves", "aquarium" to "waves", "rainyNight" to "waves", "mole" to "cat", "greenFloral" to "birds", "sage" to "birds", "mint" to "birds")
         assertTrue(BuiltinThemes.specs.isNotEmpty())
         for ((id, spec) in BuiltinThemes.specs) {
             assertEquals(id, want[id], spec.swipeSound)

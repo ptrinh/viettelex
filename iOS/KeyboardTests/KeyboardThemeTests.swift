@@ -2097,7 +2097,8 @@ final class ThemeSwipeExtrasTests: XCTestCase {
         }
         let wrong = ThemeSpecParser.parse(base + ##","swipeSound":3}"##)
         XCTAssertTrue(wrong.issues.contains { $0.code == .wrongType && $0.path == "swipeSound" })
-        XCTAssertEqual(ThemeExtraIds.swipeSounds, Set(SwipeSoundStyle.synthesized.map(\.rawValue)))
+        XCTAssertEqual(ThemeExtraIds.swipeSounds, Set(SwipeSoundStyle.allCases.filter { $0 != .none && $0 != .custom }.map(\.rawValue)))
+        XCTAssertTrue(ThemeExtraIds.swipeSounds.contains("notes"))   // 13/11/2026: Piano/Ghi-ta bị từ chối khi thiếu
     }
 
     func testEffectiveStyleInheritsAndEditDropsSameAsBase() throws {
@@ -2117,9 +2118,9 @@ final class ThemeSwipeExtrasTests: XCTestCase {
     }
 
     func testBuiltinThemesSwipeSoundMapping() {
-        let want: [String: String] = ["xmas": "wand", "xmasSnow": "wand", "sen": "brush", "typewriter": "pencil",
+        let want: [String: String] = ["xmas": "wand", "xmasSnow": "wand", "sen": "flute", "typewriter": "pencil",
                                       "rgb": "lightning", "space": "plasma", "halloween": "lightning", "gym": "whip",
-                                      "zodiac": "wand"]
+                                      "zodiac": "wand", "piano": "notes", "guitar": "notes", "trungthu": "flute", "drift": "flute", "sea": "waves", "aquarium": "waves", "rainyNight": "waves", "mole": "cat", "greenFloral": "birds", "sage": "birds", "mint": "birds"]
         XCTAssertFalse(BuiltinThemes.specs.isEmpty)
         for (id, spec) in BuiltinThemes.specs {
             XCTAssertEqual(spec.swipeSound, want[id], id)

@@ -25,7 +25,7 @@ internal object BuiltinThemesData {
       "dark": {"bg": "#2A1A1C", "key": "#45292D", "special": "#5C3A3F", "ink": "#FBE3E1", "accent": "#C2505A"}
     },
     {
-      "v": 1, "id": "mint", "name": {"vi": "Bạc hà", "en": "Mint"},
+      "v": 1, "id": "mint", "swipeSound": "birds", "name": {"vi": "Bạc hà", "en": "Mint"},
       "light": {"bg": "#D9F2E7", "key": "#F6FFFA", "special": "#AFDDC9", "ink": "#173B30", "accent": "#1F7A5C"},
       "dark": {"bg": "#10241D", "key": "#1D3B30", "special": "#2A5244", "ink": "#D9F2E7", "accent": "#1F7A5C"}
     },
@@ -46,14 +46,14 @@ internal object BuiltinThemesData {
       "dark": "same"
     },
     {
-      "v": 1, "id": "greenFloral", "swipe": "petals", "name": {"vi": "Hoa xanh", "en": "Green Blossom"},
+      "v": 1, "id": "greenFloral", "swipeSound": "birds", "swipe": "petals", "name": {"vi": "Hoa xanh", "en": "Green Blossom"},
       "light": {"bg": "#EEF6EF", "key": "#FFFFFF", "special": "#DCEEDF", "ink": "#256B42", "accent": "#2E8B57",
                 "border": "#4CAF6E", "deco": {"motif": "flowers", "color": "#596DBE8A"}},
       "dark": {"bg": "#0F1D15", "key": "#16291E", "special": "#21392A", "ink": "#9EE0B6", "accent": "#2E8B57",
                "border": "#CC4CAF6E", "deco": {"motif": "flowers", "color": "#474CAF6E"}}
     },
     {
-      "v": 1, "id": "sage", "name": {"vi": "Xanh lá", "en": "Sage"},
+      "v": 1, "id": "sage", "swipeSound": "birds", "name": {"vi": "Xanh lá", "en": "Sage"},
       "light": {"bg": "#E4EBE2", "key": "#FBFCFA", "special": "#93AB8C", "ink": "#24331F", "accent": "#5E7F55",
                 "fn": "#A9BFA3"},
       "dark": {"bg": "#161C15", "key": "#2A3328", "special": "#3A4A36", "ink": "#E4EDE1", "accent": "#5E7F55",
@@ -97,13 +97,13 @@ internal object BuiltinThemesData {
                "fn": "#15263D", "fnInk": "#FFD54F", "deco": {"motif": "star", "color": "#66FFD54F"}}
     },
     {
-      "v": 1, "id": "piano", "swipe": "keys", "name": {"vi": "Piano", "en": "Piano"}, "tags": ["interactive"], "sound": "piano",
+      "v": 1, "id": "piano", "swipeSound": "notes", "swipe": "keys", "name": {"vi": "Piano", "en": "Piano"}, "tags": ["interactive"], "sound": "piano",
       "light": {"bg": "#000000", "key": "#FAFAF7", "special": "#85827B", "ink": "#111111", "accent": "#A4161A",
                 "fn": "#111111", "fnInk": "#FFFFFF", "border": "#33FFFFFF", "deco": {"motif": "notes", "color": "#66D4AF37"}},
       "dark": "same"
     },
     {
-      "v": 1, "id": "sen", "name": {"vi": "Sen Việt", "en": "Vietnamese Lotus"}, "sound": "dantranh", "effect": "petal", "swipe": "petals", "swipeSound": "brush",
+      "v": 1, "id": "sen", "name": {"vi": "Sen Việt", "en": "Vietnamese Lotus"}, "sound": "dantranh", "effect": "petal", "swipe": "petals", "swipeSound": "flute",
       "light": {"bg": "#FCE4EC", "key": "#FFFFFF", "special": "#F8BBD0", "ink": "#14421A", "accent": "#EC6A9C",
                 "accentInk": "#33091C", "fn": "#2E7D32", "fnInk": "#FFFFFF", "deco": {"motif": "lotus", "color": "#66EC6A9C"}},
       "dark": {"bg": "#0D1A11", "key": "#1E3324", "special": "#2E4A35", "ink": "#FCE4EC", "accent": "#EC6A9C",
@@ -134,7 +134,7 @@ internal object BuiltinThemesData {
       "dark": "same"
     },
     {
-      "v": 1, "id": "trungthu", "swipe": "firefly", "name": {"vi": "Trung Thu", "en": "Mid-Autumn"}, "sound": "trong", "effect": "lantern",
+      "v": 1, "id": "trungthu", "swipeSound": "flute", "swipe": "firefly", "name": {"vi": "Trung Thu", "en": "Mid-Autumn"}, "sound": "trong", "effect": "lantern",
       "light": {"bg": "#0B1636", "key": "#1A2A57", "special": "#13214A", "ink": "#FFF1D0", "accent": "#F59E2B",
                 "accentInk": "#2B1300", "fn": "#142352", "fnInk": "#FFC857",
                 "deco": {"motif": "lantern", "alt": "moon", "color": "#73FFB347"}},
@@ -155,7 +155,7 @@ internal object BuiltinThemesData {
       "dark": "same"
     },
     {
-      "v": 1, "id": "guitar", "swipe": "keys", "name": {"vi": "Ghi-ta", "en": "Guitar"}, "tags": ["interactive"], "sound": "guitar", "effect": "string",
+      "v": 1, "id": "guitar", "swipeSound": "notes", "swipe": "keys", "name": {"vi": "Ghi-ta", "en": "Guitar"}, "tags": ["interactive"], "sound": "guitar", "effect": "string",
       "light": {"bg": "#DDA35C", "key": "#4A2A1C", "special": "#6B4030", "ink": "#F6EBD5", "accent": "#E8A93A",
                 "accentInk": "#2A1606", "fn": "#351D13", "fnInk": "#F2C46D",
                 "deco": {"motif": "strings", "alt": "inlay", "color": "#D9FBF1DC"}, "spaceDeco": "soundhole"},
@@ -164,7 +164,7 @@ internal object BuiltinThemesData {
                "deco": {"motif": "strings", "alt": "inlay", "color": "#73C9A46A"}, "spaceDeco": "soundhole"}
     },
     {
-      "v": 1, "id": "mole", "name": {"vi": "Đập chuột", "en": "Whack-a-mole"}, "tags": ["interactive"], "corner": 80, "sound": "bop", "game": "mole",
+      "v": 1, "id": "mole", "swipeSound": "cat", "name": {"vi": "Đập chuột", "en": "Whack-a-mole"}, "tags": ["interactive"], "corner": 80, "sound": "bop", "game": "mole",
       "light": {"bg": "#3D7A24", "key": "#7A4A2A", "special": "#5C3820", "ink": "#FFF4DC", "accent": "#F4C542",
                 "accentInk": "#3B2410", "fn": "#5C3820", "fnInk": "#FFE3A3", "border": "#3A2212",
                 "deco": {"motif": "flowers", "color": "#73245214"}},
@@ -185,7 +185,7 @@ internal object BuiltinThemesData {
       "dark": "same"
     },
     {
-      "v": 1, "id": "sea", "name": {"vi": "Biển", "en": "Sea"}, "tags": ["interactive"], "corner": 60, "sound": "water", "effect": "sea",
+      "v": 1, "id": "sea", "swipeSound": "waves", "name": {"vi": "Biển", "en": "Sea"}, "tags": ["interactive"], "corner": 60, "sound": "water", "effect": "sea",
       "light": {"bg": "#CDEBF2", "key": "#FFF9EF", "special": "#EED9B7", "ink": "#0B3C5D", "accent": "#0E7C93",
                 "fn": "#E9D4AE", "fnInk": "#0B3C5D", "deco": {"motif": "waves", "alt": "bubbles", "color": "#730E7C93"}},
       "dark": {"bg": "#05263A", "key": "#0F3D58", "special": "#175676", "ink": "#E3F6FB", "accent": "#0E7C93",
@@ -233,7 +233,7 @@ internal object BuiltinThemesData {
       "dark": "same"
     },
     {
-      "v": 1, "id": "drift", "name": {"vi": "Lạc trôi", "en": "Adrift"}, "tags": ["interactive"], "corner": 60,
+      "v": 1, "id": "drift", "swipeSound": "flute", "name": {"vi": "Lạc trôi", "en": "Adrift"}, "tags": ["interactive"], "corner": 60,
       "sound": "airy", "effect": "tunnel", "swipe": "stardust", "keyMotion": "float",
       "light": {"bg": "#062B33", "bg2": "#22104A", "key": "#29FFFFFF", "special": "#40FFFFFF", "ink": "#FFFFFF",
                 "accent": "#9B7BFF", "accentInk": "#14082C", "fn": "#1AFFFFFF", "fnInk": "#A8F0E6",
@@ -257,7 +257,7 @@ internal object BuiltinThemesData {
       "dark": "same"
     },
     {
-      "v": 1, "id": "rainyNight", "name": {"vi": "Mưa đêm", "en": "Rainy Night"}, "sound": "rain", "effect": "rain", "swipe": "firefly",
+      "v": 1, "id": "rainyNight", "swipeSound": "waves", "name": {"vi": "Mưa đêm", "en": "Rainy Night"}, "sound": "rain", "effect": "rain", "swipe": "firefly",
       "light": {"bg": "#161E2B", "key": "#B32C3A50", "special": "#CC223042", "ink": "#F3EAD9", "accent": "#E9A84E",
                 "accentInk": "#2A1A06", "fn": "#CC1E2A3A", "fnInk": "#FFD08A", "border": "#40D6E4F5",
                 "balloon": "#2B394E", "trail": "#B3FFE2B8", "deco": {"motif": "bokeh", "color": "#38FFD59A"}},
@@ -295,7 +295,7 @@ internal object BuiltinThemesData {
                "fn": "#0F1712", "fnInk": "#FFD54F", "deco": {"motif": "pitch", "color": "#38FFFFFF"}}
     },
     {
-      "v": 1, "id": "aquarium", "name": {"vi": "Bể cá", "en": "Aquarium"}, "tags": ["interactive"], "corner": 50,
+      "v": 1, "id": "aquarium", "swipeSound": "waves", "name": {"vi": "Bể cá", "en": "Aquarium"}, "tags": ["interactive"], "corner": 50,
       "sound": "bloop", "effect": "fishfeed",
       "light": {"bg": "#0B3D66", "key": "#2BFFFFFF", "special": "#59041E36", "ink": "#FFFFFF", "accent": "#FF9F1C",
                 "accentInk": "#1A1000", "fn": "#59041E36", "fnInk": "#BDF2FF", "border": "#4DFFFFFF", "balloon": "#0E4A78",

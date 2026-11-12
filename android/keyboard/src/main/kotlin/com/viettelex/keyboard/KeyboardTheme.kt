@@ -764,7 +764,8 @@ object ThemeExtraIds {
     /** "swipe": kiểu nét vuốt cụ thể (không có "theme" — theme không trỏ về chính nó). */
     val SWIPES: Set<String> get() = SwipeTrailStyle.THEME_IDS.toSet()
     /** "swipeSound": kiểu âm nét vuốt tổng hợp (không có "none" / "custom" — file riêng không đi theo theme). iOS swipeSounds. */
-    val SWIPE_SOUNDS: Set<String> get() = SwipeSoundStyle.SYNTHESIZED.map { it.id }.toSet()
+    // Mọi kiểu trừ Tắt / Âm của bạn — KHÔNG lấy SYNTHESIZED (thiếu "notes": Piano/Ghi-ta bị từ chối, 13/11/2026).
+    val SWIPE_SOUNDS: Set<String> get() = SwipeSoundStyle.entries.filter { it != SwipeSoundStyle.NONE && it != SwipeSoundStyle.CUSTOM }.map { it.id }.toSet()
     /** "game": trò chơi khi gõ (iOS ThemeExtraIds.games y hệt). */
     val GAMES: Set<String> = setOf(MoleGame.THEME_GAME)
     /** "keyShape": dáng phím (iOS ThemeExtraIds.keyShapes y hệt). */
