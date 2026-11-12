@@ -34,7 +34,7 @@ class SwipeTrailStyleTests {
     // --- model / id / sao lưu
 
     @Test fun idsMatchIosAndDefaultIsSimple() {
-        assertEquals(listOf("none", "simple", "fire", "electric", "brush", "rainbow", "neon", "stardust", "firework", "theme"),
+        assertEquals(listOf("none", "simple", "fire", "electric", "brush", "rainbow", "neon", "stardust", "firework", "plasma", "theme"),
             SwipeTrailStyle.entries.map { it.id })
         assertEquals("swipeTrail", Keys.SWIPE_TRAIL)
         assertEquals(SwipeTrailStyle.SIMPLE, SwipeTrailStyle.DEFAULT)
@@ -42,7 +42,7 @@ class SwipeTrailStyleTests {
         assertEquals(SwipeTrailStyle.SIMPLE, SwipeTrailStyle.of("glitter"))
         assertEquals(SwipeTrailStyle.SIMPLE, SwipeTrailStyle.of(7))
         assertEquals(SwipeTrailStyle.NONE, SwipeTrailStyle.of("none"))
-        assertEquals(listOf("none", "simple", "fire", "electric", "brush", "rainbow", "neon", "stardust", "firework"),
+        assertEquals(listOf("none", "simple", "fire", "electric", "brush", "rainbow", "neon", "stardust", "firework", "plasma"),
             SwipeTrailStyle.THEME_IDS)
         assertEquals(SwipeTrailStyle.THEME_IDS.toSet(), ThemeExtraIds.SWIPES)
     }
@@ -57,7 +57,7 @@ class SwipeTrailStyleTests {
     @Test fun backupSpecWhitelistsIds() {
         val spec = BackupSettings.all.first { it.key == Keys.SWIPE_TRAIL }
         assertEquals(SettingKind.Choice("simple", setOf("none", "simple", "fire", "electric", "brush", "rainbow", "neon",
-            "stardust", "firework", "theme")), spec.kind)
+            "stardust", "firework", "plasma", "theme")), spec.kind)
     }
 
     @Test fun titlesBilingual() {
@@ -149,7 +149,7 @@ class SwipeTrailStyleTests {
     @Test fun strokeConfigPerStyle() {
         val n = mapOf(SwipeTrailStyle.NONE to 0, SwipeTrailStyle.THEME to 0, SwipeTrailStyle.SIMPLE to 1, SwipeTrailStyle.FIREWORK to 1,
             SwipeTrailStyle.FIRE to 3, SwipeTrailStyle.ELECTRIC to 3, SwipeTrailStyle.NEON to 3, SwipeTrailStyle.RAINBOW to 1,
-            SwipeTrailStyle.BRUSH to 1, SwipeTrailStyle.STARDUST to 1)
+            SwipeTrailStyle.BRUSH to 1, SwipeTrailStyle.STARDUST to 1, SwipeTrailStyle.PLASMA to 3)
         for (s in SwipeTrailStyle.entries) {
             val k = s.strokes(6.0, 0x99FFFFFF.toInt(), 0x0A84FF, false)
             assertEquals(s.id, n[s], k.size)
@@ -164,8 +164,10 @@ class SwipeTrailStyleTests {
         assertEquals(0x808080, SwipeTrailFx.mix(0x000000, 0xFFFFFF, 0.5))
         assertEquals(3, SwipeTrailStyle.FIRE.spawnEvery)
         assertEquals(4, SwipeTrailStyle.STARDUST.spawnEvery)
+        assertEquals(5, SwipeTrailStyle.PLASMA.spawnEvery)
         for (s in SwipeTrailStyle.entries) {
-            val expect = s == SwipeTrailStyle.FIRE || s == SwipeTrailStyle.STARDUST || s == SwipeTrailStyle.FIREWORK
+            val expect = s == SwipeTrailStyle.FIRE || s == SwipeTrailStyle.STARDUST || s == SwipeTrailStyle.FIREWORK ||
+                s == SwipeTrailStyle.PLASMA
             assertEquals(s.id, expect, s.usesParticles)
             assertEquals(s.id, if (expect) SwipeTrailFx.PARTICLE_CAP else 0, SwipeTrailState(s, 2f).particleCount)
         }
@@ -244,7 +246,7 @@ class SwipeTrailStyleTests {
         assertEquals(8.0 * 3 / 7, e5.dx, 1e-9); assertEquals(-34.0, e5.dy, 0.0)
         val s2 = SwipeTrailFx.trajectory(SwipeTrailStyle.STARDUST, 2)
         assertEquals(-0.16, s2.rotation, 1e-9); assertEquals(1.1, s2.duration, 1e-9)
-        for (s in listOf(SwipeTrailStyle.FIRE, SwipeTrailStyle.STARDUST, SwipeTrailStyle.FIREWORK))
+        for (s in listOf(SwipeTrailStyle.FIRE, SwipeTrailStyle.STARDUST, SwipeTrailStyle.FIREWORK, SwipeTrailStyle.PLASMA))
             for (v in 0 until SwipeTrailFx.variants(s)) assertTrue(SwipeTrailFx.trajectory(s, v).duration <= SwipeTrailFx.MAX_PARTICLE_LIFE)
         val sp = SwipeTrailFx.Spawner(3)
         assertEquals(listOf(false, false, true, false, false, true, false, false, true), (0 until 9).map { sp.tick() })

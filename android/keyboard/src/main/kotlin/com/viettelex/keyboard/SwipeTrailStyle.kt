@@ -25,6 +25,7 @@ enum class SwipeTrailStyle(val id: String, val viTitle: String) {
     NEON("neon", "Neon"), // l10n-key
     STARDUST("stardust", "Bụi sao"), // l10n-key
     FIREWORK("firework", "Pháo hoa cuối nét"), // l10n-key
+    PLASMA("plasma", "Plasma"), // l10n-key
     THEME("theme", "Theo giao diện"); // l10n-key
 
     val title: String get() = tr(viTitle)
@@ -36,6 +37,7 @@ enum class SwipeTrailStyle(val id: String, val viTitle: String) {
     val spawnEvery: Int get() = when (this) {
         FIRE -> 3
         STARDUST -> 4
+        PLASMA -> 5
         else -> 0
     }
     /** Có pool hạt (dọc đường hoặc chùm pháo hoa lúc nhấc tay). */
@@ -60,6 +62,9 @@ enum class SwipeTrailStyle(val id: String, val viTitle: String) {
             RAINBOW -> listOf(SwipeTrailStroke(base, 0xFFFFFFFF.toInt(), SwipeTrailStroke.Kind.GRADIENT))
             BRUSH -> listOf(SwipeTrailStroke(0.0, if (dark) 0xE6F2F2F2.toInt() else 0xE61A1A1A.toInt(), SwipeTrailStroke.Kind.FILL))
             STARDUST -> listOf(SwipeTrailStroke(base * 0.45, alpha(a, 0.55)))
+            // = hiệu ứng phím Plasma: quầng tím, thân tím nhạt, lõi gần trắng (= iOS)
+            PLASMA -> listOf(SwipeTrailStroke(base * 2.4, 0x59B44CFF), SwipeTrailStroke(base * 1.1, 0xBFC77DFF.toInt()),
+                SwipeTrailStroke(base * 0.4, 0xFFF3E0FF.toInt()))
         }
     }
 
@@ -68,6 +73,7 @@ enum class SwipeTrailStyle(val id: String, val viTitle: String) {
         FIRE -> intArrayOf(0xFFC21A, 0xFF7A1A, 0xFF3B30)
         STARDUST -> intArrayOf(0xFFC93C, accent and 0xFFFFFF, 0xFFE7A0)
         FIREWORK -> intArrayOf(accent and 0xFFFFFF, 0xFFC93C, 0xFF5E7E, 0x4FC3F7)
+        PLASMA -> intArrayOf(0xB44CFF, 0xE0B0FF, 0xF3E0FF)
         else -> IntArray(0)
     }
 
@@ -117,6 +123,8 @@ object SwipeTrailFx {
     const val FIREWORK_COUNT = 12
     /** Biên độ nhiễu tia điện (dp). */
     const val ELECTRIC_AMPLITUDE = 4.5
+    /** Tia plasma lượn rộng hơn tia điện (dp) — = iOS plasmaAmplitude. */
+    const val PLASMA_AMPLITUDE = 6.0
     const val BRUSH_MAX = 10.0
     const val BRUSH_MIN = 2.5
     /** Tốc độ coi là "nhanh" (dp/ms). */
@@ -161,6 +169,7 @@ object SwipeTrailFx {
         SwipeTrailStyle.FIRE -> 8
         SwipeTrailStyle.STARDUST -> 6
         SwipeTrailStyle.FIREWORK -> FIREWORK_COUNT
+        SwipeTrailStyle.PLASMA -> 6
         else -> 0
     }
 
@@ -176,6 +185,10 @@ object SwipeTrailFx {
                 val ang = v * 2 * PI / FIREWORK_COUNT
                 val d = 30 + (v % 2) * 6.0
                 KeyEffectTrajectory(cos(ang) * d, sin(ang) * d, 1.0, 0.35, 0.0, 0.6)
+            }
+            SwipeTrailStyle.PLASMA -> {   // tia lửa tím bắn ngắn ra hai bên nét, tắt nhanh (= iOS)
+                val up = if (v % 2 == 0) -1.0 else 1.0
+                KeyEffectTrajectory(t * 10, up * (6 + (v % 3) * 3.0), 1.0, 0.2, 0.0, 0.32 + (v % 3) * 0.05)
             }
             else -> KeyEffectTrajectory(0.0, 0.0, 1.0, 1.0, 0.0, 0.0)
         }
@@ -318,7 +331,7 @@ class SwipeTrailState(val style: SwipeTrailStyle, private val density: Float) {
         }
         if (n < 2) return false
         when (style) {
-            SwipeTrailStyle.ELECTRIC -> jag(n)
+            SwipeTrailStyle.ELECTRIC, SwipeTrailStyle.PLASMA -> jag(n)
             SwipeTrailStyle.BRUSH -> { brush(n); return true }
             else -> {}
         }
@@ -328,7 +341,7 @@ class SwipeTrailState(val style: SwipeTrailStyle, private val density: Float) {
 
     private fun jag(n: Int) {
         seed++
-        val amp = (SwipeTrailFx.ELECTRIC_AMPLITUDE * density).toFloat()
+        val amp = ((if (style == SwipeTrailStyle.PLASMA) SwipeTrailFx.PLASMA_AMPLITUDE else SwipeTrailFx.ELECTRIC_AMPLITUDE) * density).toFloat()
         // Pháp tuyến tính trên điểm gốc: lưu bản gốc điểm trước khi dời.
         var prevX = outX[0]; var prevY = outY[0]
         for (k in 1 until n - 1) {

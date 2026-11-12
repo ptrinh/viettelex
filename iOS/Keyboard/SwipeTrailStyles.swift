@@ -1,5 +1,5 @@
 // "Hiệu ứng nét vuốt" (Gõ vuốt → Hiệu ứng nét vuốt): Tắt, Đơn giản (mặc định, vệt cũ), Lửa, Điện, Bút lông,
-// Cầu vồng, Neon, Bụi sao, Pháo hoa cuối nét, Theo giao diện. "Tắt" + "Đơn giản" miễn phí; còn lại Plus —
+// Cầu vồng, Neon, Bụi sao, Pháo hoa cuối nét, Plasma, Theo giao diện. "Tắt" + "Đơn giản" miễn phí; còn lại Plus —
 // chưa có Plus ⇒ vẽ "Đơn giản" (giá trị lưu giữ nguyên). Song sinh android/keyboard/.../SwipeTrailStyle.kt
 // (cùng khoá `swipeTrail`, cùng id, cùng hàm thuần: nhiễu tia điện, độ dày bút lông, quỹ đạo hạt).
 //
@@ -14,7 +14,7 @@ import UIKit
 
 /// Kiểu nét vuốt (giá trị lưu App Group / sao lưu = rawValue).
 enum SwipeTrailStyle: String, CaseIterable {
-    case none, simple, fire, electric, brush, rainbow, neon, stardust, firework, theme
+    case none, simple, fire, electric, brush, rainbow, neon, stardust, firework, plasma, theme
 
     static let key = "swipeTrail"
     static let defaultValue: SwipeTrailStyle = .simple
@@ -44,6 +44,7 @@ enum SwipeTrailStyle: String, CaseIterable {
         case .neon: return L("Neon")
         case .stardust: return L("Bụi sao")
         case .firework: return L("Pháo hoa cuối nét")
+        case .plasma: return L("Plasma")
         case .theme: return L("Theo giao diện")
         }
     }
@@ -56,6 +57,7 @@ enum SwipeTrailStyle: String, CaseIterable {
         switch self {
         case .fire: return 3
         case .stardust: return 4
+        case .plasma: return 5
         default: return 0
         }
     }
@@ -85,6 +87,10 @@ enum SwipeTrailStyle: String, CaseIterable {
         case .rainbow: return [SwipeTrailStroke(width: w, argb: 0xFFFF_FFFF, kind: .gradient)]
         case .brush: return [SwipeTrailStroke(width: 0, argb: dark ? 0xE6F2_F2F2 : 0xE61A_1A1A, kind: .fill)]
         case .stardust: return [SwipeTrailStroke(width: w * 0.45, argb: alpha(a, 0.55))]
+        case .plasma:   // = hiệu ứng phím Plasma (PlasmaArc): quầng tím, thân tím nhạt, lõi gần trắng
+            return [SwipeTrailStroke(width: w * 2.4, argb: 0x59B4_4CFF),
+                    SwipeTrailStroke(width: w * 1.1, argb: 0xBFC7_7DFF),
+                    SwipeTrailStroke(width: w * 0.4, argb: 0xFFF3_E0FF)]
         }
     }
 
@@ -94,6 +100,7 @@ enum SwipeTrailStyle: String, CaseIterable {
         case .fire: return [0xFFC21A, 0xFF7A1A, 0xFF3B30]
         case .stardust: return [0xFFC93C, accent & 0xFFFFFF, 0xFFE7A0]
         case .firework: return [accent & 0xFFFFFF, 0xFFC93C, 0xFF5E7E, 0x4FC3F7]
+        case .plasma: return [0xB44CFF, 0xE0B0FF, 0xF3E0FF]
         default: return []
         }
     }
@@ -146,6 +153,8 @@ enum SwipeTrailFx {
     static let fireworkCount = 12
     /// Biên độ nhiễu tia điện (pt / dp).
     static let electricAmplitude = 4.5
+    /// Tia plasma lượn rộng hơn tia điện (pt / dp).
+    static let plasmaAmplitude = 6.0
     /// Bút lông: dày nhất (chậm) / mảnh nhất (nhanh), tốc độ coi là "nhanh" (pt/ms), hệ số làm mượt, số điểm vuốt nhọn.
     static let brushMax = 10.0, brushMin = 2.5, brushFast = 1.6, brushSmoothing = 0.35, brushTaper = 6
     /// Cầu vồng: các mốc màu (RGB) của gradient — lặp 2 vòng để nét ngắn vẫn đổi màu.
@@ -192,6 +201,7 @@ enum SwipeTrailFx {
         case .fire: return 8
         case .stardust: return 6
         case .firework: return fireworkCount
+        case .plasma: return 6
         default: return 0
         }
     }
@@ -212,6 +222,10 @@ enum SwipeTrailFx {
             let d = 30 + Double(v % 2) * 6
             return KeyEffectTrajectory(dx: cos(ang) * d, dy: sin(ang) * d, scaleFrom: 1, scaleTo: 0.35,
                                        rotation: 0, duration: 0.6)
+        case .plasma:   // tia lửa tím bắn ngắn ra hai bên nét, tắt nhanh
+            let up = v % 2 == 0 ? -1.0 : 1.0
+            return KeyEffectTrajectory(dx: t * 10, dy: up * (6 + Double(v % 3) * 3), scaleFrom: 1, scaleTo: 0.2,
+                                       rotation: 0, duration: 0.32 + Double(v % 3) * 0.05)
         default:
             return KeyEffectTrajectory(dx: 0, dy: 0, scaleFrom: 1, scaleTo: 1, rotation: 0, duration: 0)
         }
@@ -335,7 +349,7 @@ final class SwipeTrailRenderer {
             }
             strokeLayers.append(l)
         }
-        if style == .electric {
+        if style == .electric || style == .plasma {
             let f = CAKeyframeAnimation(keyPath: "opacity")
             f.values = [1, 0.55, 1, 0.8, 0.45, 1]
             f.duration = 0.22
@@ -487,9 +501,9 @@ final class SwipeTrailRenderer {
         if style == .brush {
             buildBrush(path)
         } else {
-            let jag = style == .electric
+            let jag = style == .electric || style == .plasma
             if jag { seed &+= 1 }
-            let amp = CGFloat(SwipeTrailFx.electricAmplitude)
+            let amp = CGFloat(style == .plasma ? SwipeTrailFx.plasmaAmplitude : SwipeTrailFx.electricAmplitude)
             for k in 0..<count {
                 let i = (head + k) % Self.cap
                 var p = CGPoint(x: xs[i], y: ys[i])
