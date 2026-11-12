@@ -19,7 +19,7 @@
 | [iPhone & iPad](https://viettelex.com/download/?os=ios) | iOS 16+ | App Store | [`iOS/`](iOS) |
 | [Android](https://viettelex.com/download/?os=android) | Android 8+ | Google Play, APK | [`android/`](android) |
 | [macOS](https://viettelex.com/download/?os=macos) | macOS 13+ | `.pkg`, Homebrew | [`App/`](App) |
-| [Windows](https://viettelex.com/download/?os=windows) | Windows 10 / 11 | Microsoft Store, `.msi`, portable | [`windows/`](windows) |
+| [Windows](https://viettelex.com/download/?os=windows) | Windows 10 / 11 | Microsoft Store, `.msi`, `winget install ptrinh.VietTelex`, portable | [`windows/`](windows) |
 | [Linux](https://viettelex.com/download/?os=linux) | Ubuntu, Debian, Fedora, Arch | một lệnh cài | [`linux/`](linux) |
 
 > Dự án của **Phil Trịnh**, bắt đầu trên macOS sau gần 20 năm chưa thấy bộ gõ tiếng Việt nào thật sự *ngon, chuẩn, mượt*, nay có đủ cho điện thoại và máy tính.
@@ -50,7 +50,7 @@ Tải và hướng dẫn từng bước: **[viettelex.com/download](https://viet
 
 - **iPhone & iPad** — [App Store](https://apps.apple.com/app/id6794425455), rồi thêm VietTelex trong Cài đặt → Bàn phím.
 - **Android** — [Google Play](https://play.google.com/store/apps/details?id=com.viettelex.android) hoặc APK, mở app rồi bấm **Bật VietTelex**.
-- **Windows** — [Microsoft Store](https://apps.microsoft.com/detail/xp9cbqk2f77356), `.msi` hoặc bản portable; cài xong là gõ được.
+- **Windows** — [Microsoft Store](https://apps.microsoft.com/detail/xp9cbqk2f77356), `.msi`, `winget install ptrinh.VietTelex` hoặc bản portable; cài xong là gõ được.
 - **Linux** — `curl -fsSL https://viettelex.com/install.sh | bash`
 - **macOS** — `.pkg` hoặc `brew install --cask ptrinh/viettelex/viettelex`
 
