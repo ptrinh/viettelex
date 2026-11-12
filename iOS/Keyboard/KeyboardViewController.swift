@@ -459,6 +459,7 @@ final class KeyboardViewController: UIInputViewController {
         keyboard.setClipboardButton(visible: clip.historyEnabled && appliedFullAccess)
         filterSensitive = settings.filterSensitive
         SwipeVocab.filterSensitive = settings.filterSensitive   // gõ vuốt theo cùng công tắc
+        SwipeVocab.teencode = settings.teencode && !settings.vniMode   // er → ẻ (nét Telex)
         // Gõ tắt vuốt được (khoá + từ của nội dung): bảng đổi ⇒ template dựng lại một lần (nền).
         if settings.swipeTyping {
             if SwipeVocab.setShortcuts(bridge.effectiveShortcuts) { swipe?.refreshVocab() }
@@ -3144,11 +3145,16 @@ extension KeyboardViewController {
             bridge.isSwipeWordOpen && bridge.isFreshSwipeWord && !bridge.openWordAccepted
                 && !bridge.isLiteralSwipeWordOpen && bridge.composedWord == r.word ? r : nil
         }
+        // Từ TIẾNG ANH vừa vuốt còn nguyên (chèn nguyên văn, không sửa lại được) — chỉ để viết hoa
+        // ngược chuỗi tên riêng ("new" + "york" → "New York").
+        let previousLiteral = bridge.isLiteralSwipeWordOpen && bridge.isFreshSwipeWord && !bridge.openWordAccepted
+            ? bridge.composedWord : nil
         swipeRevisable = nil
         swipeReviseUndo = nil
         let out = swipe.finish(path, case: sc, contextWords: ctx, count: { lm.count(of: $0) },
                                prev: prev, prev2: prev2, english: english, englishOnly: englishOnly,
                                previous: previous,
+                               previousLiteral: previousLiteral,
                                nextWords: { lm.nextWords(after: $0, prev2: $1, limit: 24) },
                                learnedCase: { lm.learnedCase($0) }, properNouns: !lowercaseSuggestions,
                                bridge: bridge, proxy: Proxy(p: textProxy))

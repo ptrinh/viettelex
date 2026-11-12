@@ -413,6 +413,11 @@ class KeyboardSession(
      * thường như vuốt) — ⌫ đầu trả lại khoá như hoàn tác gõ tắt gõ tay. = iOS SwipeOpen.shortcutKey.
      */
     private var swipeShortcutKey: String? = null
+    /** Từ TIẾNG ANH vừa vuốt bị phím chữ chốt (+ dấu cách) — phím đó là chạm đầu của cú vuốt mới. */
+    private var literalAfterLetter: String? = null
+    /** Sau khi gỡ phím chữ đó (cú vuốt mới bắt đầu): từ Anh đứng ngay trước "từ ␠" — để viết hoa
+     *  ngược chuỗi tên riêng ("new" + "york" → "New York"). Hết hạn ở phím kế ([clearSwipe]). */
+    private var swipedLiteralPrev: String? = null
     /** Vuốt ra từ tiếng Anh (công tắc con, [KeyboardSettings.swipeEnglish]). */
     var swipeEnglish = true
     /**
@@ -512,6 +517,7 @@ class KeyboardSession(
         initialCapsPending = true
         filterSensitive = settings.filterSensitive
         SwipeVocab.filterSensitive = settings.filterSensitive   // gõ vuốt theo cùng công tắc
+        SwipeVocab.teencode = settings.teencode && !settings.vniMode   // er → ẻ (nét Telex)
         // Gõ tắt vuốt được (khoá + từ của nội dung): bảng đổi ⇒ IME dựng lại template một lần (nền).
         if (settings.swipeTyping && SwipeVocab.setShortcuts(bridge.effectiveShortcuts)) swipeVocabChanged = true
         swipeEnglish = settings.swipeEnglish
@@ -658,6 +664,7 @@ class KeyboardSession(
     private fun clearSwipe() {
         swipeWord = null; swipeAlts = emptyList(); swipeLiteral = false; swipeEnglishAlts = emptySet()
         swipeShortcutKey = null
+        swipedLiteralPrev = null
         letterAfterSwipe = false
         revisable = null; reviseUndo = null
         typedPending = null; typedUndo = null
@@ -826,6 +833,7 @@ class KeyboardSession(
         val literal = if (swipeLiteral) swiped else null
         val shortcutKey = swipeShortcutKey
         revisableAfterLetter = revisable?.takeIf { key is Key.Letter && it.word == swiped }
+        literalAfterLetter = if (key is Key.Letter && shortcutKey == null) literal else null
         // Sửa lại từ vuốt khi từ kế GÕ PHÍM: dấu cách chốt từ vuốt còn nguyên ⇒ chờ; đang chờ ⇒
         // phím chữ / ⌫ trong từ gõ giữ, ranh giới thử sửa, phím khác bỏ (clearSwipe).
         val typedArm = revisable?.takeIf { key == Key.Space && literal == null && it.word == swiped && !bridge.englishMode }
@@ -1012,6 +1020,8 @@ class KeyboardSession(
         typedPending = null
         revisable = if (ok) revisableAfterLetter else null
         revisableAfterLetter = null
+        swipedLiteralPrev = if (ok) literalAfterLetter else null
+        literalAfterLetter = null
         generation++
         return ok
     }
@@ -1031,6 +1041,10 @@ class KeyboardSession(
         val cands = if (bridge.englishMode) SwipeSuggest.englishOnly(all) else all
         val choice = SwipeSuggest.choose(cands, ctx.word, case, ctx.lambdaFreq, ctx.proper) ?: return null
         val scored = if (choice.english) emptyList() else SwipeRevise.scored(cands, ctx.word, ctx.lambdaFreq)
+        // Từ TIẾNG ANH vừa vuốt còn mở ("new" + "york"): chỉ viết hoa ngược chuỗi tên riêng. = iOS.
+        val lit = if (swipeLiteral) swipeWord else swipedLiteralPrev
+        if (lit != null && swipeShortcutKey == null)
+            return chainCapitalizePrev(SwipeResolved(choice, scored, case), lit, ctx, case)
         val rec = revisable
         if (rec == null || swipeLiteral || !bridge.isComposing || bridge.composedWord != rec.word)
             return SwipeResolved(choice, scored, case)
@@ -1110,11 +1124,27 @@ class KeyboardSession(
         }
         val lit = if (swipeLiteral) swipeWord else null
         val prevWord = revisable?.word
+        val prevLit = swipedLiteralPrev
         clearUndo(); clearSwipe()
         var revised: Pair<String, String>? = null
+        // Từ Anh vừa vuốt đã chốt kèm " " (chạm đầu cú vuốt này): viết hoa ngược chuỗi tên riêng.
+        if (lit == null && revisedPrev != null && prevLit != null && !bridge.isComposing &&
+            proxy.confirmTail("$prevLit ")) {
+            proxy.deleteCodePoints(Cp.count(prevLit) + 1)
+            proxy.insertText("$revisedPrev ")
+            revised = prevLit to revisedPrev
+        }
         if (lit != null) {
-            // từ tiếng Anh vuốt trước còn mở: chốt nó + dấu cách
-            settleLiteral(lit)
+            // từ tiếng Anh vuốt trước còn mở: chốt nó + dấu cách. Chuỗi tên riêng ("new" + "york")
+            // ⇒ thay nó bằng dạng viết hoa trước (chỉ khi đuôi màn hình đúng là nó).
+            var settled = lit
+            if (revisedPrev != null && proxy.confirmTail(lit)) {
+                proxy.deleteCodePoints(Cp.count(lit))
+                proxy.insertText(revisedPrev)
+                revised = lit to revisedPrev
+                settled = revisedPrev
+            }
+            settleLiteral(settled)
             bridge.boundary(" ", proxy, expand = false)
         } else if (bridge.isComposing) {
             // Sửa lại từ vuốt trước (ngữ cảnh hai phía): chỉ khi đuôi màn hình đúng là nó.

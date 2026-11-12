@@ -67,6 +67,17 @@ final class SwipeThenDigitTests: XCTestCase {
         XCTAssertEqual(rig.host.real, "mua 123")
     }
 
+    /// Phil 12/11/2026: "vì sao chữ new không được viết hoa ngược lại" — từ TIẾNG ANH vừa vuốt cũng
+    /// được viết hoa khi từ sau làm nó thành tên riêng.
+    func testEnglishSwipeCapitalisedByChain() throws {
+        let rig = Rig()
+        defer { rig.close() }
+        try rig.swipe("o")
+        try rig.swipe("new")
+        try rig.swipe("york")
+        XCTAssertTrue(rig.host.real.hasSuffix("New York"), rig.host.real)
+    }
+
     func testDigitRightAfterSwipeGetsSpace() throws {
         let rig = Rig()
         defer { rig.close() }

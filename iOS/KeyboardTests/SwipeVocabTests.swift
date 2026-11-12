@@ -5,7 +5,7 @@
 import XCTest
 
 final class SwipeVocabTests: XCTestCase {
-    override func tearDown() { SwipeVocab.filterSensitive = true }
+    override func tearDown() { SwipeVocab.filterSensitive = true; SwipeVocab.teencode = false }
 
     private func sensitive(_ text: String) -> Bool {
         text.split(separator: " ").contains { SensitiveWords.set.contains($0.lowercased()) }
@@ -68,6 +68,17 @@ final class SwipeVocabTests: XCTestCase {
         XCTAssertEqual(DisplayCase.apply("quốc", after: "tổ"), "quốc")
         XCTAssertEqual(DisplayCase.apply("bình", after: "hòa"), "bình")
         XCTAssertTrue(CuratedPairs.next(after: "đà", prev2: nil).contains("nẵng"))
+    }
+
+    /// Phil 12/11/2026: "er → ẻ (nếu bật teencode)" — tắt teencode thì không có. = Android teencodeAddsEr.
+    func testTeencodeAddsEr() {
+        SwipeVocab.teencode = false
+        XCTAssertFalse(SwipeDecoder.expand("er", limit: 4).contains { $0.word == "ẻ" })
+        SwipeVocab.teencode = true
+        XCTAssertEqual(SwipeDecoder.expand("er", limit: 1).first?.word, "ẻ")
+        XCTAssertEqual(SwipeDecoder.expand("ow", limit: 1).first?.word, "ở")
+        SwipeVocab.teencode = false
+        XCTAssertFalse(SwipeDecoder.expand("er", limit: 4).contains { $0.word == "ẻ" })
     }
 
     func testChatAbbreviationsAlwaysThere() {

@@ -21,7 +21,7 @@ import java.util.Locale
  */
 class SwipeVocabTests {
     @Before fun setUp() = TestAssets.install()
-    @After fun tearDown() { SwipeVocab.filterSensitive = true }
+    @After fun tearDown() { SwipeVocab.filterSensitive = true; SwipeVocab.teencode = false }
 
     private val layout = SwipeLayout.qwerty(keyWidth = 36f, rowHeight = 54f)
     private val decoder = SwipeDecoder().also { it.setLayout(layout) }
@@ -93,12 +93,25 @@ class SwipeVocabTests {
             "ở paris" to "Ở Paris", "tìm trên google" to "Tìm trên Google", "về saigon" to "Về Saigon",
             "ở sài gòn" to "Ở Sài Gòn", "đi đà nẵng" to "Đi Đà Nẵng", "hồ chí minh" to "Hồ Chí Minh",
             "đi hanoi" to "Đi Hanoi", "ở vietnam" to "Ở Vietnam", "đi huế" to "Đi Huế", "đi hàn quốc" to "Đi Hàn Quốc",
-            "sang trung quốc" to "Sang Trung Quốc", "tôi yêu việt nam" to "Tôi yêu Việt Nam", "mua iphone" to "Mua iPhone"))
+            "sang trung quốc" to "Sang Trung Quốc", "tôi yêu việt nam" to "Tôi yêu Việt Nam", "mua iphone" to "Mua iPhone",
+            // từ Anh vừa vuốt cũng được viết hoa ngược (Phil 12/11/2026)
+            "ở new york" to "Ở New York"))
             assertEquals(t, want, session(t, true).first)
         // từ thường không bị hoa nhầm: "nội" / "quốc" / "bình" đứng ngoài chuỗi
         assertEquals("nội", DisplayCase.apply("nội", "bà"))
         assertEquals("quốc", DisplayCase.apply("quốc", "tổ"))
         assertEquals("bình", DisplayCase.apply("bình", "hòa"))
+    }
+
+    /** Phil 12/11/2026: "er → ẻ (nếu bật teencode)" — tắt teencode thì không có. */
+    @Test fun teencodeAddsEr() {
+        SwipeVocab.teencode = false
+        assertTrue(SwipeDecoder.expand("er", 4).none { it.word == "ẻ" })
+        SwipeVocab.teencode = true
+        assertEquals("ẻ", SwipeDecoder.expand("er", 1).firstOrNull()?.word)
+        assertEquals("ở", SwipeDecoder.expand("ow", 1).firstOrNull()?.word)   // nét Telex khác giữ nguyên
+        SwipeVocab.teencode = false
+        assertTrue(SwipeDecoder.expand("er", 4).none { it.word == "ẻ" })
     }
 
     @Test fun chatAbbreviationsAlwaysThere() {

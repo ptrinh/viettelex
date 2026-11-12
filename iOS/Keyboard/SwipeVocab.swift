@@ -112,10 +112,15 @@ enum SwipeVocab {
         }
     }()
 
+    /// Từ một chữ kiểu teencode (KHÔNG có trong vnlexicon) — chỉ khi bật Teencode (Phil 12/11/2026:
+    /// "er → ẻ (nếu bật teencode)"). "er" cũng là từ tiếng Anh: phương án đó vẫn ở thanh gợi ý.
+    static let teencodeEntries: [Entry] = [Entry(word: "ẻ", freq: 140, path: "er")]
+
     /// Bảng đầy đủ theo chế độ: chat + thô tục luôn có (+ tục khi tắt lọc, tần suất từ seed)
-    /// + nét Telex của từ một chữ + từ của bảng Gõ tắt (`shortcutEntries`, rỗng khi tắt Gõ tắt).
-    static func entries(filter: Bool, shortcuts sc: [Entry] = []) -> [Entry] {
+    /// + nét Telex của từ một chữ (+ teencode khi bật) + từ của bảng Gõ tắt (`shortcutEntries`).
+    static func entries(filter: Bool, teencode: Bool = false, shortcuts sc: [Entry] = []) -> [Entry] {
         let base = (filter ? chat + always : chat + always + sensitiveEntries(SeedData.unigrams)) + telexEntries
+            + (teencode ? teencodeEntries : [])
         return sc.isEmpty ? base : base + sc.filter { !(filter && isSensitive($0.word.lowercased())) }
     }
 
@@ -226,7 +231,11 @@ enum SwipeVocab {
 
     private static let lock = NSLock()
     nonisolated(unsafe) private static var filterOn = true
-    nonisolated(unsafe) private static var cache: [Bool: Vocab] = [:]
+    nonisolated(unsafe) private static var teenOn = false
+    /// Khoá cache = chế độ (lọc, teencode).
+    private struct Mode: Hashable { let filter: Bool; let teen: Bool }
+    nonisolated(unsafe) private static var cache: [Mode: Vocab] = [:]
+    private static var mode: Mode { Mode(filter: filterOn, teen: teenOn) }
 
     /// Đặt lúc bàn phím hiện (KeyboardViewController, cùng chỗ đọc filterSensitive).
     static var filterSensitive: Bool {
@@ -234,12 +243,19 @@ enum SwipeVocab {
         set { lock.lock(); filterOn = newValue; lock.unlock() }
     }
 
+    /// Đặt lúc bàn phím hiện (cùng chỗ đọc filterSensitive) từ cài đặt Teencode.
+    static var teencode: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return teenOn }
+        set { lock.lock(); teenOn = newValue; lock.unlock() }
+    }
+
     /// Từ vựng theo công tắc hiện tại (dựng lười, giữ cả hai chế độ).
     static var current: Vocab {
         lock.lock(); defer { lock.unlock() }
-        if let v = cache[filterOn] { return v }
-        let v = build(filter: filterOn, shortcuts: shortcutStore)   // đang giữ lock: KHÔNG gọi `shortcuts`
-        cache[filterOn] = v
+        let m = mode
+        if let v = cache[m] { return v }
+        let v = build(filter: m.filter, teencode: m.teen, shortcuts: shortcutStore)   // đang giữ lock: KHÔNG gọi `shortcuts`
+        cache[m] = v
         return v
     }
 
@@ -247,18 +263,18 @@ enum SwipeVocab {
     /// lọc ĐANG dùng (decoder đang giữ template theo nó), chỉ bỏ chế độ kia; false (ẩn) ⇒ bỏ hết. Dựng lại lười.
     static func purge(keepActive: Bool) {
         lock.lock(); defer { lock.unlock() }
-        if keepActive { cache = cache.filter { $0.key == filterOn } } else { cache.removeAll() }
+        if keepActive { let m = mode; cache = cache.filter { $0.key == m } } else { cache.removeAll() }
     }
 
     /// Chế độ lọc có từ vựng đang nằm cache (test).
-    static var cachedModes: Set<Bool> { lock.lock(); defer { lock.unlock() }; return Set(cache.keys) }
+    static var cachedModes: Set<Bool> { lock.lock(); defer { lock.unlock() }; return Set(cache.keys.map(\.filter)) }
 
     static func isSensitive(_ word: String) -> Bool { SensitiveWords.set.contains(word) }
 
-    static func build(filter: Bool, shortcuts: [Entry] = []) -> Vocab {
+    static func build(filter: Bool, teencode: Bool = false, shortcuts: [Entry] = []) -> Vocab {
         let lex = SwipeLexicon.forms
         var words: [String: [SwipeWord]] = [:]
-        for e in entries(filter: filter, shortcuts: shortcuts) {
+        for e in entries(filter: filter, teencode: teencode, shortcuts: shortcuts) {
             let f = e.path ?? SwipeLexicon.fold(e.word)
             let lf = e.path != nil || SwipeLexicon.index(of: f) == nil ? -1 : lexiconFreq(e.word)
             // có sẵn trong vnlexicon: chỉ thay khi bảng cao hơn; không có: từ tục được sàn

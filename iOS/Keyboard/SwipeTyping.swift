@@ -354,7 +354,8 @@ final class SwipeTyping {
     func finish(_ path: SwipePath, case sc: SwipeCase, contextWords: [String],
                 count: @escaping (String) -> Int = { _ in 0 }, prev: String? = nil,
                 prev2: String? = nil, english: SwipeEnglishPrior? = nil, englishOnly: Bool = false,
-                previous: Revisable? = nil, nextWords: ((String, String?) -> [String])? = nil,
+                previous: Revisable? = nil, previousLiteral: String? = nil,
+                nextWords: ((String, String?) -> [String])? = nil,
                 lm: SyllableLM? = SyllableLM.shared, learnedCase: ((String) -> String?)? = nil,
                 properNouns: Bool = true,
                 bridge: EngineBridge, proxy: TextProxyLike) -> Outcome? {
@@ -396,14 +397,15 @@ final class SwipeTyping {
         // Chuỗi tên riêng: từ này viết hoa vì từ vuốt trước ("việt" + "nam" → "Nam") ⇒ hoa luôn từ
         // trước khi nó còn mở, đúng như trên màn hình ("Việt Nam", không "việt Nam"). Caps Lock:
         // từ trước đã hoa sẵn.
-        if properNouns, let rec = previous, sc != .upper {
-            let onScreen = revised?.new ?? rec.word
+        // Từ trước là từ TIẾNG ANH vừa vuốt (previousLiteral, "new" + "york") cũng vậy — thay nguyên văn.
+        if properNouns, let base = previous?.word ?? previousLiteral, sc != .upper {
+            let onScreen = revised?.new ?? base
             if let f = onScreen.first, !f.isUppercase,
                DisplayCase.chainCapitalizes(r.word.lowercased(), after: onScreen),
                proxy.contextBeforeInput?.hasSuffix(onScreen) == true {
                 let cap = onScreen.prefix(1).uppercased() + onScreen.dropFirst()
-                if bridge.replaceSwipeWord(with: cap, accepted: false, proxy: proxy) {
-                    revised = Revision(old: revised?.old ?? rec.word, new: cap)
+                if bridge.replaceSwipeWord(with: cap, literal: previous == nil, accepted: false, proxy: proxy) {
+                    revised = Revision(old: revised?.old ?? base, new: cap)
                 }
             }
         }

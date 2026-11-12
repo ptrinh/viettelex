@@ -106,10 +106,16 @@ object SwipeVocab {
      * Bảng đầy đủ theo chế độ: chat + thô tục luôn có (+ tục khi tắt lọc, tần suất từ seed) + nét
      * Telex của từ một chữ + từ của bảng Gõ tắt ([shortcuts], rỗng khi tắt Gõ tắt).
      */
-    fun entries(filter: Boolean): List<Entry> {
+    /**
+     * Từ một chữ kiểu teencode (KHÔNG có trong vnlexicon) — chỉ khi bật Teencode (Phil 12/11/2026:
+     * "er → ẻ (nếu bật teencode)"). "er" cũng là từ tiếng Anh: phương án đó vẫn ở thanh gợi ý. = iOS.
+     */
+    val TEENCODE_ENTRIES: List<Entry> = listOf(Entry("ẻ", 140, path = "er"))
+
+    fun entries(filter: Boolean, teencode: Boolean = false): List<Entry> {
         val base = (if (filter) CHAT + ALWAYS
             else CHAT + ALWAYS + sensitiveEntries(try { SeedData.unigrams } catch (e: Exception) { emptyMap() })) +
-            telexEntries
+            telexEntries + (if (teencode) TEENCODE_ENTRIES else emptyList())
         val sc = shortcuts
         return if (sc.isEmpty()) base else base + sc.filter { !(filter && isSensitive(it.word.lowercase())) }
     }
@@ -218,11 +224,16 @@ object SwipeVocab {
     /** Đặt lúc bàn phím hiện (KeyboardSession.startInput) từ cài đặt "Lọc từ nhạy cảm". */
     @Volatile var filterSensitive: Boolean = true
 
-    private val cache = HashMap<Boolean, Vocab>()
+    /** Đặt lúc bàn phím hiện từ cài đặt Teencode (Telex) — thêm [TEENCODE_ENTRIES]. */
+    @Volatile var teencode: Boolean = false
+
+    /** Khoá cache = chế độ (lọc, teencode). */
+    private val cache = HashMap<Pair<Boolean, Boolean>, Vocab>()
 
     val current: Vocab get() {
         val f = filterSensitive
-        synchronized(lock) { return cache.getOrPut(f) { build(f) } }
+        val t = teencode
+        synchronized(lock) { return cache.getOrPut(f to t) { build(f, t) } }
     }
 
     /** Có Vocab đã dựng trong cache (test). */
@@ -237,10 +248,10 @@ object SwipeVocab {
     fun isSensitive(word: String): Boolean = word in SensitiveWords.set
 
     /** Dựng từ vựng cho chế độ lọc [filter]. SwipeWord.score = tần suất thô (0–255). */
-    fun build(filter: Boolean): Vocab {
+    fun build(filter: Boolean, teencode: Boolean = false): Vocab {
         val lex = SwipeLexicon.forms
         val words = LinkedHashMap<String, MutableList<SwipeWord>>()
-        for (e in entries(filter)) {
+        for (e in entries(filter, teencode)) {
             val f = e.path ?: SwipeSuggest.fold(e.word)
             val i = SwipeLexicon.indexOf(f)
             val lf = if (e.path == null && i >= 0) lexiconFreq(e.word) else -1
