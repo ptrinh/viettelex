@@ -896,33 +896,62 @@ enum Soundhole {
 enum ThemeExtras {
     static let soundOnKey = "keySound"
     static let soundStyleKey = "keySoundStyle"
+    /// Công tắc Gõ vuốt (mặc định tắt — như EngineBridge / trang Gõ vuốt).
+    static let swipeTypingKey = "swipeTyping"
 
     struct Outcome: Equatable {
         var effect: String?
         var sound: String?
         /// Âm thanh phím đang TẮT mà theme vừa đặt kiểu âm ⇒ app hiện gợi ý (không chặn) kèm nút "Bật".
         var soundHint: Bool
+        /// Nét vuốt / âm thanh nét vuốt cần ghi (nil = không đổi) — chỉ khi Gõ vuốt đang bật.
+        var swipeTrail: String? = nil
+        var swipeSound: String? = nil
     }
 
     /// Logic thuần: `st` = kiểu thực dùng của theme vừa chọn (ThemeSettings.effectiveKeyStyle).
+    /// Gõ vuốt bật (`swipeOn`) ⇒ "swipe" / "swipeSound" của theme (được phép) cũng được ghi; cài đặt nét vuốt đang
+    /// "Theo giao diện" (`currentTrail`) ⇒ giữ nguyên (đã tự theo theme). Gõ vuốt tắt ⇒ không đổi gì. Android y hệt.
     static func plan(_ st: KeyStyle, soundOn: Bool, effectAllowed: (String) -> Bool,
-                     soundAllowed: (String) -> Bool) -> Outcome {
+                     soundAllowed: (String) -> Bool, swipeOn: Bool = false, currentTrail: String? = nil,
+                     swipeTrailAllowed: (String) -> Bool = { _ in false },
+                     swipeSoundAllowed: (String) -> Bool = { _ in false }) -> Outcome {
         let e = st.effect.flatMap { effectAllowed($0) ? $0 : nil }
         let snd = st.sound.flatMap { soundAllowed($0) ? $0 : nil }
-        return Outcome(effect: e, sound: snd, soundHint: snd != nil && !soundOn)
+        var r = Outcome(effect: e, sound: snd, soundHint: snd != nil && !soundOn)
+        guard swipeOn else { return r }
+        if currentTrail != SwipeTrailStyle.theme.rawValue {
+            r.swipeTrail = st.swipe.flatMap { swipeTrailAllowed($0) ? $0 : nil }
+        }
+        r.swipeSound = st.swipeSound.flatMap { swipeSoundAllowed($0) ? $0 : nil }
+        return r
     }
 
     /// Hiệu ứng có trên máy + được phép (Plus) — id chưa có (hiệu ứng mới chưa vào bản này) ⇒ bỏ qua.
     static func effectAllowed(_ id: String) -> Bool { KeyEffect(rawValue: id).map(KeyEffectGate.allows) ?? false }
     /// Kiểu âm dựng sẵn (kiểu âm không thuộc Plus — trang Âm thanh gõ chọn tự do).
     static func soundAllowed(_ id: String) -> Bool { KeySoundStyle.presetIDs.contains(id) }
+    /// Nét vuốt cụ thể có trên máy + được phép (Plus — như trang Hiệu ứng nét vuốt); "theme" / id lạ ⇒ bỏ qua.
+    static func swipeTrailAllowed(_ id: String) -> Bool {
+        guard let s = SwipeTrailStyle(rawValue: id), s != .theme else { return false }
+        return SwipeTrailGate.allows(s)
+    }
+    /// Âm nét vuốt tổng hợp có trên máy + được phép (Plus — như trang Âm thanh nét vuốt); "none" / "custom" / lạ ⇒ bỏ qua.
+    static func swipeSoundAllowed(_ id: String) -> Bool {
+        guard let s = SwipeSoundStyle(rawValue: id), SwipeSoundStyle.synthesized.contains(s) else { return false }
+        return SwipeSoundGate.allows(s)
+    }
 
-    /// Gọi NGAY sau khi lưu theme vừa chọn. Ghi App Group (cùng khoá trang Âm thanh / Hiệu ứng).
+    /// Gọi NGAY sau khi lưu theme vừa chọn. Ghi App Group (cùng khoá trang Âm thanh / Hiệu ứng / Gõ vuốt).
     @discardableResult
     static func applyOnSelect(_ st: KeyStyle, to d: UserDefaults?) -> Outcome {
-        let r = plan(st, soundOn: d?.bool(forKey: soundOnKey) ?? false, effectAllowed: effectAllowed, soundAllowed: soundAllowed)
+        let r = plan(st, soundOn: d?.bool(forKey: soundOnKey) ?? false, effectAllowed: effectAllowed, soundAllowed: soundAllowed,
+                     swipeOn: d?.bool(forKey: swipeTypingKey) ?? false, currentTrail: d?.string(forKey: SwipeTrailStyle.key),
+                     swipeTrailAllowed: swipeTrailAllowed, swipeSoundAllowed: swipeSoundAllowed)
         if let e = r.effect { d?.set(e, forKey: KeyEffect.key) }
         if let s = r.sound { d?.set(s, forKey: soundStyleKey) }
+        if let t = r.swipeTrail { d?.set(t, forKey: SwipeTrailStyle.key) }
+        if let s = r.swipeSound { d?.set(s, forKey: SwipeSoundStyle.key) }
         return r
     }
 
@@ -1167,6 +1196,7 @@ struct ThemeSettings: Equatable {
             if s.sound == nil { s.sound = t.sound }
             if s.effect == nil { s.effect = t.effect }
             if s.swipe == nil { s.swipe = t.swipe }
+            if s.swipeSound == nil { s.swipeSound = t.swipeSound }
             if s.game == nil { s.game = t.game }
             if s.keyShape == nil { s.keyShape = t.keyShape }
             if s.photoFx == nil { s.photoFx = t.photoFx }
@@ -1344,8 +1374,11 @@ struct KeyStyle: Equatable {
     /// Âm phím / hiệu ứng đi kèm theme ("sound" / "effect", ThemeExtraIds) — CHỈ áp lúc chọn theme (ThemeExtras).
     var sound: String? = nil
     var effect: String? = nil
-    /// Nét vuốt theme ("swipe", ThemeExtraIds.swipes) — chỉ dùng khi chọn "Theo giao diện" (SwipeTrailPolicy).
+    /// Nét vuốt theme ("swipe", ThemeExtraIds.swipes) — "Theo giao diện" (SwipeTrailPolicy) + ghi một lần lúc chọn
+    /// theme khi Gõ vuốt bật (ThemeExtras).
     var swipe: String? = nil
+    /// Âm thanh nét vuốt theme ("swipeSound", ThemeExtraIds.swipeSounds) — ghi một lần lúc chọn theme khi Gõ vuốt bật.
+    var swipeSound: String? = nil
     /// Trò chơi khi gõ của theme ("game", ThemeExtraIds.games) — bàn phím đọc từ kiểu thực dùng (MolePolicy).
     var game: String? = nil
     /// Dáng phím ("keyShape", ThemeExtraIds.keyShapes): "pixel" = góc bậc thang + viền + bóng khối (PixelKeys);
@@ -1514,6 +1547,7 @@ struct KeyStyle: Equatable {
         st.sound = edited.sound
         st.effect = edited.effect
         st.swipe = edited.swipe
+        st.swipeSound = edited.swipeSound
         st.game = edited.game
         st.keyShape = edited.keyShape
         st.photoFx = edited.photoFx
@@ -1581,6 +1615,7 @@ enum KeyStyleStore {
         if let v = st.sound { f.append(("sound", .string(v))) }
         if let v = st.effect { f.append(("effect", .string(v))) }
         if let v = st.swipe { f.append(("swipe", .string(v))) }
+        if let v = st.swipeSound { f.append(("swipeSound", .string(v))) }
         if let v = st.game { f.append(("game", .string(v))) }
         if let v = st.keyShape { f.append(("keyShape", .string(v))) }
         if let v = st.photoFx { f.append(("photoFx", .string(v))) }

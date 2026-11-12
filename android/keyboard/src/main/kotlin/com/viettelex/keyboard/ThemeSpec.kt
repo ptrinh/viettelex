@@ -635,7 +635,7 @@ data class ThemeSpec(
     /** Âm phím / hiệu ứng đi kèm (id [ThemeExtraIds]) — chỉ áp lúc chọn theme ([ThemeExtras]). */
     val sound: String? = null,
     val effect: String? = null,
-    /** Nét vuốt của theme (id [ThemeExtraIds.SWIPES]) — chỉ dùng khi cài đặt nét vuốt = "Theo giao diện". */
+    /** Nét vuốt của theme (id [ThemeExtraIds.SWIPES]) — "Theo giao diện" + ghi một lần lúc chọn theme khi Gõ vuốt bật. */
     val swipe: String? = null,
     /** Trò chơi khi gõ ("mole" — [MoleGame]) — chạy khi theme đang dùng ([ThemeExtraIds.GAMES]). iOS `game`. */
     val game: String? = null,
@@ -657,6 +657,8 @@ data class ThemeSpec(
     val particles: ThemeParticles? = null,
     /** Từ khoá tự tạo ([ThemeFx]) — nổ thêm ở ranh giới từ; null = không có (mảng rỗng cũng null). iOS `keywords`. */
     val keywords: List<ThemeKeyword>? = null,
+    /** Âm thanh nét vuốt của theme (id [ThemeExtraIds.SWIPE_SOUNDS]) — ghi một lần lúc chọn theme khi Gõ vuốt bật. iOS `swipeSound`. */
+    val swipeSound: String? = null,
 ) {
     /** Theme tương tác (nhãn "interactive") — chip "Tương tác" + nhóm riêng trong màn chọn giao diện. */
     val isInteractive: Boolean get() = tags?.contains(ThemeTags.INTERACTIVE) == true
@@ -679,7 +681,7 @@ data class ThemeSpec(
     /** Kiểu chữ / bo góc / tệp tải về mặc định của theme. */
     val typography: KeyStyle get() = KeyStyle(corner = corner, fontScale = fontScale, font = font ?: KeyLabelFont.DEFAULT,
         weight = weight ?: KeyLabelWeight.REGULAR, assets = assets, sound = sound, effect = effect, swipe = swipe, game = game,
-        keyShape = keyShape, photoFx = photoFx, keyMotion = keyMotion)
+        keyShape = keyShape, photoFx = photoFx, keyMotion = keyMotion, swipeSound = swipeSound)
 
     fun palette(dark: Boolean): ThemePalette = palette(slots(dark), dark)
 
@@ -702,6 +704,7 @@ data class ThemeSpec(
         sound?.let { m.add("sound" to SJ.Str(it)) }
         effect?.let { m.add("effect" to SJ.Str(it)) }
         swipe?.let { m.add("swipe" to SJ.Str(it)) }
+        swipeSound?.let { m.add("swipeSound" to SJ.Str(it)) }
         game?.let { m.add("game" to SJ.Str(it)) }
         keyShape?.let { m.add("keyShape" to SJ.Str(it)) }
         photoFx?.let { m.add("photoFx" to SJ.Str(it)) }
@@ -811,7 +814,7 @@ data class ThemeSpec(
             return ThemeSpec(id, nameVi, nameEn, l, if (d == l) null else d, style.corner, style.fontScale,
                 style.font.takeIf { it != KeyLabelFont.DEFAULT && style.assets.font == null },
                 style.weight.takeIf { it != KeyLabelWeight.REGULAR }, style.assets, style.sound, style.effect, style.swipe, style.game,
-                keyShape = style.keyShape, photoFx = style.photoFx, keyMotion = style.keyMotion)
+                keyShape = style.keyShape, photoFx = style.photoFx, keyMotion = style.keyMotion, swipeSound = style.swipeSound)
         }
     }
 }
@@ -831,7 +834,7 @@ object ThemeSpecParser {
 
     private val ASSET_KEYS = setOf("background", "foreground", "keys")
     private val ROOT_KEYS = setOf("v", "id", "name", "light", "dark", "corner", "fontScale", "font", "weight",
-        "sound", "effect", "swipe", "game", "keyShape", "schedule", "photoFx", "keyMotion", "tags", "buddy", "variant", "particles", "keywords") + ASSET_KEYS
+        "sound", "effect", "swipe", "swipeSound", "game", "keyShape", "schedule", "photoFx", "keyMotion", "tags", "buddy", "variant", "particles", "keywords") + ASSET_KEYS
     private val SLOT_KEYS = (ThemeSlots.COLOR_KEYS + "deco" + "borderFx" + "spaceDeco").toSet()
 
     fun parse(text: String): Outcome = when (val r = StrictJson.parse(text)) {
@@ -895,7 +898,7 @@ object ThemeSpecParser {
             if (j["font"] != null && typo.assets.font == null) typo.font else null,
             if (j["weight"] != null) typo.weight else null, typo.assets, typo.sound, typo.effect, typo.swipe, typo.game,
             schedule, typo.keyShape, photoFx = typo.photoFx, keyMotion = typo.keyMotion, tags = tags, buddy = buddy, variant = variant,
-            particles = particles, keywords = keywords)
+            particles = particles, keywords = keywords, swipeSound = typo.swipeSound)
         if (contrast) c.issues.addAll(contrastIssues(spec))
         return Outcome(if (c.failed) null else spec, c.issues)
     }
@@ -1081,7 +1084,7 @@ object ThemeSpecParser {
         s = s.copy(sound = pick("sound", ThemeExtraIds.SOUNDS), effect = pick("effect", ThemeExtraIds.EFFECTS),
             swipe = pick("swipe", ThemeExtraIds.SWIPES), game = pick("game", ThemeExtraIds.GAMES),
             keyShape = pick("keyShape", ThemeExtraIds.KEY_SHAPES), photoFx = pick("photoFx", ThemeExtraIds.PHOTO_FX),
-            keyMotion = pick("keyMotion", ThemeExtraIds.KEY_MOTIONS))
+            keyMotion = pick("keyMotion", ThemeExtraIds.KEY_MOTIONS), swipeSound = pick("swipeSound", ThemeExtraIds.SWIPE_SOUNDS))
         return s
     }
 
@@ -1162,7 +1165,7 @@ object ThemeSpecParser {
         if (j !is SJ.Obj) return null
         val c = Ctx()
         val allowed = setOf("label", "fill", "accent", "corner", "fontScale", "font", "weight", "light", "dark",
-            "sound", "effect", "swipe", "game", "keyShape", "photoFx", "keyMotion") + ASSET_KEYS
+            "sound", "effect", "swipe", "swipeSound", "game", "keyShape", "photoFx", "keyMotion") + ASSET_KEYS
         for ((k, _) in j.m) if (k !in allowed) c.err(ThemeIssue.Code.unknownKey, k)
         fun rgb(k: String): Int? {
             val v = j[k] ?: return null
@@ -1331,6 +1334,7 @@ object ThemeJsonActions {
                 if (st.sound == b.spec?.sound) st = st.copy(sound = null)
                 if (st.effect == b.spec?.effect) st = st.copy(effect = null)
                 if (st.swipe == b.spec?.swipe) st = st.copy(swipe = null)
+                if (st.swipeSound == b.spec?.swipeSound) st = st.copy(swipeSound = null)
                 if (st.game == b.spec?.game) st = st.copy(game = null)
                 if (st.keyShape == b.spec?.keyShape) st = st.copy(keyShape = null)
                 if (st.photoFx == b.spec?.photoFx) st = st.copy(photoFx = null)
