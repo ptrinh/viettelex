@@ -141,7 +141,7 @@ internal data class FeatureSearchEntry(
             FeatureSearchEntry("Xóa từ đã học", "xoá học reset", FeaturePage.SuaLoi), // l10n-key
             FeatureSearchEntry("Gõ vuốt", "swipe vuốt", FeaturePage.GoVuot), // l10n-key
             FeatureSearchEntry("Vuốt từ tiếng Anh", "swipe english gõ vuốt tiếng anh", FeaturePage.GoVuot), // l10n-key
-            FeatureSearchEntry("Hiệu ứng nét vuốt", "swipe trail nét vuốt vệt hiệu ứng lửa fire điện electric lightning bút lông brush mực ink cầu vồng rainbow neon bụi sao stardust sparkle pháo hoa firework plasma ảo ảnh kính vạn hoa kaleidoscope tan chảy melt vệt lặp chroma echo theo giao diện theme plus", FeaturePage.GoVuot), // l10n-key
+            FeatureSearchEntry("Hiệu ứng nét vuốt", "swipe trail nét vuốt vệt hiệu ứng lửa fire điện electric lightning bút lông brush mực ink cầu vồng rainbow neon bụi sao stardust sparkle pháo hoa firework plasma ảo ảnh kính vạn hoa kaleidoscope tan chảy melt vệt lặp chroma echo phím sáng theo đường key glow thư pháp calligraphy sao chổi comet đom đóm fireflies ma trận matrix rain cánh hoa petals sen lotus theo giao diện theme plus", FeaturePage.GoVuot), // l10n-key
             FeatureSearchEntry("Âm thanh nét vuốt", "swipe sound tiếng âm thanh vuốt bút chì pencil chổi lông brush phấn bảng chalk bút dạ marker roi vụt whip tia sét lightning plasma đũa phép magic wand âm của bạn your sound custom plus", FeaturePage.GoVuot), // l10n-key
             FeatureSearchEntry("Mô hình neural gõ vuốt", "futo neural swipe", FeaturePage.GoVuot), // l10n-key
             FeatureSearchEntry("Luyện vuốt", "practice swipe", FeaturePage.GoVuot), // l10n-key

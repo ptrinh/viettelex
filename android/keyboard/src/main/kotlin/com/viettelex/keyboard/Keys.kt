@@ -129,7 +129,7 @@ object Keys {
     const val BUDDY_PAD_RIGHT = "buddyPadRight"
     /** Int −10…10 dp — lề trên nhân vật (dương = dời xuống), mặc định 0. */
     const val BUDDY_PAD_TOP = "buddyPadTop"
-    /** String — "Hiệu ứng nét vuốt" ([SwipeTrailStyle.id]): none|simple|fire|electric|brush|rainbow|neon|stardust|firework|plasma|kaleidoscope|melt|chroma|theme, mặc định simple. Tên như iOS App Group. */
+    /** String — "Hiệu ứng nét vuốt" ([SwipeTrailStyle.id]): none|simple|fire|electric|brush|rainbow|neon|stardust|firework|plasma|kaleidoscope|melt|chroma|keys|calligraphy|comet|firefly|matrix|petals|theme, mặc định simple. Tên như iOS App Group. */
     const val SWIPE_TRAIL = "swipeTrail"
     /** String — "Âm thanh nét vuốt" ([SwipeSoundStyle.id]): none|pencil|brush|chalk|marker, mặc định none. Tên như iOS App Group. */
     const val SWIPE_SOUND = "swipeSound"

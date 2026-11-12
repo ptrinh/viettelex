@@ -7560,6 +7560,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             trail = t
             t.configure(style: trailStyle, trail: palette.trail, accent: palette.accent.alpha(1), dark: palette.isDark)
         }
+        if trailStyle.usesKeys {   // Phím sáng theo đường / Ma trận: khung phím chữ (cache) — một lần mỗi cú vuốt
+            let g = letterGeometry()
+            t.setKeys(g.rects, g.chars, hitDy: TouchGeometry.yOffset)
+        }
         t.begin(bounds: bounds)
         layer.addSublayer(t.layer)               // lên trên cùng
         if let path = swipePath {
