@@ -23,7 +23,8 @@ enum FeaturePage: String, CaseIterable, Identifiable {
         }
     }
     /// Cả nhóm đang thử nghiệm → nhãn nhỏ ngay trên dòng.
-    var experimental: Bool { false }   // Gõ vuốt hết nhãn Thử nghiệm (Phil 12/11/2026)
+    /// Nhãn cạnh tên trang: Gõ vuốt = "Máy học" (thay "Thử nghiệm", Phil 12/11/2026).
+    var badge: String? { self == .goVuot ? L("Máy học") : nil }
     /// Mục tương ứng trong Hướng dẫn sử dụng (docs/hdsd/index.html); nil = không có mục riêng.
     var guideAnchor: String? {
         switch self {

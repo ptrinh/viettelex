@@ -62,10 +62,11 @@ extension SettingsIndexEntry.Condition {
     }
 }
 
-/// Nhãn nhỏ "Thử nghiệm" cạnh tên cài đặt.
+/// Nhãn nhỏ cạnh tên cài đặt: "Thử nghiệm" (mặc định) hoặc "Máy học" (Gõ vuốt — Phil 12/11/2026).
 struct ExperimentalBadge: View {
+    var text: String = L("Thử nghiệm")
     var body: some View {
-        Text(L("Thử nghiệm"))
+        Text(text)
             .font(.caption2.weight(.semibold))
             .padding(.horizontal, 6).padding(.vertical, 1)
             .background(Capsule().fill(Color.purple.opacity(0.15)))
@@ -74,10 +75,11 @@ struct ExperimentalBadge: View {
 }
 
 /// Toggle có nhãn "Thử nghiệm" (cùng kiểu settingToggle).
-func experimentalToggle(_ title: String, _ caption: String, isOn: Binding<Bool>) -> some View {
+func experimentalToggle(_ title: String, _ caption: String, isOn: Binding<Bool>,
+                        badge: String = L("Thử nghiệm")) -> some View {
     Toggle(isOn: isOn) {
         VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 6) { Text(title); ExperimentalBadge() }
+            HStack(spacing: 6) { Text(title); ExperimentalBadge(text: badge) }
             Text(caption).font(.footnote).foregroundStyle(.secondary)
         }
     }
@@ -356,7 +358,7 @@ struct TinhNangSections: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(title ?? p.title)
-                    if p.experimental && title == nil { ExperimentalBadge() }
+                    if let b = p.badge, title == nil { ExperimentalBadge(text: b) }
                 }
                 Text(subtitle).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
             }
@@ -537,7 +539,7 @@ struct GoVuotPage: View {
         let rows = SettingsDeps.swipeRows(swipeTyping: swipeTyping)
         FeaturePageList(page: .goVuot) {
             Section {
-                settingToggle(L("Gõ vuốt"), L(SettingCaption.swipeTyping), isOn: $swipeTyping)
+                experimentalToggle(L("Gõ vuốt"), L(SettingCaption.swipeTyping), isOn: $swipeTyping, badge: L("Máy học"))
                 if rows.contains(.swipeEnglish) {
                     settingToggle(L(SettingLabel.swipeEnglish), L(SettingCaption.swipeEnglish), isOn: $swipeEnglish)
                         .padding(.leading, 12)

@@ -179,6 +179,7 @@ enum L10n {
         "Giữ phím hàng trên để ra số": "Hold top-row keys for numbers",
         "Chế độ một tay": "One-handed mode",
         "Thử nghiệm": "Beta",
+        "Máy học": "Neural model",
         "Tìm hiểu thêm trong Hướng dẫn": "Learn more in the Guide",
         "Cài đặt áp dụng ngay lần mở bàn phím kế tiếp.": "Settings apply the next time the keyboard opens.",
 

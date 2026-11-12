@@ -71,9 +71,10 @@ internal val APPLY_NOTE get() = tr("Cài đặt áp dụng ngay lần mở bàn 
 internal const val FEEDBACK_TITLE = "Phản hồi khi chạm" // l10n-key
 
 /** [viTitle] = khoá dịch; hiển thị qua [title] (theo ngôn ngữ giao diện). [anchor] rỗng = không có mục Hướng dẫn. */
-enum class FeaturePage(val viTitle: String, val glyph: Glyph, val color: Color, val anchor: String, val enAnchor: String, val experimental: Boolean = false) {
+/** [badgeVi]: nhãn cạnh tên trang (khoá dịch) — Gõ vuốt = "Máy học" (thay "Thử nghiệm", Phil 12/11/2026). */
+enum class FeaturePage(val viTitle: String, val glyph: Glyph, val color: Color, val anchor: String, val enAnchor: String, val badgeVi: String? = null) {
     SuaLoi("Sửa lỗi & gợi ý", Glyph.Spell, Color(0xFF34C759), "goi-y", "suggestions"), // l10n-key
-    GoVuot("Gõ vuốt", Glyph.Swipe, Color(0xFFAF52DE), "go-vuot", "swipe"), // l10n-key
+    GoVuot("Gõ vuốt", Glyph.Swipe, Color(0xFFAF52DE), "go-vuot", "swipe", badgeVi = "Máy học"), // l10n-key
     GoTat("Gõ tắt & mẫu câu", Glyph.Quote, Color(0xFF30B0C7), "go-tat", "shortcuts"), // l10n-key
     Phim("Phím & cử chỉ", Glyph.Keyboard, Color(0xFF8E8E93), "cu-chi", "gestures"), // l10n-key
     GiaoDien("Giao diện", Glyph.Palette, Color(0xFFFF2D55), "giao-dien", "look"), // l10n-key
@@ -216,8 +217,8 @@ internal const val LANGUAGE_TITLE = "Ngôn ngữ / Language" // l10n-skip: song 
 // ---------------------------------------------------------------- khối dùng chung
 
 @Composable
-internal fun ExperimentalBadge() {
-    Text(tr("Thử nghiệm"), style = VTType.caption2.copy(fontWeight = FontWeight.SemiBold), color = Color(0xFFAF52DE),
+internal fun ExperimentalBadge(text: String = tr("Thử nghiệm")) {
+    Text(text, style = VTType.caption2.copy(fontWeight = FontWeight.SemiBold), color = Color(0xFFAF52DE),
         modifier = Modifier.background(Color(0xFFAF52DE).copy(alpha = 0.15f), RoundedCornerShape(50))
             .padding(horizontal = 6.dp, vertical = 1.dp))
 }
@@ -248,14 +249,14 @@ internal fun LanguagePickerRow() {
 
 /** Toggle có nhãn "Thử nghiệm". */
 @Composable
-internal fun ExperimentalToggle(key: String, default: Boolean, title: String, caption: String) {
+internal fun ExperimentalToggle(key: String, default: Boolean, title: String, caption: String, badge: String = tr("Thử nghiệm")) {
     val c = LocalVT.current
     var v by rememberBoolPref(key, default)
     VTRow(onClick = { v = !v }) {
         Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(title, style = VTType.body, color = c.label)
-                ExperimentalBadge()
+                ExperimentalBadge(badge)
             }
             Text(caption, style = VTType.footnote, color = c.secondary)
         }
@@ -271,14 +272,14 @@ private fun FeatureIcon(p: FeaturePage) {
 }
 
 @Composable
-private fun FeatureRow(p: FeaturePage, title: String, subtitle: String, badge: Boolean, onClick: () -> Unit) {
+private fun FeatureRow(p: FeaturePage, title: String, subtitle: String, badge: String?, onClick: () -> Unit) {
     val c = LocalVT.current
     VTRow(onClick = onClick) {
         FeatureIcon(p)
         Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(title, style = VTType.body, color = c.label)
-                if (badge) ExperimentalBadge()
+                if (badge != null) ExperimentalBadge(badge)
             }
             Text(subtitle, style = VTType.footnote, color = c.secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
@@ -436,7 +437,7 @@ private fun FeatureHome(onOpen: (FeaturePage, Boolean) -> Unit) {
             VTSection {
                 group.forEachIndexed { i, p ->
                     if (i > 0) RowDivider(57.dp)
-                    FeatureRow(p, p.title, summary(p), p.experimental) { onOpen(p, false) }
+                    FeatureRow(p, p.title, summary(p), p.badgeVi?.let { tr(it) }) { onOpen(p, false) }
                 }
             }
         }
@@ -451,7 +452,7 @@ private fun FeatureHome(onOpen: (FeaturePage, Boolean) -> Unit) {
                 if (p != null) {
                     val isPage = e.isPage
                     // Dòng phụ = đường dẫn tới chỗ của cài đặt (vd "Tính Năng › Phím & cử chỉ › Phản hồi khi chạm").
-                    FeatureRow(p, e.title, if (isPage) summary(p) else e.path, isPage && p.experimental) { onOpen(p, e.feedback) }
+                    FeatureRow(p, e.title, if (isPage) summary(p) else e.path, if (isPage) p.badgeVi?.let { tr(it) } else null) { onOpen(p, e.feedback) }
                 } else if (target != null) {
                     // Tab Kiểu Gõ: RootScreen đổi tab, KieuGoTab mở đúng trang/nhóm + cuộn tới dòng.
                     KieuGoSearchRow(e.title, e.path, e.mixed != null) { KieuGoNav.request.value = target }
@@ -563,8 +564,8 @@ private fun GoVuotPage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     // Gõ vuốt tắt ⇒ ẩn mọi mục con của trang (SETTINGS-CLEANUP-SPEC §6), bật lại là hiện tại chỗ.
     val rows = SettingDeps.swipeRows(swipeOn)
     VTSection(footer = tr("Tự tắt khi bật TalkBack và ở ô mật khẩu, email, địa chỉ web.")) {
-        BoolToggle(Keys.SWIPE_TYPING, Prefs.D.swipeTyping, tr("Gõ vuốt"),
-            tr(SettingCaption.swipeTyping))
+        ExperimentalToggle(Keys.SWIPE_TYPING, Prefs.D.swipeTyping, tr("Gõ vuốt"),
+            tr(SettingCaption.swipeTyping), badge = tr("Máy học"))
         // "Vuốt từ tiếng Anh" ngay dưới công tắc Gõ vuốt (SETTINGS-CLEANUP-SPEC §1). Bộ chọn hồ sơ
         // (Kiểu Gõ › Gõ lẫn tiếng Anh) vẫn đặt cùng key.
         if (SettingDeps.SwipeRow.SwipeEnglish in rows) {

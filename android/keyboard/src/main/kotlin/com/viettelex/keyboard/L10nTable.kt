@@ -372,6 +372,7 @@ object L10nTable {
         put("Chế độ ẩn danh", "Incognito mode")
         put("Xuất / nhập file sao lưu", "Export / import backup file")
         put("Thử nghiệm", "Beta")
+        put("Máy học", "Neural model")
         put("‹ Tính Năng", "‹ Features")
         put("Tìm hiểu thêm trong Hướng dẫn", "Learn more in the Guide")
         put("Khôi phục tiếng Anh", "English restore")
