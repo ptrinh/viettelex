@@ -74,7 +74,7 @@ class KeyEffectFx3Tests {
 
     @Test fun keywordTable() {
         assertEquals("haha:LAUGH hihi:LAUGH hehe:LAUGH kkk:LAUGH yêu:LOVE thương:LOVE love:LOVE giận:ANGRY bực:ANGRY " +
-            "tết:TET năm mới:TET lì xì:TET lixi:TET", KeywordBursts.entries.joinToString(" ") { "${it.form}:${it.kind}" })
+            "tết:TET năm mới:TET lì xì:TET lixi:TET chúc mừng:TET congrats:TET cảm ơn:LOVE thanks:LOVE", KeywordBursts.entries.joinToString(" ") { "${it.form}:${it.kind}" })
         val hit = mapOf("haha" to KeywordKind.LAUGH, "hahaha" to KeywordKind.LAUGH, "HIHI" to KeywordKind.LAUGH,
             "kkkk" to KeywordKind.LAUGH, "hehehe" to KeywordKind.LAUGH, "Yêu" to KeywordKind.LOVE,
             "thương!" to KeywordKind.LOVE, "LOVE" to KeywordKind.LOVE, "giận" to KeywordKind.ANGRY, "Bực" to KeywordKind.ANGRY,
@@ -86,6 +86,49 @@ class KeyEffectFx3Tests {
         assertEquals(KeywordKind.TET, KeywordBursts.lookup("xì", "lì"))
         assertNull(KeywordBursts.lookup("mới", "mừng"))
         assertNull(KeywordBursts.lookup("moi", "nam"))
+        assertEquals(KeywordKind.TET, KeywordBursts.lookup("mừng", "Chúc"))
+        assertEquals(KeywordKind.LOVE, KeywordBursts.lookup("ơn", "cảm"))
+        assertEquals(KeywordKind.LOVE, KeywordBursts.lookup("Thanks", null))
+        assertEquals(KeywordKind.TET, KeywordBursts.lookup("congrats!", null))
+        assertNull(KeywordBursts.lookup("mừng", null))
+        assertNull(KeywordBursts.lookup("ơn", null))
+    }
+
+    /** Từ khoá theo từ vuốt — iOS KeyEffectTests.testSwipeKeywordCombo giữ y hệt. */
+    @Test fun swipeKeywordCombo() {
+        val c = SwipeKeywordCombo()
+        // Vuốt "yêu" ⇒ nổ ngay; dấu cách chốt đúng từ đó ⇒ không nổ lần hai (một lần, rồi quên).
+        assertEquals(KeywordKind.LOVE, c.swiped("yêu", null))
+        assertEquals("yêu", c.fired)
+        assertFalse(c.boundary("yêu"))
+        assertNull(c.fired)
+        assertTrue("gõ lại 'yêu' sau đó vẫn nổ", c.boundary("yêu"))
+        // Viết hoa đầu câu: so đúng từ trên màn hình.
+        assertEquals(KeywordKind.LAUGH, c.swiped("Haha", null))
+        assertFalse(c.boundary("Haha"))
+        // Từ vuốt không khớp ⇒ không nổ, ranh giới tra bình thường.
+        assertNull(c.swiped("yếu", null))
+        assertNull(c.fired)
+        assertTrue(c.boundary("yếu"))
+        // Đã nổ rồi chọn phương án khác ⇒ ranh giới chốt từ KHÁC ⇒ tra bình thường.
+        assertEquals(KeywordKind.LOVE, c.swiped("yêu", null))
+        assertTrue(c.boundary("yếu"))
+        // Cụm 2 từ qua hai cú vuốt: "chúc" (không nổ) → cú kế chốt "chúc" → "mừng" nổ pháo.
+        assertNull(c.swiped("chúc", "lời"))
+        c.reset()
+        assertEquals(KeywordKind.TET, c.swiped("mừng", "chúc"))
+        assertFalse(c.boundary("mừng"))
+        c.reset()
+        assertEquals(KeywordKind.LOVE, c.swiped("ơn", "Cảm"))
+        // Cú vuốt kế chốt từ đã nổ (commit ⇒ reset) rồi đặt từ mới: không nổ lại từ cũ, từ mới tự tra.
+        c.reset()
+        assertNull(c.swiped("bạn", "ơn"))
+        assertNull(c.fired)
+        assertTrue(c.boundary("bạn"))
+        // Từ đã nổ bị chốt bởi đường khác (phím chữ, gợi ý) ⇒ reset: gõ lại đúng từ đó vẫn nổ ở ranh giới.
+        assertEquals(KeywordKind.TET, c.swiped("tết", null))
+        c.reset()
+        assertTrue(c.boundary("tết"))
     }
 
     @Test fun keywordParticlesCapped() {

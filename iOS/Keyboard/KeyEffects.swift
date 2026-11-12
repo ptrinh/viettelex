@@ -1023,6 +1023,8 @@ enum KeywordBursts {
         ("yêu", .love), ("thương", .love), ("love", .love),
         ("giận", .angry), ("bực", .angry),
         ("tết", .tet), ("năm mới", .tet), ("lì xì", .tet), ("lixi", .tet),
+        // Chúc mừng ⇒ pháo (dùng lại chùm Tết); cảm ơn ⇒ tim.
+        ("chúc mừng", .tet), ("congrats", .tet), ("cảm ơn", .love), ("thanks", .love),
     ]
     /// Tiếng cười lặp: (đơn vị, số lần tối thiểu).
     static let laughUnits: [(unit: String, min: Int)] = [("ha", 2), ("hi", 2), ("he", 2), ("k", 3)]
@@ -1144,6 +1146,30 @@ enum KeywordBursts {
             return out
         }
     }
+}
+
+/// "Từ khoá" cho từ GÕ VUỐT: chùm nổ ngay khi cú vuốt đặt từ lên màn hình (chỗ nhấc tay), không chờ dấu cách. Từ vuốt
+/// còn "mở" — dấu cách / cú vuốt kế chốt nó sau — nên nhớ từ đã nổ để phím ranh giới chốt ĐÚNG từ đó không nổ lần hai.
+/// Cụm 2 từ ("chúc mừng", "cảm ơn") qua hai cú vuốt liền nhau: `prev` = từ vừa chốt trước từ vuốt. Y hệt Android.
+struct SwipeKeywordCombo {
+    /// Từ vuốt đang mở đã nổ (nil = chưa / đã chốt).
+    private(set) var fired: String?
+
+    /// Cú vuốt vừa đặt `word` (từ chốt ngay trước: `prev`) ⇒ kiểu chùm cần nổ, nil = không khớp.
+    mutating func swiped(_ word: String, prev: String?) -> KeywordKind? {
+        let k = KeywordBursts.lookup(word: word, prev: prev)
+        fired = k == nil ? nil : word
+        return k
+    }
+
+    /// Phím ranh giới vừa chốt `word`: false = đúng từ vuốt đã nổ ⇒ bỏ (một lần, rồi quên).
+    mutating func boundary(_ word: String) -> Bool {
+        defer { fired = nil }
+        return fired == nil || fired != word
+    }
+
+    /// Từ nào đó vừa được chốt / mất (từ vuốt không còn mở).
+    mutating func reset() { fired = nil }
 }
 
 /// "Chữ bay": ĐÚNG chữ vừa ra (kể cả dấu — lấy từ engine, không phải nhãn phím) bay lên từ phím, hơi xoay/lệch rồi mờ.

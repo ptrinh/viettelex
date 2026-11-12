@@ -1082,7 +1082,7 @@ extension KeyEffectTests {
     func testKeywordTable() {
         XCTAssertEqual(KeywordBursts.entries.map { "\($0.form):\($0.kind)" }.joined(separator: " "),
                        "haha:laugh hihi:laugh hehe:laugh kkk:laugh yêu:love thương:love love:love giận:angry bực:angry "
-                       + "tết:tet năm mới:tet lì xì:tet lixi:tet")
+                       + "tết:tet năm mới:tet lì xì:tet lixi:tet chúc mừng:tet congrats:tet cảm ơn:love thanks:love")
         let hit: [String: KeywordKind] = ["haha": .laugh, "hahaha": .laugh, "HIHI": .laugh, "kkkk": .laugh, "hehehe": .laugh,
                                           "Yêu": .love, "thương!": .love, "LOVE": .love, "giận": .angry, "Bực": .angry,
                                           "Tết": .tet, "tết,": .tet, "lixi": .tet]
@@ -1094,6 +1094,49 @@ extension KeyEffectTests {
         XCTAssertEqual(KeywordBursts.lookup(word: "xì", prev: "lì"), .tet)
         XCTAssertNil(KeywordBursts.lookup(word: "mới", prev: "mừng"))
         XCTAssertNil(KeywordBursts.lookup(word: "moi", prev: "nam"))
+        XCTAssertEqual(KeywordBursts.lookup(word: "mừng", prev: "Chúc"), .tet)
+        XCTAssertEqual(KeywordBursts.lookup(word: "ơn", prev: "cảm"), .love)
+        XCTAssertEqual(KeywordBursts.lookup(word: "Thanks", prev: nil), .love)
+        XCTAssertEqual(KeywordBursts.lookup(word: "congrats!", prev: nil), .tet)
+        XCTAssertNil(KeywordBursts.lookup(word: "mừng", prev: nil))
+        XCTAssertNil(KeywordBursts.lookup(word: "ơn", prev: nil))
+    }
+
+    /// Từ khoá theo từ vuốt — Android KeyEffectFx3Tests.swipeKeywordCombo giữ y hệt.
+    func testSwipeKeywordCombo() {
+        var c = SwipeKeywordCombo()
+        // Vuốt "yêu" ⇒ nổ ngay; dấu cách chốt đúng từ đó ⇒ không nổ lần hai (một lần, rồi quên).
+        XCTAssertEqual(c.swiped("yêu", prev: nil), .love)
+        XCTAssertEqual(c.fired, "yêu")
+        XCTAssertFalse(c.boundary("yêu"))
+        XCTAssertNil(c.fired)
+        XCTAssertTrue(c.boundary("yêu"), "gõ lại 'yêu' sau đó vẫn nổ")
+        // Viết hoa đầu câu: so đúng từ trên màn hình.
+        XCTAssertEqual(c.swiped("Haha", prev: nil), .laugh)
+        XCTAssertFalse(c.boundary("Haha"))
+        // Từ vuốt không khớp ⇒ không nổ, ranh giới tra bình thường.
+        XCTAssertNil(c.swiped("yếu", prev: nil))
+        XCTAssertNil(c.fired)
+        XCTAssertTrue(c.boundary("yếu"))
+        // Đã nổ rồi chọn phương án khác ⇒ ranh giới chốt từ KHÁC ⇒ tra bình thường.
+        XCTAssertEqual(c.swiped("yêu", prev: nil), .love)
+        XCTAssertTrue(c.boundary("yếu"))
+        // Cụm 2 từ qua hai cú vuốt: "chúc" (không nổ) → cú kế chốt "chúc" → "mừng" nổ pháo.
+        XCTAssertNil(c.swiped("chúc", prev: "lời"))
+        c.reset()
+        XCTAssertEqual(c.swiped("mừng", prev: "chúc"), .tet)
+        XCTAssertFalse(c.boundary("mừng"))
+        c.reset()
+        XCTAssertEqual(c.swiped("ơn", prev: "Cảm"), .love)
+        // Cú vuốt kế chốt từ đã nổ (commit ⇒ reset) rồi đặt từ mới: không nổ lại từ cũ, từ mới tự tra.
+        c.reset()
+        XCTAssertNil(c.swiped("bạn", prev: "ơn"))
+        XCTAssertNil(c.fired)
+        XCTAssertTrue(c.boundary("bạn"))
+        // Từ đã nổ bị chốt bởi đường khác (phím chữ, gợi ý) ⇒ reset: gõ lại đúng từ đó vẫn nổ ở ranh giới.
+        XCTAssertEqual(c.swiped("tết", prev: nil), .tet)
+        c.reset()
+        XCTAssertTrue(c.boundary("tết"))
     }
 
     func testKeywordParticlesCapped() {

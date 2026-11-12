@@ -2155,6 +2155,13 @@ class KeyboardView(
     /** Controller đã chốt từ vuốt ⇒ "Pháo hoa cuối nét" ở chỗ nhấc tay (kiểu khác: 0 việc). */
     fun swipeCommitted() { trail?.commitBurst() }
 
+    /** "Từ khoá" theo từ vuốt: hẹn chùm (đã xếp ở overlay) tại chỗ nhấc tay — toạ độ overlay như [fxAfter]. */
+    fun burstAtSwipeLift(path: SwipePath) {
+        val j = path.count - 1
+        if (j < 0) return
+        effects?.let { it.burst(path.xs[j] + left - it.left, path.ys[j] + yOffPx + top - it.top) }
+    }
+
     /** Bỏ lượt vuốt đang dở (ẩn bàn phím / đổi layout / tắt tính năng). */
     private fun abortSwipe() {
         val was = swiping

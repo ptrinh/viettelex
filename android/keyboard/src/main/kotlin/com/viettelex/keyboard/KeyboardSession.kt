@@ -673,6 +673,10 @@ class KeyboardSession(
     /** Từ vuốt còn mở: từ engine đang soạn, hoặc từ tiếng Anh nguyên văn. */
     private fun openSwipeWord(): String? = swipeWord?.takeIf { swipeLiteral || it == bridge.composedWord }
 
+    /** "Từ khoá" theo từ vuốt (IME): từ vuốt đang mở + từ chốt ngay trước nó. */
+    val openSwipe: String? get() = openSwipeWord()
+    val lastCommitted: String? get() = lastWord
+
     /** Chốt từ tiếng Anh nguyên văn đang mở (học + ngữ cảnh), trước khi phím kế chèn gì. */
     private fun settleLiteral(word: String) {
         commitAndLearn(word)

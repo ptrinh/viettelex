@@ -711,6 +711,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             }
             com.viettelex.keyboard.KeyEffect.KEYWORD -> {
                 val w = session.boundaryWord ?: return
+                if (!swipeCombo.boundary(w)) return   // từ vuốt đã nổ lúc vuốt: không nổ lần hai
                 com.viettelex.keyboard.KeywordBursts.lookup(w, session.boundaryPrev)?.let { fx.queueKeyword(it) }
             }
             com.viettelex.keyboard.KeyEffect.REPS -> {   // Rep (Gym): "gym", "tập", "beast mode"… ⇒ BEAST MODE
@@ -724,6 +725,21 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             }
             else -> {}
         }
+    }
+
+    /**
+     * "Từ khoá" cho từ vuốt: từ vừa vuốt (đang mở) khớp bảng ⇒ chùm nổ ngay ở chỗ nhấc tay; phím ranh giới chốt đúng từ
+     * đó sau thì không nổ lại ([com.viettelex.keyboard.SwipeKeywordCombo]). Kiểu khác ⇒ một phép so sánh. = iOS.
+     */
+    private val swipeCombo = com.viettelex.keyboard.SwipeKeywordCombo()
+
+    private fun fxSwipeKeyword(path: SwipePath) {
+        val fx = root?.effects ?: return
+        if (fx.effect != com.viettelex.keyboard.KeyEffect.KEYWORD) return
+        val w = session.openSwipe ?: return
+        val k = swipeCombo.swiped(w, session.lastCommitted) ?: return
+        fx.queueKeyword(k)
+        keyboard?.burstAtSwipeLift(path)
     }
 
     /**
@@ -1283,6 +1299,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         val out = try { session.handle(key, proxy, touch) } finally { proxy.end() }
         if (fxBefore != null) fxComposeDiff(key, fxBefore)
         if (session.trackBoundaryWord) fxBoundaryEmoji()
+        swipeCombo.reset()                                  // phím bất kỳ: từ vuốt đã nổ không còn "vừa vuốt"
         if (session.cheerHit) root?.effects?.queueCheer()   // Sút!: cụm cổ vũ ⇒ pháo sáng + cờ ở lượt vẽ kế
         root?.buddy?.let { buddy ->
             if (key == Key.Backspace) buddy.deletePressed() else buddy.keyPressed()
@@ -1478,6 +1495,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         if (res == null || !proxy.begin()) { applyAutoShift(); refreshBar(); return }
         val out = try { session.commitSwipe(res, proxy) } finally { proxy.end() }
         keyboard?.swipeCommitted()          // "Pháo hoa cuối nét" (kiểu khác: 0 việc)
+        fxSwipeKeyword(path)                // "Từ khoá" theo từ vuốt (kiểu khác: một phép so sánh)
         resetIfEditFailed()
         strip?.hidePasteCard()
         pendingGen = out.generation
