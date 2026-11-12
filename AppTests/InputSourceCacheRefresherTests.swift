@@ -63,4 +63,22 @@ final class InputSourceCacheRefresherTests: XCTestCase {
         XCTAssertNotNil(root)
         XCTAssertTrue(root?.path.hasSuffix("/C") == true || root?.path.hasSuffix("/C/") == true)
     }
+
+    // Issue #160: phần chạy trên queue nền không được gọi TIS (HIToolbox macOS 26.5 assert
+    // main queue ⇒ trap). Gọi từ queue nền phải chạy xong bình thường.
+    func testBackgroundRefreshDoesNotTouchInputSourceAPI() {
+        let done = expectation(description: "refresh off main")
+        DispatchQueue.global(qos: .utility).async {
+            R.refresh(bundleIDs: ["com.viettelex.test.no-such-app"], running: [])
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 5)
+        let src = try? String(contentsOfFile: #filePath.replacingOccurrences(
+            of: "AppTests/InputSourceCacheRefresherTests.swift",
+            with: "App/Sources/InputSourceCacheRefresher.swift"), encoding: .utf8)
+        if let src, let body = src.components(separatedBy: "static func refresh(").last {
+            XCTAssertFalse(body.contains("vietTelexEnabled()"))
+            XCTAssertFalse(body.contains("TISCreate"))
+        }
+    }
 }

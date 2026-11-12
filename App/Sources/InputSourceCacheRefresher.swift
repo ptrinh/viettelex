@@ -60,11 +60,12 @@ enum InputSourceCacheRefresher {
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { note in
             guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-                  let id = app.bundleIdentifier else { return }
+                  let id = app.bundleIdentifier, vietTelexEnabled() else { return }
             queue.asyncAfter(deadline: .now() + 1) { refresh(bundleIDs: [id], running: []) }
         }
         // Quét một lần sau khi khởi động (sau cài/cập nhật cũng đi qua đây), không chen lúc mở app.
         DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
+            guard vietTelexEnabled() else { return }
             let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
             queue.async { refresh(bundleIDs: nil, running: running) }
         }
@@ -76,7 +77,10 @@ enum InputSourceCacheRefresher {
         return URL(fileURLWithPath: String(cString: buf), isDirectory: true)
     }
 
+    /// CHỈ gọi trên main: HIToolbox (macOS 26.5) assert main queue trong
+    /// TISCreateInputSourceList ⇒ gọi từ queue nền là app bị trap (#160).
     private static func vietTelexEnabled() -> Bool {
+        dispatchPrecondition(condition: .onQueue(.main))
         let filter = [kTISPropertyBundleID as String: AppState.stableBundleIdentifier] as CFDictionary
         guard let list = TISCreateInputSourceList(filter, false)?.takeRetainedValue() as? [TISInputSource]
         else { return false }
@@ -84,8 +88,10 @@ enum InputSourceCacheRefresher {
     }
 
     /// `bundleIDs` nil = quét mọi thư mục đệm. `running` = app đang chạy (chờ nó thoát).
-    private static func refresh(bundleIDs: [String]?, running: Set<String>) {
-        guard vietTelexEnabled(), let root = cacheRoot() else { return }
+    /// Chạy trên queue nền: chỉ đọc/xoá file, KHÔNG gọi TIS ở đây (#160) — bên gọi đã
+    /// kiểm tra `vietTelexEnabled()` trên main.
+    static func refresh(bundleIDs: [String]?, running: Set<String>) {
+        guard let root = cacheRoot() else { return }
         let fm = FileManager.default
         let ids = bundleIDs ?? ((try? fm.contentsOfDirectory(atPath: root.path)) ?? [])
         let defaults = UserDefaults.standard
