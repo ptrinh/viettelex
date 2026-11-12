@@ -172,20 +172,44 @@ class KeyFeedbackPreview(ctx: Context) {
                 val bank = KeySoundSynth.bank(style, KeySoundCustom.load(custom)).second
                 if (sequence) KeySoundSynth.previewSequence(bank) else bank[0]
             }
-            val pcm = ShortArray(samples.size) { (samples[it].coerceIn(-1f, 1f) * 32767f).toInt().toShort() }
-            track = runCatching {
-                AudioTrack.Builder()
-                    .setAudioAttributes(AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
-                    .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                        .setSampleRate(rate).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
-                    .setTransferMode(AudioTrack.MODE_STATIC)
-                    .setBufferSizeInBytes(pcm.size * 2)
-                    .build().also { it.write(pcm, 0, pcm.size) }
-            }.getOrNull()
+            track = staticTrack(samples, rate)
             trackKey = key
         }
+        replay(volume)
+    }
+
+    /**
+     * "Âm thanh nét vuốt": nghe thử một nét vuốt mẫu ([KeySoundSynth.swipePreviewSamples] — vòng lặp × vỏ âm lượng theo
+     * tốc độ, tắt dần lúc nhấc tay) ở âm lượng Âm thanh phím. Tắt ⇒ không phát. Im khi máy để Rung/Im lặng (như IME).
+     */
+    fun playSwipe(style: com.viettelex.keyboard.SwipeSoundStyle, volume: Int) {
+        if (style == com.viettelex.keyboard.SwipeSoundStyle.NONE) { runCatching { track?.stop() }; return }
+        if (runCatching { audio.ringerMode != AudioManager.RINGER_MODE_NORMAL }.getOrDefault(false)) return
+        val key = "swipe/" + style.id
+        if (key != trackKey || track == null) {
+            release()
+            track = staticTrack(KeySoundSynth.swipePreviewSamples(style), KeySoundSynth.SWIPE_SAMPLE_RATE)
+            trackKey = key
+        }
+        replay(volume)
+    }
+
+    private fun staticTrack(samples: FloatArray, rate: Int): AudioTrack? {
+        val pcm = ShortArray(samples.size) { (samples[it].coerceIn(-1f, 1f) * 32767f).toInt().toShort() }
+        return runCatching {
+            AudioTrack.Builder()
+                .setAudioAttributes(AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+                .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(rate).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
+                .setTransferMode(AudioTrack.MODE_STATIC)
+                .setBufferSizeInBytes(pcm.size * 2)
+                .build().also { it.write(pcm, 0, pcm.size) }
+        }.getOrNull()
+    }
+
+    private fun replay(volume: Int) {
         val t = track ?: return
         runCatching {
             if (t.playState == AudioTrack.PLAYSTATE_PLAYING) t.stop()

@@ -105,7 +105,7 @@ final class SettingsDepsTests: XCTestCase {
 
     func testSwipeOffHidesEverySwipeChild() {
         XCTAssertEqual(SettingsDeps.swipeRows(swipeTyping: true),
-                       [.swipeEnglish, .neuralModel, .trailEffect, .practice])
+                       [.swipeEnglish, .neuralModel, .trailEffect, .trailSound, .practice])
         XCTAssertEqual(SettingsDeps.swipeRows(swipeTyping: false), [])
     }
 

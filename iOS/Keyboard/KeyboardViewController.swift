@@ -538,6 +538,7 @@ final class KeyboardViewController: UIInputViewController {
         KeyHaptics.shared.setStrength(settings.hapticStrength)
         KeyHaptics.shared.resetFailures()   // lần hiện mới: thử Core Haptics lại dù lần trước lỗi
         StartupTrace.span("keySound") { applyKeySound(settings) }
+        applySwipeSound(settings)
         // Báo trạng thái Full Access cho app chứa (ẩn banner nhắc cấp quyền).
         // Không Full Access thì iOS chặn GHI App Group → cờ giữ nguyên/vắng,
         // banner vẫn hiện — đúng ý.
@@ -644,6 +645,7 @@ final class KeyboardViewController: UIInputViewController {
         learnSettledSwipe()
         swipe?.releaseFuto()  // FUTO Swipe (thử nghiệm): nhả ~2.5 MB khi ẩn
         KeySound.shared.shutdown()   // âm phím riêng: dừng engine khi ẩn (dựng lại lần hiện sau)
+        SwipeSound.existing?.shutdown() // âm thanh nét vuốt: nhả engine + vòng lặp khi ẩn
         langModelStorage?.saveNow()   // extension có thể bị kill ngay sau disappear
     }
 
@@ -669,6 +671,31 @@ final class KeyboardViewController: UIInputViewController {
         // Engine âm dựng nền SAU khung đầu (phím tới trước đó: play() trả false — im một tiếng,
         // không chặn, không ảnh hưởng chữ).
         if on && settings.keySoundVolume > 0 { afterFirstFrame { KeySound.shared.prepare() } } else { KeySound.shared.shutdown() }
+    }
+
+    /// "Âm thanh nét vuốt" — kiểu thực phát (thuần, test): cần gõ vuốt bật + Full Access (thiếu ⇒ audio extension
+    /// không ổn định, như âm phím riêng), rồi SwipeSoundPolicy (Plus, nguồn điện thấp, âm lượng Âm thanh phím 0 ⇒ Tắt).
+    static func swipeSoundStyle(setting: SwipeSoundStyle, swipeOn: Bool, fullAccess: Bool, plus: Bool,
+                                lowPower: Bool, volumePercent: Int) -> SwipeSoundStyle {
+        guard swipeOn, fullAccess else { return .none }
+        return SwipeSoundPolicy.active(setting: setting, plus: plus, lowPower: lowPower, volumePercent: volumePercent)
+    }
+
+    /// Đọc MỘT lần mỗi lần hiện. Tắt ⇒ KeyboardView.swipeSound = nil, engine/buffer nhả (0 chi phí). Bật ⇒ chỉ ghi
+    /// cấu hình; engine + vòng lặp dựng LƯỜI ở cú vuốt đầu (nền, không chặn main).
+    private func applySwipeSound(_ settings: KeyboardSettings) {
+        let setting = SwipeSoundStyle.load(UserDefaultsProvider.shared)
+        let style = Self.swipeSoundStyle(setting: setting, swipeOn: swipeSetting, fullAccess: hasFullAccess,
+                                         plus: SwipeSoundGate.allows(setting),
+                                         lowPower: setting.isPlus && ProcessInfo.processInfo.isLowPowerModeEnabled,
+                                         volumePercent: settings.keySoundVolume)
+        guard style != .none else {
+            KeyboardView.swipeSound = nil
+            SwipeSound.existing?.shutdown()
+            return
+        }
+        KeyboardView.swipeSound = SwipeSound.shared
+        SwipeSound.shared.configure(style: style, volumePercent: settings.keySoundVolume)
     }
 
     /// Nạp NỀN dữ liệu tính năng đang BẬT (tắt ⇒ không nạp gì): model cá nhân + mô hình âm
@@ -732,6 +759,7 @@ final class KeyboardViewController: UIInputViewController {
         keyboard?.spotlight?.purgeAtlasIfOffscreen()
         if !visible { swipe = nil }
         if !visible { KeySound.shared.shutdown() }
+        if visible { SwipeSound.existing?.releaseIfIdle() } else { SwipeSound.existing?.shutdown() }
     }
 
     /// Cache tĩnh thêm từ giữa 10/2026 (RAM-AUDIT.md, 10/11/2026). Ẩn ⇒ bỏ hết; đang hiện ⇒ chỉ bỏ thứ KHÔNG trên màn

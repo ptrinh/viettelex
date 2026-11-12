@@ -114,6 +114,8 @@ data class KeyboardSettings(
     var buddyPlacement: BuddyPlacement = BuddyPlacement.STANDARD,
     /** "Hiệu ứng nét vuốt" — mặc định Đơn giản; Tắt ⇒ IME không gắn vệt vuốt. */
     var swipeTrail: SwipeTrailStyle = SwipeTrailStyle.DEFAULT,
+    /** "Âm thanh nét vuốt" — mặc định Tắt ⇒ IME không dựng SoundPool tiếng vuốt. */
+    var swipeSound: SwipeSoundStyle = SwipeSoundStyle.DEFAULT,
     /** [ROW_HEIGHT_MIN]…[ROW_HEIGHT_MAX] dp mỗi hàng (IME kẹp thêm phần trên +10 theo cao màn hình — KeyLayout.effectiveRowAdjust). */
     var rowHeightAdjust: Int = 0,
     /** Hàng phím số 1…0 trên hàng chữ — mặc định TẮT. */
@@ -232,6 +234,7 @@ data class KeyboardSettings(
             s.buddyStyle = BuddyStyle.of(get(BuddyStyle.key(s.buddy))).resolved(s.buddy)
             s.buddyPlacement = BuddyPlacement.of(get(Keys.BUDDY_SIZE), get(Keys.BUDDY_PAD_RIGHT), get(Keys.BUDDY_PAD_TOP))
             s.swipeTrail = SwipeTrailStyle.of(get(Keys.SWIPE_TRAIL))
+            s.swipeSound = SwipeSoundStyle.of(get(Keys.SWIPE_SOUND))
             s.debugTouchLog = b(Keys.DEBUG_TOUCH_LOG, s.debugTouchLog)
             s.numberRow = b(Keys.NUMBER_ROW, s.numberRow)
             s.numberRowFullHeight = b(Keys.NUMBER_ROW_FULL_HEIGHT, s.numberRowFullHeight)

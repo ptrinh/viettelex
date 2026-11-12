@@ -198,6 +198,16 @@ object L10nTable {
         put("Bíp sci-fi", "Sci-fi beep")
         put("Chạm một kiểu để chọn và nghe thử.", "Tap a style to choose and preview it.")
         // Hiệu ứng khi bấm phím (KeyEffect)
+        // Âm thanh nét vuốt (SwipeSoundStyle)
+        put("Âm thanh nét vuốt", "Swipe sound")
+        put("Bút chì", "Pencil")
+        put("Chổi lông", "Brush")
+        put("Phấn bảng", "Chalk")
+        put("Bút dạ", "Marker")
+        put("Tiếng khẽ khi ngón đang vuốt một từ, như bút lướt trên giấy: to hơn khi vuốt nhanh, im khi ngón dừng. Tắt: không phát gì. Chổi lông, Phấn bảng và Bút dạ thuộc VietTelex Plus.",
+            "A soft sound while your finger swipes a word, like a pen gliding on paper: louder when you swipe fast, silent when your finger stops. Off: no sound. Brush, Chalk and Marker are part of VietTelex Plus.")
+        put("Theo âm lượng của Âm thanh phím; im khi máy để Rung/Im lặng. Tự về Bút chì khi bật Trình tiết kiệm pin.",
+            "Uses the Key sound volume; silent when the phone is on Vibrate/Silent. Falls back to Pencil with Battery Saver on.")
         // Hiệu ứng nét vuốt (SwipeTrailStyle)
         put("Hiệu ứng nét vuốt", "Swipe trail")
         put("Đơn giản", "Simple")

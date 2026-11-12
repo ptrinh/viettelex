@@ -128,6 +128,29 @@ final class KeyFeedbackPreview {
         p.play()
     }
 
+    /// "Âm thanh nét vuốt": nghe thử một nét vuốt mẫu (KeySoundSynth.swipePreviewSamples — vòng lặp × vỏ âm lượng theo
+    /// tốc độ, tắt dần lúc nhấc tay). Tắt ⇒ dừng. Cùng session .ambient (im khi gạt im lặng) như bàn phím.
+    func playSwipe(_ s: SwipeSoundStyle, volume: Int) {
+        guard s != .none else { player?.stop(); return }
+        if !sessionReady {
+            let session = AVAudioSession.sharedInstance()
+            try? session.setCategory(.ambient, options: [.mixWithOthers])
+            try? session.setActive(true)
+            sessionReady = true
+        }
+        let key = "swipe/" + s.rawValue
+        if key != playerKey || player == nil {
+            player = try? AVAudioPlayer(data: KeySoundSynth.wav(KeySoundSynth.swipePreviewSamples(s),
+                                                               sampleRate: Int(KeySoundSynth.swipeSampleRate)))
+            player?.prepareToPlay()
+            playerKey = key
+        }
+        guard let p = player else { return }
+        p.volume = KeySoundSynth.gain(forPercent: volume)
+        p.currentTime = 0
+        p.play()
+    }
+
     /// Rung thử đúng như bàn phím (Core Haptics cùng độ mạnh); máy không có ⇒ impact nhẹ.
     func playHaptic(strength: Int) {
         KeyHaptics.shared.setStrength(strength)

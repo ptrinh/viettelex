@@ -135,6 +135,8 @@ object BackupSettings {
         Spec(Keys.BUDDY_PAD_TOP, SettingKind.IntRange(0, BuddyPlacement.PAD_RANGE)),
         // "Hiệu ứng nét vuốt" ([SwipeTrailStyle]) — cùng khoá + id iOS; lạ ⇒ bỏ qua (máy giữ Đơn giản).
         Spec(Keys.SWIPE_TRAIL, SettingKind.Choice(SwipeTrailStyle.DEFAULT.id, SwipeTrailStyle.IDS)),
+        // "Âm thanh nét vuốt" ([SwipeSoundStyle]) — cùng khoá + id iOS; lạ ⇒ bỏ qua (máy giữ Tắt).
+        Spec(Keys.SWIPE_SOUND, SettingKind.Choice(SwipeSoundStyle.DEFAULT.id, SwipeSoundStyle.IDS)),
         // Cung hoàng đạo (theme "zodiac", "variant") — CHỈ id cung, cùng khoá + id iOS; lạ ⇒ bỏ qua (máy giữ Bạch Dương).
         Spec(ZodiacSign.KEY, SettingKind.Choice(ZodiacSign.DEFAULT.id, ZodiacSign.IDS)),
         // Lá cờ của theme Tự hào ("variant":"pride") — CHỈ id cờ, cùng khoá + id iOS; lạ ⇒ bỏ qua (máy giữ Cầu vồng).

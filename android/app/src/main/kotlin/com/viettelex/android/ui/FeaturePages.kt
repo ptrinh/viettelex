@@ -141,6 +141,7 @@ internal data class FeatureSearchEntry(
             FeatureSearchEntry("Gõ vuốt", "swipe vuốt thử nghiệm experimental", FeaturePage.GoVuot), // l10n-key
             FeatureSearchEntry("Vuốt từ tiếng Anh", "swipe english gõ vuốt tiếng anh", FeaturePage.GoVuot), // l10n-key
             FeatureSearchEntry("Hiệu ứng nét vuốt", "swipe trail nét vuốt vệt hiệu ứng lửa fire điện electric lightning bút lông brush mực ink cầu vồng rainbow neon bụi sao stardust sparkle pháo hoa firework theo giao diện theme plus", FeaturePage.GoVuot), // l10n-key
+            FeatureSearchEntry("Âm thanh nét vuốt", "swipe sound tiếng âm thanh vuốt bút chì pencil chổi lông brush phấn bảng chalk bút dạ marker plus", FeaturePage.GoVuot), // l10n-key
             FeatureSearchEntry("Mô hình neural gõ vuốt", "futo neural swipe", FeaturePage.GoVuot), // l10n-key
             FeatureSearchEntry("Luyện vuốt", "practice swipe", FeaturePage.GoVuot), // l10n-key
             FeatureSearchEntry("Gõ tắt", "shortcut viết tắt", FeaturePage.GoTat), // l10n-key
@@ -552,6 +553,10 @@ private fun GoVuotPage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     /** Trang con "Hiệu ứng nét vuốt" đang mở. */
     var pickingTrail by remember { mutableStateOf(false) }
     if (pickingTrail) { SwipeTrailPage(onOpenPlus = onOpenPlus, onBack = { pickingTrail = false }); return }
+    /** Trang con "Âm thanh nét vuốt" đang mở. */
+    var pickingSound by remember { mutableStateOf(false) }
+    if (pickingSound) { SwipeSoundPage(onOpenPlus = onOpenPlus, onBack = { pickingSound = false }); return }
+    val soundRaw by rememberStringPref(Keys.SWIPE_SOUND, com.viettelex.keyboard.SwipeSoundStyle.DEFAULT.id)
     val trailRaw by rememberStringPref(Keys.SWIPE_TRAIL, com.viettelex.keyboard.SwipeTrailStyle.DEFAULT.id)
     SubPageHeader(FeaturePage.GoVuot.title, onBack)
     val swipeOn by rememberBoolPref(Keys.SWIPE_TYPING, Prefs.D.swipeTyping)
@@ -586,6 +591,16 @@ private fun GoVuotPage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
                 modifier = Modifier.weight(1f))
             Text("${com.viettelex.keyboard.SwipeTrailStyle.displayed(trailRaw).title} ›", style = VTType.body,
                 color = c.secondary, maxLines = 1)
+        }
+        if (SettingDeps.SwipeRow.TrailSound in rows) {
+            RowDivider()
+            VTRow(onClick = { pickingSound = true }) {
+                val plus = com.viettelex.keyboard.SwipeSoundGate.allows
+                Text(tr("Âm thanh nét vuốt") + if (plus) "" else " · Plus", style = VTType.body, color = c.label,
+                    modifier = Modifier.weight(1f))
+                Text("${com.viettelex.keyboard.SwipeSoundStyle.displayed(soundRaw).title} ›", style = VTType.body,
+                    color = c.secondary, maxLines = 1)
+            }
         }
     }
     if (SettingDeps.SwipeRow.Practice in rows) {

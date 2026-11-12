@@ -138,6 +138,8 @@ enum BackupSettings {
         Spec(key: BuddyPlacement.padTopKey, kind: .int(0, BuddyPlacement.padRange)),
         // "Hiệu ứng nét vuốt" (SwipeTrailStyle) — cùng khoá + id Android; lạ ⇒ bỏ qua (máy giữ Đơn giản).
         Spec(key: SwipeTrailStyle.key, kind: .string(SwipeTrailStyle.defaultValue.rawValue, SwipeTrailStyle.allCases.map(\.rawValue))),
+        // "Âm thanh nét vuốt" (SwipeSoundStyle) — cùng khoá + id Android; lạ ⇒ bỏ qua (máy giữ Tắt).
+        Spec(key: SwipeSoundStyle.key, kind: .string(SwipeSoundStyle.defaultValue.rawValue, SwipeSoundStyle.allCases.map(\.rawValue))),
         // "Tuỳ chỉnh nâng cao" (Plus) RIÊNG từng theme — MỘT chuỗi JSON chuẩn (KeyStyleStore), cùng
         // khoá + định dạng với Android. Khoá chung cũ (keyLabelColor…) không còn sao lưu: file cũ có
         // chúng ⇒ bỏ qua như key lạ. "rounded" (chỉ iOS) vẫn giữ khi qua Android.

@@ -351,6 +351,14 @@ enum L10n {
         "Ghi-ta mộc": "Acoustic guitar",
         "Bíp sci-fi": "Sci-fi beep",
         "Chạm một kiểu để chọn và nghe thử.": "Tap a style to choose and preview it.",
+        // Âm thanh nét vuốt (SwipeSoundStyles.swift)
+        "Âm thanh nét vuốt": "Swipe sound",
+        "Bút chì": "Pencil",
+        "Chổi lông": "Brush",
+        "Phấn bảng": "Chalk",
+        "Bút dạ": "Marker",
+        "Tiếng khẽ khi ngón đang vuốt một từ, như bút lướt trên giấy: to hơn khi vuốt nhanh, im khi ngón dừng. Tắt: không phát gì. Chổi lông, Phấn bảng và Bút dạ thuộc VietTelex Plus.": "A soft sound while your finger swipes a word, like a pen gliding on paper: louder when you swipe fast, silent when your finger stops. Off: no sound. Brush, Chalk and Marker are part of VietTelex Plus.",
+        "Theo âm lượng của Âm thanh phím; im khi gạt im lặng. Cần Toàn quyền Truy cập; tự về Bút chì khi bật Chế độ nguồn điện thấp.": "Uses the Key sound volume; silent with the Silent switch on. Needs Full Access; falls back to Pencil in Low Power Mode.",
         // Hiệu ứng nét vuốt (SwipeTrailStyles.swift)
         "Hiệu ứng nét vuốt": "Swipe trail",
         "Đơn giản": "Simple",

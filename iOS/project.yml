@@ -227,6 +227,8 @@ targets:
       - Keyboard/KeyGrid.swift
       - Keyboard/KeyboardView.swift
       - Keyboard/KeySound.swift
+      # Âm thanh nét vuốt (KeyboardView gọi qua static swipeSound).
+      - Keyboard/SwipeSound.swift
       - App/KeySoundImport.swift
       - Keyboard/OneHand.swift
       - Keyboard/EmojiPlane.swift
