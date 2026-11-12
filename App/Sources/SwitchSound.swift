@@ -11,9 +11,11 @@ import AppKit
 
 enum SwitchSound {
     static let sampleRate = 22050
-    static let noteMs = 55
-    static let lowHz = 659.25    // E5
-    static let highHz = 987.77   // B5
+    static let leadMs = 30       // lặng đầu: thiết bị âm thanh có thể cắt mất phần mở đầu
+    static let noteMs = 90
+    static let gapMs = 20        // nghỉ giữa hai nốt để nghe ra hai nốt
+    static let lowHz = 523.25    // C5
+    static let highHz = 1046.50  // C6: cách một quãng tám, không lẫn được
 
     // MARK: - Phần thuần (có test)
 
@@ -24,8 +26,9 @@ enum SwitchSound {
     /// File WAV hoàn chỉnh (PCM 16-bit mono) trong bộ nhớ.
     static func wav(vietnamese: Bool) -> Data {
         let perNote = sampleRate * noteMs / 1000
+        let lead = sampleRate * leadMs / 1000, gap = sampleRate * gapMs / 1000
         let notes = vietnamese ? [lowHz, highHz] : [highHz, lowHz]
-        let dataBytes = UInt32(perNote * 2 * 2)
+        let dataBytes = UInt32((lead + perNote + gap + perNote) * 2)
         var d = Data(capacity: 44 + Int(dataBytes))
         func u16(_ v: UInt16) { d.append(UInt8(v & 0xFF)); d.append(UInt8(v >> 8)) }
         func u32(_ v: UInt32) { u16(UInt16(v & 0xFFFF)); u16(UInt16(v >> 16)) }
@@ -34,14 +37,16 @@ enum SwitchSound {
         u32(UInt32(sampleRate)); u32(UInt32(sampleRate * 2)); u16(2); u16(16)
         d.append(contentsOf: Array("data".utf8)); u32(dataBytes)
         let fade = perNote / 5   // không "tạch" ở hai đầu nốt
-        for hz in notes {
+        for _ in 0..<lead { u16(0) }
+        for (n, hz) in notes.enumerated() {
             for i in 0..<perNote {
                 var env = 1.0
                 if i < fade { env = Double(i) / Double(fade) }
                 else if i >= perNote - fade { env = Double(perNote - 1 - i) / Double(fade) }
-                let v = sin(2 * Double.pi * hz * Double(i) / Double(sampleRate)) * env * 0.22
+                let v = sin(2 * Double.pi * hz * Double(i) / Double(sampleRate)) * env * 0.28
                 u16(UInt16(bitPattern: Int16((v * 32767).rounded())))
             }
+            if n == 0 { for _ in 0..<gap { u16(0) } }
         }
         return d
     }
@@ -50,18 +55,40 @@ enum SwitchSound {
 
     private static var wasVietTelex: Bool?
     private static var sounds: [Bool: NSSound] = [:]
+    /// Một lần đổi có thể bắn NHIỀU notification liền nhau (macOS đi qua trạng thái trung
+    /// gian): gom lại, chỉ phát MỘT tiếng cho trạng thái cuối so với trước cả loạt.
+    static let settleMs = 60
+    private static var pending: DispatchWorkItem?
+    private static var burstStart = false
+    private static var burstGesture = false
 
     /// Từ observer kTISNotifySelectedKeyboardInputSourceChanged.
     static func selectionChanged(isVietTelex: Bool) {
         let was = wasVietTelex ?? isVietTelex
         wasVietTelex = isVietTelex
-        let gesture = StickyInputSource.shared.userGestureRecently(nowNs: DispatchTime.now().uptimeNanoseconds)
-        guard shouldPlay(enabled: AppState.shared.switchSound, wasVietTelex: was,
-                         isVietTelex: isVietTelex, userGesture: gesture) else { return }
-        if sounds[isVietTelex] == nil { sounds[isVietTelex] = NSSound(data: wav(vietnamese: isVietTelex)) }
-        guard let s = sounds[isVietTelex] else { return }
+        if pending == nil { burstStart = was; burstGesture = false }
+        if StickyInputSource.shared.userGestureRecently(nowNs: DispatchTime.now().uptimeNanoseconds) {
+            burstGesture = true
+        }
+        pending?.cancel()
+        let item = DispatchWorkItem {
+            pending = nil
+            let now = wasVietTelex ?? isVietTelex
+            guard shouldPlay(enabled: AppState.shared.switchSound, wasVietTelex: burstStart,
+                             isVietTelex: now, userGesture: burstGesture) else { return }
+            play(vietnamese: now)
+        }
+        pending = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(settleMs), execute: item)
+    }
+
+    private static func play(vietnamese: Bool) {
+        if sounds[vietnamese] == nil { sounds[vietnamese] = NSSound(data: wav(vietnamese: vietnamese)) }
+        sounds[!vietnamese]?.stop()
+        guard let s = sounds[vietnamese] else { return }
         s.stop()
         s.play()
+        DebugLog.log("switch-sound: \(vietnamese ? "vi" : "en")")
     }
 
     /// Lúc khởi động: nhớ trạng thái hiện tại để lần đổi đầu tiên so đúng.

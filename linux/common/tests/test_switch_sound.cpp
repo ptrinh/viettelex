@@ -41,7 +41,7 @@ int main() {
     CHECK(u32(vi, 40) == vi.size() - 44);
     CHECK(u32(vi, 24) == static_cast<uint32_t>(kSwitchSoundRate));
     const size_t frames = (vi.size() - 44) / 2;
-    CHECK(frames * 1000 / kSwitchSoundRate <= 120);  // short
+    CHECK(frames * 1000 / kSwitchSoundRate <= 300);  // short
     CHECK(crossings(vi, 0, frames / 2) < crossings(vi, frames / 2, frames));  // Việt rises
     CHECK(crossings(en, 0, frames / 2) > crossings(en, frames / 2, frames));  // Anh falls
 

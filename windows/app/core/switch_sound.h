@@ -9,9 +9,11 @@
 namespace vtx {
 
 constexpr int kSwitchSoundRate = 22050;
-constexpr int kSwitchSoundNoteMs = 55;
-constexpr double kSwitchSoundLowHz = 659.25;   // E5
-constexpr double kSwitchSoundHighHz = 987.77;  // B5
+constexpr int kSwitchSoundLeadMs = 30;   // silence first: the audio device may clip the start
+constexpr int kSwitchSoundNoteMs = 90;
+constexpr int kSwitchSoundGapMs = 20;    // between the two notes, so they are heard as two
+constexpr double kSwitchSoundLowHz = 523.25;    // C5
+constexpr double kSwitchSoundHighHz = 1046.50;  // C6: an octave apart, unmistakable
 
 std::vector<uint8_t> switchSoundWav(bool vietnamese);
 

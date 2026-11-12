@@ -31,7 +31,7 @@ final class SwitchSoundTests: XCTestCase {
         XCTAssertEqual(u32(vi, 40), vi.count - 44)
         XCTAssertEqual(u32(vi, 24), SwitchSound.sampleRate)
         let frames = (vi.count - 44) / 2
-        XCTAssertLessThanOrEqual(frames * 1000 / SwitchSound.sampleRate, 120)
+        XCTAssertLessThanOrEqual(frames * 1000 / SwitchSound.sampleRate, 300)
         func crossings(_ w: [UInt8], _ r: Range<Int>) -> Int {
             var n = 0; var prev: Int16 = 0
             for i in r {

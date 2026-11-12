@@ -122,7 +122,7 @@ TEST(feel_switch_sound_is_a_valid_short_wav_rising_for_viet) {
     CHECK_EQ(u32(vi, 40), static_cast<uint32_t>(vi.size() - 44));
     CHECK_EQ(u32(vi, 24), static_cast<uint32_t>(kSwitchSoundRate));
     const size_t frames = (vi.size() - 44) / 2;
-    CHECK(frames * 1000 / kSwitchSoundRate <= 120);  // short: never in the way of typing
+    CHECK(frames * 1000 / kSwitchSoundRate <= 300);  // short: never in the way of typing
     // Zero crossings per half: Việt goes low -> high, Anh high -> low; quiet (well under full scale).
     auto crossings = [&](const std::vector<uint8_t>& w, size_t from, size_t to) {
         int n = 0, peak = 0;
