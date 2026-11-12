@@ -542,7 +542,9 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             return
         }
         val p = swipeSoundPlayer ?: SwipeSoundPlayer(this).also { swipeSoundPlayer = it }
-        p.configure(style, settings.keySoundVolume) { worker().post(it) }
+        // Nốt nhạc theo phím: nhạc cụ của Âm thanh phím (Piano / Đàn tranh / Ghi-ta), kiểu khác ⇒ Đàn tranh.
+        val instrument = com.viettelex.keyboard.KeyInstrument.of(settings.keySoundStyle) ?: com.viettelex.keyboard.KeyInstrument.DANTRANH
+        p.configure(style, settings.keySoundVolume, instrument) { worker().post(it) }
         kb.swipeSound = p
     }
 

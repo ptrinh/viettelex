@@ -219,11 +219,16 @@ class KeyFeedbackPreview(ctx: Context) {
         // Âm của bạn: khoá theo ngày sửa + cỡ file (vừa đổi file ⇒ dựng lại); vắng/hỏng ⇒ Bút chì như IME.
         val custom = SwipeSoundPlayer.customFile(appCtx)
         val isCustom = style == com.viettelex.keyboard.SwipeSoundStyle.CUSTOM
-        val key = if (isCustom) "swipe/custom@${custom.lastModified()}#${custom.length()}" else "swipe/" + style.id
+        // Nốt nhạc theo phím: nhạc cụ của Âm thanh phím (không phải nhạc cụ ⇒ Đàn tranh) — như IME.
+        val inst = com.viettelex.keyboard.KeyInstrument.of(
+            appCtx.getSharedPreferences(com.viettelex.keyboard.Keys.PREFS, Context.MODE_PRIVATE).getString(com.viettelex.keyboard.Keys.KEY_SOUND_STYLE, null))
+            ?: com.viettelex.keyboard.KeyInstrument.DANTRANH
+        val key = if (isCustom) "swipe/custom@${custom.lastModified()}#${custom.length()}"
+            else "swipe/" + style.id + (if (style.isNotes) "/" + inst.cacheTag else "")
         if (key != trackKey || track == null) {
             release()
             val samples = if (isCustom) KeySoundSynth.swipePreview(SwipeSoundCustom.resolvedLoop(SwipeSoundCustom.load(custom)))
-                else KeySoundSynth.swipePreviewSamples(style)
+                else KeySoundSynth.swipePreviewSamples(style, inst)
             track = staticTrack(samples, KeySoundSynth.SWIPE_SAMPLE_RATE)
             trackKey = key
         }

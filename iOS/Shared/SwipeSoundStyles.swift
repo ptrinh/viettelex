@@ -8,10 +8,15 @@
 // Roi vụt / Tia sét / Plasma / Đũa phép: thêm MỘT tiếng ngắn lúc nhấc tay (không khi huỷ), to theo tốc độ ngón ~80 ms cuối
 // (SwipeSoundFx.liftGain — ngón gần như đứng yên ⇒ không kêu). Đũa phép thêm lớp hạt dày (× âm lượng²) ⇒ vuốt nhanh dày hơn.
 // "Âm của bạn" (custom): file người dùng chọn, xử lý thành vòng lặp (SwipeSoundCustom) — vắng/hỏng ⇒ Bút chì.
+// Nốt nhạc theo phím (notes): KHÔNG vòng lặp — mỗi phím chữ ngón đi qua (vào lõi phím, mỗi phím một nốt — SwipeKeyTracker)
+// gảy một nốt ngắn (SwipeNoteMap: trái → phải trầm → cao ngũ cung, hàng lệch bậc), nhạc cụ theo Âm thanh phím nếu là Piano /
+// Đàn tranh / Ghi-ta, không thì Đàn tranh; to theo tốc độ (SwipeSoundFx.noteVelocity). Sáo trúc (flute): vòng lặp tiếng sáo
+// đọc nhanh/chậm theo vị trí ngón (SwipeSoundFx.fluteRate — ~1,5 quãng tám, kéo nhẹ về ngũ cung), tắt dần 250 ms.
+// Sóng biển / Mèo kêu / Chim hót: vòng lặp + tiếng nhấc tay như Roi vụt…; Chim hót thêm lớp tiếng hót dày (× âm lượng²).
 import Foundation
 
 enum SwipeSoundStyle: String, CaseIterable {
-    case none, pencil, brush, chalk, marker, whip, lightning, plasma, wand, custom
+    case none, pencil, brush, chalk, marker, whip, lightning, plasma, wand, notes, flute, waves, cat, birds, custom
 
     static let key = "swipeSound"
     static let defaultValue: SwipeSoundStyle = .none
@@ -40,6 +45,11 @@ enum SwipeSoundStyle: String, CaseIterable {
         case .lightning: return L("Tia sét")
         case .plasma: return L("Plasma")
         case .wand: return L("Đũa phép")
+        case .notes: return L("Nốt nhạc theo phím")
+        case .flute: return L("Sáo trúc")
+        case .waves: return L("Sóng biển")
+        case .cat: return L("Mèo kêu")
+        case .birds: return L("Chim hót")
         case .custom: return L("Âm của bạn")
         }
     }
@@ -47,9 +57,20 @@ enum SwipeSoundStyle: String, CaseIterable {
     /// Tắt + Bút chì miễn phí; còn lại thuộc Plus.
     var isPlus: Bool { self != .none && self != .pencil }
     /// Có tiếng ngắn lúc nhấc tay (KeySoundSynth.swipeLiftSamples).
-    var hasLift: Bool { self == .whip || self == .lightning || self == .plasma || self == .wand }
-    /// Kiểu tổng hợp (có vòng lặp riêng trong KeySoundSynth) — trừ Tắt và Âm của bạn.
-    static let synthesized: [SwipeSoundStyle] = allCases.filter { $0 != .none && $0 != .custom }
+    var hasLift: Bool {
+        switch self {
+        case .whip, .lightning, .plasma, .wand, .waves, .cat, .birds: return true
+        default: return false
+        }
+    }
+    /// Nốt nhạc theo phím: mỗi phím ngón đi qua một nốt (pool giọng), không vòng lặp, không vỏ âm lượng theo tốc độ.
+    var isNotes: Bool { self == .notes }
+    /// Sáo trúc: vòng lặp đọc với tốc độ (= cao độ) theo vị trí ngang của ngón.
+    var followsX: Bool { self == .flute }
+    /// Cần toạ độ tâm phím (SwipeKeyTracker) để phát.
+    var needsLayout: Bool { isNotes || followsX }
+    /// Kiểu có vòng lặp tổng hợp riêng trong KeySoundSynth — trừ Tắt, Âm của bạn và Nốt nhạc theo phím (không vòng lặp).
+    static let synthesized: [SwipeSoundStyle] = allCases.filter { $0 != .none && $0 != .custom && $0 != .notes }
 }
 
 /// Cổng Plus: như Hiệu ứng nét vuốt (quyền theme cao cấp).
@@ -94,6 +115,54 @@ enum SwipeSoundFx {
     static let liftMin = 150.0
     /// Bản nghe thử trong app: độ to tiếng nhấc tay cố định (nét mẫu chậm dần về 0 ở cuối).
     static let previewLiftGain = 0.8
+    /// Sáo trúc: nhấc tay / huỷ tắt dần chậm hơn (hơi thở nhả ra), các kiểu khác `fadeOut`.
+    static let fluteRelease = 0.25
+    /// Sáo trúc: cao độ trượt về đích (portamento) — hằng thời gian, giây.
+    static let glideTau = 0.04
+    /// Sáo trúc: vòng lặp tổng hợp ở MIDI này (D5 ≈ 587,5 Hz); tốc độ đọc 1 = cao độ gốc.
+    static let fluteBase = 74
+    /// Sáo trúc: mép trái → mép phải vùng phím chữ = chừng này nửa cung (1,5 quãng tám, giữa = fluteBase).
+    static let fluteSpan = 18.0
+    /// Sáo trúc: kéo cao độ về nốt ngũ cung gần nhất (0 = trượt tự do, 1 = nhảy hẳn nốt).
+    static let flutePull = 0.7
+    /// Nốt nhạc theo phím: độ to nốt = noteFloor + (1 − noteFloor) · speedGain(tốc độ) — vuốt chậm vẫn nghe.
+    static let noteFloor = 0.4
+    /// Nốt nhạc theo phím: số giọng (nốt chồng nhau tối đa; nốt thứ 7 thay nốt cũ nhất).
+    static let noteVoices = 6
+    /// Nốt nhạc theo phím, bản nghe thử: độ to cố định mỗi nốt.
+    static let previewNoteGain = 0.7
+
+    /// Thời gian tắt dần khi nhấc tay / huỷ của kiểu.
+    static func release(_ s: SwipeSoundStyle) -> Double { s == .flute ? fluteRelease : fadeOut }
+
+    /// Độ to nốt (Nốt nhạc theo phím) theo tốc độ ngón đã làm mượt.
+    static func noteVelocity(_ speed: Double) -> Double { noteFloor + (1 - noteFloor) * speedGain(speed) }
+
+    /// Nốt ngũ cung (C D E G A) gần MIDI thực `m` nhất (hoà ⇒ nốt thấp).
+    static func nearestPentatonic(_ m: Double) -> Int {
+        let lo = Int(m.rounded(.down))
+        var best = lo, bd = Double.infinity
+        for k in (lo - 2)...(lo + 3) {
+            switch ((k % 12) + 12) % 12 {
+            case 0, 2, 4, 7, 9:
+                let d = abs(Double(k) - m)
+                if d < bd { bd = d; best = k }
+            default: break
+            }
+        }
+        return best
+    }
+
+    /// Sáo trúc: MIDI (thực) theo vị trí ngang `u` 0…1 của ngón trên vùng phím chữ — tuyến tính fluteSpan nửa cung quanh
+    /// fluteBase, kéo `flutePull` về nốt ngũ cung gần nhất.
+    static func fluteMidi(_ u: Double) -> Double {
+        let x = min(1, max(0, u))
+        let m = Double(fluteBase) - fluteSpan / 2 + fluteSpan * x
+        return m + flutePull * (Double(nearestPentatonic(m)) - m)
+    }
+
+    /// Sáo trúc: tốc độ đọc vòng lặp (= tỉ lệ tần số so với fluteBase) — luôn trong 0,5…2 (giới hạn SoundPool Android).
+    static func fluteRate(_ u: Double) -> Double { pow(2, (fluteMidi(u) - Double(fluteBase)) / 12) }
 
     /// Tốc độ (đã làm mượt) → 0…1: căn bậc hai cho cảm giác đều tay, trần 1.
     static func speedGain(_ speed: Double) -> Double {
@@ -157,7 +226,7 @@ struct SwipeSoundMeter {
 }
 
 /// Vỏ âm lượng 0…1 theo bước `step` giây (iOS: 1 mẫu; Android: tick). Đang vuốt: tiến về đích (rampTau); nhấc tay
-/// (`release`): giảm tuyến tính về 0 trong `fadeOut`. = Android SwipeSoundEnvelope.
+/// (`release`): giảm tuyến tính về 0 trong `fade` (mặc định fadeOut; Sáo trúc fluteRelease). = Android SwipeSoundEnvelope.
 struct SwipeSoundEnvelope {
     private let k: Double
     private let fadeFrac: Double
@@ -165,9 +234,9 @@ struct SwipeSoundEnvelope {
     private(set) var releasing = false
     private var fadeStep = 0.0
 
-    init(step: Double) {
+    init(step: Double, fade: Double = SwipeSoundFx.fadeOut) {
         k = 1 - exp(-step / SwipeSoundFx.rampTau)
-        fadeFrac = step / SwipeSoundFx.fadeOut
+        fadeFrac = step / fade
     }
 
     mutating func begin() { releasing = false }
@@ -271,5 +340,125 @@ enum SwipeSoundCustom {
     static func resolvedLoop(_ custom: [Float]?) -> [Float] {
         if let c = custom, !c.isEmpty { return c }
         return KeySoundSynth.swipeLoopSamples(.pencil)
+    }
+}
+
+/// Nốt nhạc theo phím: bảng phím → bậc ngũ cung (thuần, = Android SwipeNoteMap). Trong hàng: trái → phải = trầm → cao
+/// (một bậc mỗi phím); hàng trên lệch `rowShift` bậc so với hàng dưới (q-hàng +4, a-hàng +2, z-hàng 0) ⇒ mỗi từ một đường
+/// giai điệu riêng ("việt" và "viết" khác đường vuốt ⇒ khác giai điệu). Bậc 0…13 từ G3 (55) theo thang ngũ cung của nhạc cụ
+/// (Piano/Ghi-ta G A B D E, Đàn tranh G A C D E) ⇒ G3…D6.
+enum SwipeNoteMap {
+    static let rows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"]
+    static let rowShift = [4, 2, 0]
+    static let base = 55
+    /// Số bậc khác nhau (0…13) = số nốt dựng sẵn mỗi nhạc cụ.
+    static let steps = 14
+    /// Bậc của chữ a…z (chỉ số 0…25).
+    static let letterSteps: [Int] = (0..<26).map { k in
+        for (r, row) in rows.enumerated() {
+            if let c = Array(row.unicodeScalars).firstIndex(where: { Int($0.value) - 97 == k }) { return c + rowShift[r] }
+        }
+        return 0
+    }
+
+    static func step(letter k: Int) -> Int { letterSteps[k] }
+
+    static func midi(step: Int, scale: [Int]) -> Int { base + 12 * (step / 5) + scale[step % 5] }
+}
+
+/// Phím chữ dưới ngón đang vuốt (thuần, = Android SwipeKeyTracker) — dựng MỘT lần từ tâm phím của layout gõ vuốt (52 số
+/// x,y của a…z, như SwipeLayout.centers), mỗi điểm O(1) không cấp phát: chọn hàng gần nhất theo y, đoán cột theo bước
+/// phím rồi so 3 tâm lân cận. Chỉ tính là "vào phím" khi điểm nằm trong LÕI phím (`core` = 70 % bề ngang / khoảng hàng)
+/// ⇒ ngón rung ở ranh giới hai phím không gảy lặp. `feed` trả phím mới (khác phím vừa gảy) hoặc −1 ⇒ mỗi phím một nốt
+/// (quay lại phím đó sau một phím khác ⇒ gảy lại — đúng đường đi).
+struct SwipeKeyTracker: Equatable {
+    static let core = 0.7
+    let keyWidth: Double
+    let rowHeight: Double
+    /// Mép trái / phải vùng phím chữ (Sáo trúc: vị trí ngang 0…1).
+    let minX: Double, maxX: Double
+    /// Phẳng (không mảng lồng ⇒ không giữ/nhả tham chiếu mỗi điểm): tâm hàng r ở flatX[rowStart[r]..<rowStart[r+1]].
+    private let rowY: [Double]
+    private let rowStart: [Int]
+    private let flatX: [Double]
+    private let flatLetter: [Int]
+    private let coreX: Double, coreY: Double
+    private(set) var last = -1
+
+    /// nil ⇒ không có phím chữ nào / bước phím ≤ 0.
+    init?(centers c: [Float], keyWidth kw: Float) {
+        guard kw > 0, c.count == 52 else { return nil }
+        let kwd = Double(kw)
+        var ys = [Double](), xs = [[Double]](), ls = [[Int]](), all = [Double]()
+        for row in SwipeNoteMap.rows {
+            var lx = [Double](), ll = [Int](), sy = 0.0
+            for ch in row.unicodeScalars {
+                let k = Int(ch.value) - 97
+                let x = c[2 * k]
+                guard x.isFinite else { continue }
+                lx.append(Double(x)); ll.append(k); sy += Double(c[2 * k + 1]); all.append(Double(x))
+            }
+            xs.append(lx); ls.append(ll)
+            ys.append(lx.isEmpty ? .infinity : sy / Double(lx.count))
+        }
+        guard let lo = all.min(), let hi = all.max() else { return nil }
+        var rh = Double.infinity
+        for r in 0..<2 where ys[r].isFinite && ys[r + 1].isFinite { rh = min(rh, abs(ys[r + 1] - ys[r])) }
+        keyWidth = kwd
+        rowHeight = rh.isFinite && rh > 0 ? rh : kwd * 1.4
+        rowY = ys
+        rowStart = [0, xs[0].count, xs[0].count + xs[1].count, xs[0].count + xs[1].count + xs[2].count]
+        flatX = xs.flatMap { $0 }; flatLetter = ls.flatMap { $0 }
+        coreX = Self.core * kwd / 2; coreY = Self.core * rowHeight / 2
+        minX = lo - kwd / 2; maxX = hi + kwd / 2
+    }
+
+    /// Chữ (0…25) có LÕI chứa điểm, −1 = không phím nào (khe, hàng số/cách, ngoài vùng).
+    func key(x: Double, y: Double) -> Int {
+        var best = -1, bd = Double.infinity
+        for r in 0..<3 {
+            let d = abs(y - rowY[r])
+            if d < bd { bd = d; best = r }
+        }
+        guard best >= 0, bd <= coreY else { return -1 }
+        let s0 = rowStart[best], n = rowStart[best + 1] - s0
+        let g = min(n - 1, max(0, Int(((x - flatX[s0]) / keyWidth + 0.5).rounded(.down))))
+        var bc = -1, bdx = Double.infinity
+        var c = max(0, g - 1)
+        let cEnd = min(n - 1, g + 1)
+        while c <= cEnd {
+            let dx = abs(x - flatX[s0 + c])
+            if dx < bdx { bdx = dx; bc = c }
+            c += 1
+        }
+        guard bdx <= coreX else { return -1 }
+        return flatLetter[s0 + bc]
+    }
+
+    /// Một điểm vuốt: chữ VỪA vào (khác chữ đã gảy gần nhất) hoặc −1.
+    mutating func feed(x: Double, y: Double) -> Int {
+        let k = key(x: x, y: y)
+        guard k >= 0, k != last else { return -1 }
+        last = k
+        return k
+    }
+
+    mutating func reset() { last = -1 }
+
+    /// Vị trí ngang 0…1 trên vùng phím chữ (kẹp).
+    func unitX(_ x: Double) -> Double { min(1, max(0, (x - minX) / (maxX - minX))) }
+
+    /// Tâm QWERTY chuẩn (= SwipeLayout.qwerty: hàng 2 lệch 0,5 phím, hàng 3 lệch 1,5 phím) — bản nghe thử + test.
+    static func qwertyCenters(keyWidth kw: Float, rowHeight rh: Float) -> [Float] {
+        var c = [Float](repeating: .infinity, count: 52)
+        let rows: [(String, Double)] = [("qwertyuiop", 0.5), ("asdfghjkl", 1.0), ("zxcvbnm", 2.0)]
+        for (r, (row, x0)) in rows.enumerated() {
+            for (i, ch) in row.unicodeScalars.enumerated() {
+                let k = Int(ch.value) - 97
+                c[2 * k] = Float((x0 + Double(i)) * Double(kw))
+                c[2 * k + 1] = Float((Double(r) + 0.5) * Double(rh))
+            }
+        }
+        return c
     }
 }

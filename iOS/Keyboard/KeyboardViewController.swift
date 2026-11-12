@@ -695,7 +695,12 @@ final class KeyboardViewController: UIInputViewController {
             return
         }
         KeyboardView.swipeSound = SwipeSound.shared
-        SwipeSound.shared.configure(style: style, volumePercent: settings.keySoundVolume)
+        // Nốt nhạc theo phím: nhạc cụ của Âm thanh phím (Piano / Đàn tranh / Ghi-ta), kiểu khác ⇒ Đàn tranh.
+        SwipeSound.shared.configure(style: style, volumePercent: settings.keySoundVolume,
+                                    instrument: KeyInstrument.of(settings.keySoundStyle) ?? .dantranh)
+        if style.needsLayout, let l = keyboard?.swipeLayout() {
+            SwipeSound.shared.setLayout(centers: l.centers, keyWidth: l.keyWidth)
+        }
     }
 
     /// Nạp NỀN dữ liệu tính năng đang BẬT (tắt ⇒ không nạp gì): model cá nhân + mô hình âm
@@ -2926,6 +2931,7 @@ extension KeyboardViewController {
         guard keyboard?.swipeEnabled == true, let swipe,
               let l = keyboard.swipeLayout() else { return }
         swipe.setLayout(l, prepare: prepare)
+        SwipeSound.existing?.setLayout(centers: l.centers, keyWidth: l.keyWidth)   // âm nét vuốt dò phím (trùng ⇒ no-op)
     }
 
     override func viewDidLayoutSubviews() {

@@ -147,7 +147,7 @@ enum SettingsIndex {
             E(viTitle: LK("Gõ vuốt"), keywords: "swipe vuốt", location: .page(.goVuot), key: "swipeTyping"),
             E(viTitle: SettingLabel.swipeEnglish, keywords: "swipe english check mail meeting", location: .page(.goVuot), key: "swipeEnglish"),
             E(viTitle: LK("Hiệu ứng nét vuốt"), keywords: "swipe trail nét vuốt vệt hiệu ứng lửa fire điện electric lightning bút lông brush mực ink cầu vồng rainbow neon bụi sao stardust sparkle pháo hoa firework plasma ảo ảnh kính vạn hoa kaleidoscope tan chảy melt vệt lặp chroma echo phím sáng theo đường key glow thư pháp calligraphy sao chổi comet đom đóm fireflies ma trận matrix rain cánh hoa petals sen lotus theo giao diện theme plus", location: .page(.goVuot)),
-            E(viTitle: LK("Âm thanh nét vuốt"), keywords: "swipe sound tiếng âm thanh vuốt bút chì pencil chổi lông brush phấn bảng chalk bút dạ marker roi vụt whip tia sét lightning plasma đũa phép magic wand âm của bạn your sound custom plus", location: .page(.goVuot)),
+            E(viTitle: LK("Âm thanh nét vuốt"), keywords: "swipe sound tiếng âm thanh vuốt bút chì pencil chổi lông brush phấn bảng chalk bút dạ marker roi vụt whip tia sét lightning plasma đũa phép magic wand nốt nhạc theo phím key melody note giai điệu sáo trúc bamboo flute sóng biển waves ocean mèo kêu meow cat chim hót birdsong bird âm của bạn your sound custom plus", location: .page(.goVuot)),
             E(viTitle: LK("Mô hình neural gõ vuốt"), keywords: "futo neural swipe", location: .page(.goVuot), key: "swipeFuto"),
             E(viTitle: LK("Luyện vuốt"), keywords: "practice swipe", location: .page(.goVuot)),
             // Gõ tắt & mẫu câu

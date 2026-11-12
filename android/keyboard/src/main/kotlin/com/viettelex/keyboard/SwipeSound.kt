@@ -4,7 +4,9 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
+import kotlin.math.floor
 import kotlin.math.hypot
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.max
@@ -24,6 +26,12 @@ import kotlin.math.sqrt
  * ([SwipeSoundFx.liftGain] — ngón gần như đứng yên ⇒ không kêu). Đũa phép thêm lớp hạt dày (× âm lượng²) ⇒ vuốt nhanh dày
  * hơn. "Âm của bạn" (custom): file người dùng chọn, xử lý thành vòng lặp ([SwipeSoundCustom]) — vắng/hỏng ⇒ Bút chì.
  *
+ * Nốt nhạc theo phím (notes): KHÔNG vòng lặp — mỗi phím chữ ngón đi qua (vào lõi phím, mỗi phím một nốt — [SwipeKeyTracker])
+ * gảy một nốt ngắn ([SwipeNoteMap]: trái → phải trầm → cao ngũ cung, hàng lệch bậc), nhạc cụ theo Âm thanh phím nếu là
+ * Piano / Đàn tranh / Ghi-ta, không thì Đàn tranh; to theo tốc độ ([SwipeSoundFx.noteVelocity]). Sáo trúc (flute): vòng lặp
+ * tiếng sáo phát nhanh/chậm theo vị trí ngón ([SwipeSoundFx.fluteRate] — ~1,5 quãng tám, kéo nhẹ về ngũ cung), tắt dần
+ * 250 ms. Sóng biển / Mèo kêu / Chim hót: vòng lặp + tiếng nhấc tay; Chim hót thêm lớp tiếng hót dày (× âm lượng²).
+ *
  * Luật hiệu năng: Tắt (hoặc âm lượng phím 0 %) ⇒ IME không dựng SoundPool, KeyboardView giữ `swipeSound = null`
  * — đường vuốt chỉ đọc một biến null. Bật: mỗi điểm vuốt chỉ cập nhật [SwipeSoundMeter] (vài phép tính, không cấp
  * phát); âm lượng đặt theo nhịp [SwipeSoundFx.TICK] trên main, chỉ trong lúc vuốt + tắt dần.
@@ -38,6 +46,11 @@ enum class SwipeSoundStyle(val id: String, val viTitle: String) {
     LIGHTNING("lightning", "Tia sét"), // l10n-key
     PLASMA("plasma", "Plasma"), // l10n-key
     WAND("wand", "Đũa phép"), // l10n-key
+    NOTES("notes", "Nốt nhạc theo phím"), // l10n-key
+    FLUTE("flute", "Sáo trúc"), // l10n-key
+    WAVES("waves", "Sóng biển"), // l10n-key
+    CAT("cat", "Mèo kêu"), // l10n-key
+    BIRDS("birds", "Chim hót"), // l10n-key
     CUSTOM("custom", "Âm của bạn"); // l10n-key
 
     val title: String get() = tr(viTitle)
@@ -45,15 +58,24 @@ enum class SwipeSoundStyle(val id: String, val viTitle: String) {
     /** Tắt + Bút chì miễn phí; còn lại thuộc Plus. */
     val isPlus: Boolean get() = this != NONE && this != PENCIL
     /** Có tiếng ngắn lúc nhấc tay ([KeySoundSynth.swipeLiftSamples]). */
-    val hasLift: Boolean get() = this == WHIP || this == LIGHTNING || this == PLASMA || this == WAND
+    val hasLift: Boolean get() = when (this) {
+        WHIP, LIGHTNING, PLASMA, WAND, WAVES, CAT, BIRDS -> true
+        else -> false
+    }
+    /** Nốt nhạc theo phím: mỗi phím ngón đi qua một nốt (pool stream), không vòng lặp, không vỏ âm lượng theo tốc độ. */
+    val isNotes: Boolean get() = this == NOTES
+    /** Sáo trúc: vòng lặp phát với tốc độ (= cao độ) theo vị trí ngang của ngón. */
+    val followsX: Boolean get() = this == FLUTE
+    /** Cần toạ độ tâm phím ([SwipeKeyTracker]) để phát. */
+    val needsLayout: Boolean get() = isNotes || followsX
 
     companion object {
         val DEFAULT = NONE
         /** Kiểu miễn phí thay cho kiểu Plus khi chưa có Plus / tiết kiệm pin. */
         val FALLBACK = PENCIL
         val IDS: Set<String> = entries.map { it.id }.toSet()
-        /** Kiểu tổng hợp (có vòng lặp riêng trong KeySoundSynth) — trừ Tắt và Âm của bạn. */
-        val SYNTHESIZED: List<SwipeSoundStyle> = entries.filter { it != NONE && it != CUSTOM }
+        /** Kiểu có vòng lặp tổng hợp riêng trong KeySoundSynth — trừ Tắt, Âm của bạn và Nốt nhạc theo phím (không vòng lặp). */
+        val SYNTHESIZED: List<SwipeSoundStyle> = entries.filter { it != NONE && it != CUSTOM && it != NOTES }
         /** Giá trị lạ / thiếu ⇒ Tắt. */
         fun of(raw: Any?): SwipeSoundStyle = entries.firstOrNull { it.id == raw } ?: DEFAULT
         /** Kiểu hiện ở dòng cài đặt: kiểu Plus khi chưa có Plus ⇒ Bút chì (giá trị lưu giữ nguyên). */
@@ -104,6 +126,54 @@ object SwipeSoundFx {
     const val LIFT_MIN = 150.0
     /** Bản nghe thử trong app: độ to tiếng nhấc tay cố định (nét mẫu chậm dần về 0 ở cuối). */
     const val PREVIEW_LIFT_GAIN = 0.8
+    /** Sáo trúc: nhấc tay / huỷ tắt dần chậm hơn (hơi thở nhả ra), các kiểu khác [FADE_OUT]. */
+    const val FLUTE_RELEASE = 0.25
+    /** Sáo trúc: cao độ trượt về đích (portamento) — hằng thời gian, giây. */
+    const val GLIDE_TAU = 0.04
+    /** Sáo trúc: vòng lặp tổng hợp ở MIDI này (D5 ≈ 587,5 Hz); tốc độ phát 1 = cao độ gốc. */
+    const val FLUTE_BASE = 74
+    /** Sáo trúc: mép trái → mép phải vùng phím chữ = chừng này nửa cung (1,5 quãng tám, giữa = [FLUTE_BASE]). */
+    const val FLUTE_SPAN = 18.0
+    /** Sáo trúc: kéo cao độ về nốt ngũ cung gần nhất (0 = trượt tự do, 1 = nhảy hẳn nốt). */
+    const val FLUTE_PULL = 0.7
+    /** Nốt nhạc theo phím: độ to nốt = NOTE_FLOOR + (1 − NOTE_FLOOR) · speedGain(tốc độ) — vuốt chậm vẫn nghe. */
+    const val NOTE_FLOOR = 0.4
+    /** Nốt nhạc theo phím: số giọng (nốt chồng nhau tối đa; nốt thứ 7 thay nốt cũ nhất). */
+    const val NOTE_VOICES = 6
+    /** Nốt nhạc theo phím, bản nghe thử: độ to cố định mỗi nốt. */
+    const val PREVIEW_NOTE_GAIN = 0.7
+
+    /** Thời gian tắt dần khi nhấc tay / huỷ của kiểu. */
+    fun release(s: SwipeSoundStyle): Double = if (s == SwipeSoundStyle.FLUTE) FLUTE_RELEASE else FADE_OUT
+
+    /** Độ to nốt (Nốt nhạc theo phím) theo tốc độ ngón đã làm mượt. */
+    fun noteVelocity(speed: Double): Double = NOTE_FLOOR + (1 - NOTE_FLOOR) * speedGain(speed)
+
+    /** Nốt ngũ cung (C D E G A) gần MIDI thực [m] nhất (hoà ⇒ nốt thấp). */
+    fun nearestPentatonic(m: Double): Int {
+        val lo = floor(m).toInt()
+        var best = lo
+        var bd = Double.POSITIVE_INFINITY
+        for (k in (lo - 2)..(lo + 3)) {
+            when (((k % 12) + 12) % 12) {
+                0, 2, 4, 7, 9 -> { val d = abs(k - m); if (d < bd) { bd = d; best = k } }
+            }
+        }
+        return best
+    }
+
+    /**
+     * Sáo trúc: MIDI (thực) theo vị trí ngang [u] 0…1 của ngón trên vùng phím chữ — tuyến tính [FLUTE_SPAN] nửa cung quanh
+     * [FLUTE_BASE], kéo [FLUTE_PULL] về nốt ngũ cung gần nhất.
+     */
+    fun fluteMidi(u: Double): Double {
+        val x = u.coerceIn(0.0, 1.0)
+        val m = FLUTE_BASE - FLUTE_SPAN / 2 + FLUTE_SPAN * x
+        return m + FLUTE_PULL * (nearestPentatonic(m) - m)
+    }
+
+    /** Sáo trúc: tốc độ phát vòng lặp (= tỉ lệ tần số so với [FLUTE_BASE]) — luôn trong 0,5…2 (giới hạn SoundPool). */
+    fun fluteRate(u: Double): Double = 2.0.pow((fluteMidi(u) - FLUTE_BASE) / 12)
 
     /** Tốc độ (đã làm mượt) → 0…1: căn bậc hai cho cảm giác đều tay, trần 1. */
     fun speedGain(speed: Double): Double {
@@ -176,12 +246,12 @@ class SwipeSoundMeter {
 
 /**
  * Vỏ âm lượng 0…1 theo bước [step] giây (iOS: 1 mẫu; Android: [SwipeSoundFx.TICK]). Đang vuốt: tiến về đích
- * (hằng thời gian [SwipeSoundFx.RAMP_TAU]); nhấc tay ([release]): giảm tuyến tính về 0 trong [SwipeSoundFx.FADE_OUT].
- * = iOS SwipeSoundEnvelope.
+ * (hằng thời gian [SwipeSoundFx.RAMP_TAU]); nhấc tay ([release]): giảm tuyến tính về 0 trong [fade] (mặc định
+ * [SwipeSoundFx.FADE_OUT]; Sáo trúc [SwipeSoundFx.FLUTE_RELEASE]). = iOS SwipeSoundEnvelope.
  */
-class SwipeSoundEnvelope(step: Double) {
+class SwipeSoundEnvelope(step: Double, fade: Double = SwipeSoundFx.FADE_OUT) {
     private val k = 1 - exp(-step / SwipeSoundFx.RAMP_TAU)
-    private val fadeFrac = step / SwipeSoundFx.FADE_OUT
+    private val fadeFrac = step / fade
     var gain = 0.0
         private set
     var releasing = false
@@ -279,4 +349,129 @@ object SwipeSoundCustom {
     /** Vòng lặp phát cho "Âm của bạn": file hợp lệ, không thì Bút chì (giá trị lưu giữ nguyên). */
     fun resolvedLoop(custom: FloatArray?): FloatArray =
         if (custom != null && custom.isNotEmpty()) custom else KeySoundSynth.swipeLoopSamples(SwipeSoundStyle.PENCIL)
+}
+
+/**
+ * Nốt nhạc theo phím: bảng phím → bậc ngũ cung (thuần, = iOS SwipeNoteMap). Trong hàng: trái → phải = trầm → cao (một bậc
+ * mỗi phím); hàng trên lệch [ROW_SHIFT] bậc so với hàng dưới (q-hàng +4, a-hàng +2, z-hàng 0) ⇒ mỗi từ một đường giai điệu
+ * riêng. Bậc 0…13 từ G3 (55) theo thang ngũ cung của nhạc cụ (Piano/Ghi-ta G A B D E, Đàn tranh G A C D E) ⇒ G3…D6.
+ */
+object SwipeNoteMap {
+    val ROWS = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
+    val ROW_SHIFT = intArrayOf(4, 2, 0)
+    const val BASE = 55
+    /** Số bậc khác nhau (0…13) = số nốt dựng sẵn mỗi nhạc cụ. */
+    const val STEPS = 14
+    /** Bậc của chữ a…z (chỉ số 0…25). */
+    val LETTER_STEPS: IntArray = IntArray(26) { k ->
+        var st = 0
+        for ((r, row) in ROWS.withIndex()) { val c = row.indexOf('a' + k); if (c >= 0) { st = c + ROW_SHIFT[r]; break } }
+        st
+    }
+
+    fun step(letter: Int): Int = LETTER_STEPS[letter]
+
+    fun midi(step: Int, scale: IntArray): Int = BASE + 12 * (step / 5) + scale[step % 5]
+}
+
+/**
+ * Phím chữ dưới ngón đang vuốt (thuần, = iOS SwipeKeyTracker) — dựng MỘT lần từ tâm phím của layout gõ vuốt (52 số x,y của
+ * a…z, như [SwipeLayout.centers]), mỗi điểm O(1) không cấp phát: chọn hàng gần nhất theo y, đoán cột theo bước phím rồi so
+ * 3 tâm lân cận. Chỉ tính "vào phím" khi điểm nằm trong LÕI phím ([CORE] = 70 % bề ngang / khoảng hàng) ⇒ ngón rung ở ranh
+ * giới hai phím không gảy lặp. [feed] trả phím mới (khác phím vừa gảy) hoặc −1 ⇒ mỗi phím một nốt.
+ */
+class SwipeKeyTracker private constructor(
+    val keyWidth: Double,
+    val rowHeight: Double,
+    /** Mép trái / phải vùng phím chữ (Sáo trúc: vị trí ngang 0…1). */
+    val minX: Double,
+    val maxX: Double,
+    private val rowY: DoubleArray,
+    private val rowX: Array<DoubleArray>,
+    private val rowLetter: Array<IntArray>,
+) {
+    var last = -1
+        private set
+
+    /** Chữ (0…25) có LÕI chứa điểm, −1 = không phím nào (khe, hàng số/cách, ngoài vùng). */
+    fun key(x: Double, y: Double): Int {
+        var best = -1
+        var bd = Double.POSITIVE_INFINITY
+        for (r in 0 until 3) {
+            val d = abs(y - rowY[r])
+            if (d < bd) { bd = d; best = r }
+        }
+        if (best < 0 || bd > CORE * rowHeight / 2) return -1
+        val lx = rowX[best]
+        val n = lx.size
+        val g = floor((x - lx[0]) / keyWidth + 0.5).toInt().coerceIn(0, n - 1)
+        var bc = -1
+        var bdx = Double.POSITIVE_INFINITY
+        for (c in maxOf(0, g - 1)..minOf(n - 1, g + 1)) {
+            val dx = abs(x - lx[c])
+            if (dx < bdx) { bdx = dx; bc = c }
+        }
+        if (bdx > CORE * keyWidth / 2) return -1
+        return rowLetter[best][bc]
+    }
+
+    /** Một điểm vuốt: chữ VỪA vào (khác chữ đã gảy gần nhất) hoặc −1. */
+    fun feed(x: Double, y: Double): Int {
+        val k = key(x, y)
+        if (k < 0 || k == last) return -1
+        last = k
+        return k
+    }
+
+    fun reset() { last = -1 }
+
+    /** Vị trí ngang 0…1 trên vùng phím chữ (kẹp). */
+    fun unitX(x: Double): Double = ((x - minX) / (maxX - minX)).coerceIn(0.0, 1.0)
+
+    companion object {
+        const val CORE = 0.7
+
+        /** null ⇒ không có phím chữ nào / bước phím ≤ 0. [centers] 52 số (x, y của a…z; vô cực = không có phím). */
+        fun of(centers: FloatArray, keyWidth: Float): SwipeKeyTracker? {
+            if (keyWidth <= 0f || centers.size != 52) return null
+            val kw = keyWidth.toDouble()
+            val ys = DoubleArray(3)
+            val xs = ArrayList<DoubleArray>(3)
+            val ls = ArrayList<IntArray>(3)
+            var lo = Double.POSITIVE_INFINITY
+            var hi = Double.NEGATIVE_INFINITY
+            for ((r, row) in SwipeNoteMap.ROWS.withIndex()) {
+                val lx = ArrayList<Double>(); val ll = ArrayList<Int>()
+                var sy = 0.0
+                for (ch in row) {
+                    val k = ch - 'a'
+                    val x = centers[2 * k]
+                    if (!x.isFinite()) continue
+                    lx += x.toDouble(); ll += k; sy += centers[2 * k + 1].toDouble()
+                    lo = minOf(lo, x.toDouble()); hi = maxOf(hi, x.toDouble())
+                }
+                xs += lx.toDoubleArray(); ls += ll.toIntArray()
+                ys[r] = if (lx.isEmpty()) Double.POSITIVE_INFINITY else sy / lx.size
+            }
+            if (!lo.isFinite()) return null
+            var rh = Double.POSITIVE_INFINITY
+            for (r in 0 until 2) if (ys[r].isFinite() && ys[r + 1].isFinite()) rh = minOf(rh, abs(ys[r + 1] - ys[r]))
+            return SwipeKeyTracker(kw, if (rh.isFinite() && rh > 0) rh else kw * 1.4, lo - kw / 2, hi + kw / 2,
+                ys, xs.toTypedArray(), ls.toTypedArray())
+        }
+
+        /** Tâm QWERTY chuẩn (= [SwipeLayout.qwerty]: hàng 2 lệch 0,5 phím, hàng 3 lệch 1,5 phím) — bản nghe thử + test. */
+        fun qwertyCenters(keyWidth: Float, rowHeight: Float): FloatArray {
+            val c = FloatArray(52) { Float.POSITIVE_INFINITY }
+            for ((r, rowPair) in listOf("qwertyuiop" to 0.5, "asdfghjkl" to 1.0, "zxcvbnm" to 2.0).withIndex()) {
+                val (row, x0) = rowPair
+                for ((i, ch) in row.withIndex()) {
+                    val k = ch - 'a'
+                    c[2 * k] = ((x0 + i) * keyWidth.toDouble()).toFloat()
+                    c[2 * k + 1] = ((r + 0.5) * rowHeight.toDouble()).toFloat()
+                }
+            }
+            return c
+        }
+    }
 }
