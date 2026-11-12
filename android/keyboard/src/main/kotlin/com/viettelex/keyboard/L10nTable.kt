@@ -318,7 +318,7 @@ object L10nTable {
         put("Rep", "Reps")
         put("Sút!", "Kick!")
         put("Cho cá ăn", "Feed the fish")
-        put("Phím sáng", "Key glow")
+        put("Phím sáng", "Backlit keys")
         put("Chạm một ô để chọn và xem thử.", "Tap a tile to choose and preview it.")
         put("Hiệu ứng vẽ sau khi chữ đã vào ô nên không làm chậm gõ; tự tắt khi bật Trình tiết kiệm pin.", "Effects are drawn after the character is inserted, so typing never slows down; they turn off with Battery Saver on.")
         put("Trái tim nhỏ bay lên từ phím vừa bấm, theo màu nhấn của giao diện.", "Little hearts float up from the key you press, in the theme's accent colour.")

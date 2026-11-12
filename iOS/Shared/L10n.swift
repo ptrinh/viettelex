@@ -467,7 +467,7 @@ enum L10n {
         "Rep": "Reps",
         "Sút!": "Kick!",
         "Cho cá ăn": "Feed the fish",
-        "Phím sáng": "Key glow",
+        "Phím sáng": "Backlit keys",
         "Thêm ảnh nền để đèn rọi lên ảnh của bạn.": "Add a background photo and the lights reveal it.",
         "Chạm một ô để chọn và xem thử.": "Tap a tile to choose and preview it.",
         "Hiệu ứng vẽ sau khi chữ đã vào ô nên không làm chậm gõ; tự tắt khi bật Chế độ nguồn điện thấp.": "Effects are drawn after the character is inserted, so typing never slows down; they turn off in Low Power Mode.",
