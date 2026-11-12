@@ -138,6 +138,10 @@ final class SwipeTrailPreviewView: UIView {
     private func run() {
         guard let r = renderer, bounds.width > 0 else { return }
         stop()
+        if style.usesKeys {   // không có phím thật: lưới QWERTY mẫu phủ ô (Phím sáng theo đường / Ma trận)
+            let k = SwipeTrailRenderer.sampleKeys(in: bounds)
+            r.setKeys(k.rects, k.chars, hitDy: 0)
+        }
         r.begin(bounds: bounds)
         start = CACurrentMediaTime()
         let l = CADisplayLink(target: self, selector: #selector(step))

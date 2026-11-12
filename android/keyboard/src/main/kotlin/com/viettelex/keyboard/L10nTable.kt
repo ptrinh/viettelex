@@ -227,6 +227,12 @@ object L10nTable {
         put("Ảo ảnh", "Kaleidoscope")
         put("Tan chảy", "Melt")
         put("Vệt lặp", "Chroma echo")
+        put("Phím sáng theo đường", "Key glow")
+        put("Thư pháp", "Calligraphy")
+        put("Sao chổi", "Comet")
+        put("Đom đóm", "Fireflies")
+        put("Ma trận", "Matrix rain")
+        // "Cánh hoa" → "Petals" đã có (hiệu ứng phím)
         put("Theo giao diện", "Match theme")
         put("Nét vẽ theo ngón tay khi gõ vuốt. Tắt: không vẽ gì. Tắt và Đơn giản miễn phí, mọi kiểu khác (kể cả Theo giao diện) thuộc VietTelex Plus. Theo giao diện: dùng nét vuốt của giao diện đang chọn (Đơn giản nếu giao diện không có).",
             "The line drawn under your finger while swipe typing. Off: nothing is drawn. Off and Simple are free; every other style (including Match theme) is part of VietTelex Plus. Match theme: uses the current theme's swipe trail (Simple if the theme has none).")

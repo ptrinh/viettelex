@@ -34,7 +34,7 @@ class SwipeTrailStyleTests {
     // --- model / id / sao lưu
 
     @Test fun idsMatchIosAndDefaultIsSimple() {
-        assertEquals(listOf("none", "simple", "fire", "electric", "brush", "rainbow", "neon", "stardust", "firework", "plasma", "kaleidoscope", "melt", "chroma", "theme"),
+        assertEquals(listOf("none", "simple", "fire", "electric", "brush", "rainbow", "neon", "stardust", "firework", "plasma", "kaleidoscope", "melt", "chroma", "keys", "calligraphy", "comet", "firefly", "matrix", "petals", "theme"),
             SwipeTrailStyle.entries.map { it.id })
         assertEquals("swipeTrail", Keys.SWIPE_TRAIL)
         assertEquals(SwipeTrailStyle.SIMPLE, SwipeTrailStyle.DEFAULT)
@@ -42,7 +42,7 @@ class SwipeTrailStyleTests {
         assertEquals(SwipeTrailStyle.SIMPLE, SwipeTrailStyle.of("glitter"))
         assertEquals(SwipeTrailStyle.SIMPLE, SwipeTrailStyle.of(7))
         assertEquals(SwipeTrailStyle.NONE, SwipeTrailStyle.of("none"))
-        assertEquals(listOf("none", "simple", "fire", "electric", "brush", "rainbow", "neon", "stardust", "firework", "plasma", "kaleidoscope", "melt", "chroma"),
+        assertEquals(listOf("none", "simple", "fire", "electric", "brush", "rainbow", "neon", "stardust", "firework", "plasma", "kaleidoscope", "melt", "chroma", "keys", "calligraphy", "comet", "firefly", "matrix", "petals"),
             SwipeTrailStyle.THEME_IDS)
         assertEquals(SwipeTrailStyle.THEME_IDS.toSet(), ThemeExtraIds.SWIPES)
     }
@@ -57,7 +57,7 @@ class SwipeTrailStyleTests {
     @Test fun backupSpecWhitelistsIds() {
         val spec = BackupSettings.all.first { it.key == Keys.SWIPE_TRAIL }
         assertEquals(SettingKind.Choice("simple", setOf("none", "simple", "fire", "electric", "brush", "rainbow", "neon",
-            "stardust", "firework", "plasma", "kaleidoscope", "melt", "chroma", "theme")), spec.kind)
+            "stardust", "firework", "plasma", "kaleidoscope", "melt", "chroma", "keys", "calligraphy", "comet", "firefly", "matrix", "petals", "theme")), spec.kind)
     }
 
     @Test fun titlesBilingual() {
@@ -150,7 +150,9 @@ class SwipeTrailStyleTests {
         val n = mapOf(SwipeTrailStyle.NONE to 0, SwipeTrailStyle.THEME to 0, SwipeTrailStyle.SIMPLE to 1, SwipeTrailStyle.FIREWORK to 1,
             SwipeTrailStyle.FIRE to 3, SwipeTrailStyle.ELECTRIC to 3, SwipeTrailStyle.NEON to 3, SwipeTrailStyle.RAINBOW to 1,
             SwipeTrailStyle.BRUSH to 1, SwipeTrailStyle.STARDUST to 1, SwipeTrailStyle.PLASMA to 3,
-            SwipeTrailStyle.KALEIDOSCOPE to 3, SwipeTrailStyle.MELT to 3, SwipeTrailStyle.CHROMA to 4)
+            SwipeTrailStyle.KALEIDOSCOPE to 3, SwipeTrailStyle.MELT to 3, SwipeTrailStyle.CHROMA to 4,
+            SwipeTrailStyle.KEYS to 1, SwipeTrailStyle.CALLIGRAPHY to 1, SwipeTrailStyle.COMET to 6, SwipeTrailStyle.FIREFLY to 1,
+            SwipeTrailStyle.MATRIX to 2, SwipeTrailStyle.PETALS to 1)
         for (s in SwipeTrailStyle.entries) {
             val k = s.strokes(6.0, 0x99FFFFFF.toInt(), 0x0A84FF, false)
             assertEquals(s.id, n[s], k.size)
@@ -168,7 +170,8 @@ class SwipeTrailStyleTests {
         assertEquals(5, SwipeTrailStyle.PLASMA.spawnEvery)
         for (s in SwipeTrailStyle.entries) {
             val expect = s == SwipeTrailStyle.FIRE || s == SwipeTrailStyle.STARDUST || s == SwipeTrailStyle.FIREWORK ||
-                s == SwipeTrailStyle.PLASMA || s == SwipeTrailStyle.MELT
+                s == SwipeTrailStyle.PLASMA || s == SwipeTrailStyle.MELT || s == SwipeTrailStyle.FIREFLY ||
+                s == SwipeTrailStyle.MATRIX || s == SwipeTrailStyle.PETALS
             assertEquals(s.id, expect, s.usesParticles)
             assertEquals(s.id, if (expect) SwipeTrailFx.PARTICLE_CAP else 0, SwipeTrailState(s, 2f).particleCount)
         }
@@ -176,6 +179,10 @@ class SwipeTrailStyleTests {
         val off = SwipeTrailState(SwipeTrailStyle.NONE, 2f)
         assertTrue(SwipeTrailStyle.NONE.strokes(5.0, -1, 0, false).isEmpty())
         assertEquals(0, off.particleCount)
+        assertEquals(0, off.glowCount)
+        assertEquals(listOf(SwipeTrailStyle.KEYS, SwipeTrailStyle.MATRIX), SwipeTrailStyle.entries.filter { it.usesKeys })
+        assertEquals(SwipeTrailFx.KEY_GLOW_CAP, SwipeTrailState(SwipeTrailStyle.KEYS, 2f).glowCount)
+        assertEquals("Ma trận không có ô sáng", 0, SwipeTrailState(SwipeTrailStyle.MATRIX, 2f).glowCount)
     }
 
     // --- hàm thuần (số tham chiếu chung iOS)
@@ -248,8 +255,10 @@ class SwipeTrailStyleTests {
         val s2 = SwipeTrailFx.trajectory(SwipeTrailStyle.STARDUST, 2)
         assertEquals(-0.16, s2.rotation, 1e-9); assertEquals(1.1, s2.duration, 1e-9)
         for (s in listOf(SwipeTrailStyle.FIRE, SwipeTrailStyle.STARDUST, SwipeTrailStyle.FIREWORK, SwipeTrailStyle.PLASMA,
-                SwipeTrailStyle.MELT))
+                SwipeTrailStyle.MELT, SwipeTrailStyle.FIREFLY, SwipeTrailStyle.MATRIX, SwipeTrailStyle.PETALS)) {
+            assertTrue(s.id, SwipeTrailFx.variants(s) > 0)
             for (v in 0 until SwipeTrailFx.variants(s)) assertTrue(SwipeTrailFx.trajectory(s, v).duration <= SwipeTrailFx.MAX_PARTICLE_LIFE)
+        }
         val sp = SwipeTrailFx.Spawner(3)
         assertEquals(listOf(false, false, true, false, false, true, false, false, true), (0 until 9).map { sp.tick() })
         assertFalse(SwipeTrailFx.Spawner(0).tick())
@@ -343,24 +352,216 @@ class SwipeTrailStyleTests {
         assertTrue(k.build(1_250)); assertFalse(k.build(1_300))
     }
 
+    // --- Phím sáng theo đường / Thư pháp / Sao chổi / Đom đóm / Ma trận / Cánh hoa (số tham chiếu chung iOS)
+
+    /** Lưới 3 hàng QWERTY phủ (x0, y0, w, h) — = iOS SwipeTrailRenderer.sampleKeys (lề 2 × 3). */
+    private fun sampleKeys(st: SwipeTrailState, x0: Float, y0: Float, w: Float, h: Float) {
+        val rows = arrayOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
+        val kw = w / 10; val kh = h / 3
+        var n = 0
+        for ((r, row) in rows.withIndex()) {
+            val left = x0 + (w - kw * row.length) / 2
+            for ((k, ch) in row.withIndex())
+                st.setKey(n++, left + kw * k + 2, y0 + kh * r + 3, left + kw * (k + 1) - 2, y0 + kh * (r + 1) - 3, ch)
+        }
+        st.setKeyCount(n, 4f)
+    }
+
+    @Test fun sixNewStylesPureParity() {
+        assertEquals(0.701504, SwipeTrailFx.nibFactor(1.0, 0.0), 1e-6)
+        assertEquals(0.873406, SwipeTrailFx.nibFactor(0.0, 1.0), 1e-6)
+        assertEquals("dọc theo ngòi ⇒ mảnh nhất", SwipeTrailFx.NIB_MIN,
+            SwipeTrailFx.nibFactor(Math.cos(35 * Math.PI / 180), Math.sin(35 * Math.PI / 180)), 1e-9)
+        assertEquals("vuông góc ngòi ⇒ dày nhất", 1.0,
+            SwipeTrailFx.nibFactor(-Math.cos(55 * Math.PI / 180), Math.sin(55 * Math.PI / 180)), 1e-9)
+        assertEquals(1.0, SwipeTrailFx.nibFactor(0.0, 0.0), 0.0)
+        assertEquals(4.0, SwipeTrailFx.calliPool(0.0), 0.0)
+        assertEquals(2.0, SwipeTrailFx.calliPool(0.125), 1e-9)
+        assertEquals(0.0, SwipeTrailFx.calliPool(0.3), 0.0)
+        assertEquals(5.480496, SwipeTrailFx.calliWidth(0.8, 1.0, 0.0), 1e-6)
+        assertEquals(12.805819, SwipeTrailFx.calliWidth(0.1, 0.0, 1.0), 1e-6)
+        assertEquals(16.5, SwipeTrailFx.calliWidth(0.0, 0.0, 0.0), 1e-9)
+        assertEquals(1.175, SwipeTrailFx.keyframe(0.075, SwipeTrailFx.SEAL_SCALE_T, SwipeTrailFx.SEAL_SCALE_V), 1e-9)
+        assertEquals(1.0, SwipeTrailFx.keyframe(0.5, SwipeTrailFx.SEAL_SCALE_T, SwipeTrailFx.SEAL_SCALE_V), 0.0)
+        assertEquals(0.5, SwipeTrailFx.keyframe(0.04, SwipeTrailFx.SEAL_ALPHA_T, SwipeTrailFx.SEAL_ALPHA_V), 1e-9)
+        assertEquals(1.0, SwipeTrailFx.keyframe(0.3, SwipeTrailFx.SEAL_ALPHA_T, SwipeTrailFx.SEAL_ALPHA_V), 0.0)
+        assertEquals(0.5, SwipeTrailFx.keyframe(0.8, SwipeTrailFx.SEAL_ALPHA_T, SwipeTrailFx.SEAL_ALPHA_V), 1e-9)
+        assertEquals(0.0, SwipeTrailFx.keyframe(2.0, SwipeTrailFx.SEAL_ALPHA_T, SwipeTrailFx.SEAL_ALPHA_V), 0.0)
+        assertEquals(0.675, SwipeTrailFx.keyframe(0.25, SwipeTrailFx.FIREFLY_PULSE_T, SwipeTrailFx.FIREFLY_PULSE_V), 1e-9)
+        assertEquals(0.675, SwipeTrailFx.particleAlpha(SwipeTrailStyle.FIREFLY, 0.25), 1e-9)
+        assertEquals(20, SwipeTrailFx.SEAL_MARKS.size)
+        assertTrue("settle sau khi dấu tắt", SwipeTrailFx.SEAL_LIFE <= SwipeTrailFx.MAX_PARTICLE_LIFE)
+        assertEquals(1.0, SwipeTrailFx.keyGlowAlpha(-1.0), 0.0)
+        assertEquals(1.0, SwipeTrailFx.keyGlowAlpha(0.0), 0.0)
+        assertEquals(0.5, SwipeTrailFx.keyGlowAlpha(0.175), 1e-9)
+        assertEquals(0.0, SwipeTrailFx.keyGlowAlpha(0.35), 0.0)
+        assertEquals(0.0, SwipeTrailFx.keyGlowAlpha(1.0), 0.0)
+        val l = floatArrayOf(0f, 32f, 0f); val t = floatArrayOf(0f, 0f, 44f); val r = floatArrayOf(30f, 62f, 30f); val b = floatArrayOf(40f, 40f, 84f)
+        fun hit(x: Float, y: Float) = SwipeTrailFx.keyHit(x, y, l, t, r, b, 3)
+        assertEquals(0, hit(15f, 20f))
+        assertEquals(0, hit(31f, 20f))
+        assertEquals(1, hit(31.5f, 20f))
+        assertEquals(0, hit(15f, 42f))
+        assertEquals(2, hit(15f, 43f))
+        assertEquals(0, hit(-2f, 0f))
+        assertEquals(-1, hit(-2.5f, 0f))
+        assertEquals(-1, hit(100f, 100f))
+        assertEquals(-1, SwipeTrailFx.keyHit(1f, 1f, l, t, r, b, 0))
+        assertEquals(36, SwipeTrailFx.MATRIX_GLYPHS.length)
+        assertEquals(21, SwipeTrailFx.matrixGlyph(0, 'v'))
+        assertEquals(0, SwipeTrailFx.matrixGlyph(1, 'a'))
+        assertEquals(30, SwipeTrailFx.matrixGlyph(2, 'a'))
+        assertEquals(27, SwipeTrailFx.matrixGlyph(3, 0.toChar()))
+        assertEquals(16, SwipeTrailFx.matrixGlyph(4, 'Q'))
+        assertEquals(34, SwipeTrailFx.matrixGlyph(4, 'é'))
+        assertEquals(0.6, SwipeTrailFx.tail(SwipeTrailStyle.COMET), 0.0)
+        assertEquals(0.3, SwipeTrailFx.tail(SwipeTrailStyle.SIMPLE), 0.0)
+        assertEquals(SwipeTrailState.TAIL_MS, SwipeTrailState(SwipeTrailStyle.MELT, 1f).tailMs)
+        assertEquals(600L, SwipeTrailState(SwipeTrailStyle.COMET, 1f).tailMs)
+        val comet = SwipeTrailStyle.COMET.strokes(6.0, 0, 0x0A84FF, false)
+        assertEquals(listOf(0x4D0A84FF, 0x8C47A3FF.toInt(), 0xCC9DCEFF.toInt(), 0xFFFFFFFF.toInt(), 0x470A84FF, 0xFFFFFFFF.toInt()),
+            comet.map { it.argb })
+        assertEquals(List(4) { SwipeTrailStroke.Kind.SEGMENT } + List(2) { SwipeTrailStroke.Kind.HEAD }, comet.map { it.kind })
+        for ((s, w) in comet.zip(listOf(2.7, 4.8, 6.9, 9.0, 26.4, 9.0))) assertEquals("đuôi mảnh → đầu dày", w, s.width, 1e-9)
+        assertEquals(listOf(0xF0141210.toInt()), SwipeTrailStyle.CALLIGRAPHY.strokes(6.0, 0, 0, false).map { it.argb })
+        assertEquals(listOf(0xF0EEE8DC.toInt()), SwipeTrailStyle.CALLIGRAPHY.strokes(6.0, 0, 0, true).map { it.argb })
+        assertEquals(SwipeTrailStroke.Kind.FILL, SwipeTrailStyle.CALLIGRAPHY.strokes(6.0, 0, 0, true).first().kind)
+        assertEquals("nét rất mờ", listOf(0x4D0A84FF), SwipeTrailStyle.KEYS.strokes(6.0, 0, 0x0A84FF, true).map { it.argb })
+        assertEquals(listOf(3, 3, 4), listOf(SwipeTrailStyle.FIREFLY, SwipeTrailStyle.MATRIX, SwipeTrailStyle.PETALS).map { it.spawnEvery })
+        assertEquals(listOf(6, 6, 8), listOf(SwipeTrailStyle.FIREFLY, SwipeTrailStyle.MATRIX, SwipeTrailStyle.PETALS).map { SwipeTrailFx.variants(it) })
+        val f4 = SwipeTrailFx.trajectory(SwipeTrailStyle.FIREFLY, 4)
+        assertEquals(3.6, f4.dx, 1e-9); assertEquals(-7.0, f4.dy, 0.0); assertEquals(1.1, f4.duration, 1e-9); assertEquals(2.5, f4.sway, 0.0)
+        val p7 = SwipeTrailFx.trajectory(SwipeTrailStyle.PETALS, 7)
+        assertEquals(10.0, p7.dx, 1e-9); assertEquals(24.0, p7.dy, 0.0); assertEquals(2.4, p7.rotation, 1e-9); assertEquals(1.03, p7.duration, 1e-9)
+        val m5 = SwipeTrailFx.trajectory(SwipeTrailStyle.MATRIX, 5)
+        assertEquals(0.0, m5.dx, 0.0); assertEquals(24.0, m5.dy, 0.0); assertEquals(0.86, m5.duration, 1e-9)
+        for (v in 0 until 8) assertTrue("cánh hoa rơi xuống", SwipeTrailFx.trajectory(SwipeTrailStyle.PETALS, v).dy > 0)
+        for (v in 0 until 6) assertTrue("đom đóm bay lên", SwipeTrailFx.trajectory(SwipeTrailStyle.FIREFLY, v).dy < 0)
+        assertTrue(intArrayOf(0xF58FB1, 0xFFC8DA, 0xF7A8C4).contentEquals(SwipeTrailStyle.PETALS.particleColors(0)))
+        assertTrue(intArrayOf(0xD8FF5A, 0xF2FF8A, 0xB6F23A).contentEquals(SwipeTrailStyle.FIREFLY.particleColors(0)))
+        assertTrue(intArrayOf(0x3DFF6E, 0x00E05A, 0xB6FFC8).contentEquals(SwipeTrailStyle.MATRIX.particleColors(0)))
+    }
+
+    /** Phím sáng theo đường: q → w → e sáng đúng thứ tự, ô có ngón đậm 1, ô đã rời mờ dần 0,35 s; huỷ ⇒ tắt ngay. */
+    @Test fun keyGlowLightsKeysInOrderAndFades() {
+        val st = SwipeTrailState(SwipeTrailStyle.KEYS, 1f)
+        st.setKey(0, 0f, 100f, 40f, 150f, 'q'); st.setKey(1, 40f, 100f, 80f, 150f, 'w'); st.setKey(2, 80f, 100f, 120f, 150f, 'e')
+        st.setKeyCount(3, 4f)
+        st.begin()
+        for (i in 0 until 13) st.add(5f + i * 9, 129f, 1_000L + i * 10)
+        val a = FloatArray(1)
+        assertEquals(listOf(0, 1, 2), (0 until 3).map { st.glow(it, 1_120, a) })
+        assertEquals(2, st.currentKey)
+        assertEquals("ngón còn trong phím", 1f, a[0], 0f)
+        assertEquals(-1, st.glow(3, 1_120, a))
+        st.glow(0, 1_120, a)
+        assertTrue("đã rời ⇒ đang mờ: ${a[0]}", a[0] > 0f && a[0] < 1f)
+        st.add(200f, 129f, 1_130)
+        assertEquals(-1, st.currentKey)
+        st.end(fade = true, nowMs = 1_200)
+        assertTrue(st.isAnimating(1_200))
+        assertEquals("q đã tắt (rời 1040), w (rời 1090) + e (rời 1130) còn mờ dần", 2, st.litGlows(1_400))
+        assertFalse("mờ hết ⇒ ngừng hẹn khung", st.isAnimating(1_500))
+        assertEquals(0, st.litGlows(1_500))
+        // Dời điểm chọn phím: y 104 − 4 = 100 trong phím; y 101 − 4 = 97 ngoài khung nới 2.
+        st.begin()
+        st.add(20f, 104f, 2_000); assertEquals(0, st.currentKey)
+        st.add(20f, 101f, 2_010); assertEquals(-1, st.currentKey)
+        st.add(20f, 120f, 2_020)
+        st.end(fade = false, nowMs = 2_030)
+        assertEquals("huỷ ⇒ tắt ngay", 0, st.litGlows(2_030))
+        // Kiểu không cần phím: setKey = 0 việc.
+        val o = SwipeTrailState(SwipeTrailStyle.SIMPLE, 1f)
+        o.setKey(0, 0f, 0f, 100f, 100f, 'q'); o.setKeyCount(1, 0f)
+        assertEquals(0, o.keyCount)
+    }
+
+    /** Thư pháp: chậm ⇒ dày (mực đọng), dọc dày hơn ngang (ngòi 35°); nhấc tay ⇒ dấu son ở điểm cuối, huỷ ⇒ không. */
+    @Test fun calligraphyNibAndSealStamp() {
+        fun thickness(stepMs: Long, dx: Float, dy: Float): Float {
+            val st = SwipeTrailState(SwipeTrailStyle.CALLIGRAPHY, 1f)
+            st.begin()
+            for (i in 0 until 30) st.add(50f + i * dx, 50f + i * dy, 10_000L + i * stepMs)
+            assertTrue(st.build(10_000L + 29 * stepMs))
+            assertEquals(60, st.outN)
+            val k = st.outN / 4
+            return if (dx == 0f) abs(st.outX[k] - st.outX[st.outN - 1 - k]) else abs(st.outY[k] - st.outY[st.outN - 1 - k])
+        }
+        assertTrue("chậm ⇒ dày", thickness(8, 1f, 0f) > thickness(1, 4f, 0f))
+        assertTrue("dọc dày hơn ngang", thickness(2, 0f, 4f) > thickness(2, 4f, 0f))
+        val st = SwipeTrailState(SwipeTrailStyle.CALLIGRAPHY, 1f)
+        val out = FloatArray(5)
+        st.begin()
+        for (i in 0 until 10) st.add(20f + i * 10, 80f, 1_000L + i * 10)
+        assertFalse("chưa nhấc tay", st.seal(1_090, out))
+        st.end(fade = true, nowMs = 1_100)
+        assertTrue(st.seal(1_100, out))
+        assertEquals(110f, out[0], 0f); assertEquals(80f, out[1], 0f)
+        assertEquals(1.35f, out[2], 1e-6f); assertEquals(0f, out[3], 0f)
+        assertTrue(st.seal(1_550, out))
+        assertEquals(1f, out[2], 0f); assertEquals(1f, out[3], 0f)
+        assertTrue(st.isAnimating(1_900))
+        assertFalse(st.seal(2_000, out))
+        assertFalse(st.isAnimating(2_000))
+        st.begin(); st.add(1f, 1f, 3_000); st.add(9f, 1f, 3_010)
+        st.end(fade = false, nowMs = 3_020)
+        assertFalse("huỷ ⇒ không đóng dấu", st.seal(3_020, out))
+        assertFalse(SwipeTrailState(SwipeTrailStyle.BRUSH, 1f).also { it.begin(); it.add(1f, 1f, 1); it.add(5f, 1f, 2); it.end(true, 3) }.seal(3, out))
+    }
+
+    /** Sao chổi: đuôi 0,6 s (giữ điểm Đơn giản đã bỏ), chia 4 đoạn theo chiều dài; đầu = điểm mới nhất. */
+    @Test fun cometLongTailSegments() {
+        val st = SwipeTrailState(SwipeTrailStyle.COMET, 1f)
+        st.begin()
+        for (i in 0 until 60) st.add(10f + i * 5, 150f, 1_000L + i * 10)
+        assertTrue(st.build(1_590))
+        assertEquals(60, st.outN)
+        assertEquals(305f, st.outX[st.outN - 1], 0f)
+        assertEquals(59f, st.cut(1.0), 1e-4f)
+        assertEquals(0.4f * 59, st.cut(0.4), 1e-3f)
+        assertEquals(0.88f * 59, st.cut(0.88), 1e-3f)
+        val simple = SwipeTrailState(SwipeTrailStyle.SIMPLE, 1f)
+        simple.begin()
+        for (i in 0 until 60) simple.add(10f + i * 5, 150f, 1_000L + i * 10)
+        assertTrue(simple.build(1_590))
+        assertEquals(31, simple.outN)
+    }
+
+    /** Ma trận: chữ rơi = chữ của phím đang đi qua, cứ 3 chữ một chữ số. */
+    @Test fun matrixGlyphsFollowKeys() {
+        val st = SwipeTrailState(SwipeTrailStyle.MATRIX, 1f)
+        st.setKey(0, 0f, 0f, 400f, 300f, 'v'); st.setKeyCount(1, 0f)
+        st.begin()
+        for (i in 0 until 9) st.add(20f + i * 8, 150f, 1_000L + i * 10)
+        assertEquals(3, st.liveParticles())
+        assertEquals(listOf(21, 21, 30), (0 until 3).map { st.glyph(it) })
+        assertEquals(26, SwipeTrailState(SwipeTrailStyle.FIRE, 1f).glyph(0))
+    }
+
     // --- trần hạt / không rò / nghỉ = không hẹn khung
 
     @Test fun particlesCappedNoLeakOver200SwipesAndIdleStops() {
         for (s in listOf(SwipeTrailStyle.FIRE, SwipeTrailStyle.STARDUST, SwipeTrailStyle.FIREWORK, SwipeTrailStyle.ELECTRIC,
-                SwipeTrailStyle.PLASMA, SwipeTrailStyle.KALEIDOSCOPE, SwipeTrailStyle.MELT, SwipeTrailStyle.CHROMA)) {
+                SwipeTrailStyle.PLASMA, SwipeTrailStyle.KALEIDOSCOPE, SwipeTrailStyle.MELT, SwipeTrailStyle.CHROMA,
+                SwipeTrailStyle.KEYS, SwipeTrailStyle.CALLIGRAPHY, SwipeTrailStyle.COMET, SwipeTrailStyle.FIREFLY,
+                SwipeTrailStyle.MATRIX, SwipeTrailStyle.PETALS)) {
             val st = SwipeTrailState(s, 2.5f)
             val out = FloatArray(5)
+            val g = FloatArray(1)
             var t = 1_000L
             val rt = Runtime.getRuntime()
             var heap0 = 0L
             for (k in 0 until 200) {
                 if (k == 20) { System.gc(); heap0 = rt.totalMemory() - rt.freeMemory() }
+                sampleKeys(st, 0f, 40f, 400f, 200f)
                 st.begin()
                 for (i in 0 until 40) {
                     t += 8
                     st.add(10f + (i * 9 % 380), 40f + ((i * 7 + k) % 200), t)
                     st.build(t)
                     for (p in 0 until st.particleCount) st.particle(p, t, out)
+                    for (p in 0 until st.glowCount) st.glow(p, t, g)
+                    st.seal(t, out)
                 }
                 st.end(fade = k % 2 == 1, nowMs = t)
                 st.commitBurst(t)
@@ -369,8 +570,11 @@ class SwipeTrailStyleTests {
             }
             if (s.usesParticles) assertTrue(s.id, st.liveParticles() > 0)
             assertTrue("${s.id}: còn vẽ ngay sau nhấc tay", st.isAnimating(t))
+            if (s == SwipeTrailStyle.KEYS) assertTrue("ô sáng còn mờ dần", st.litGlows(t) > 0)
             assertFalse("${s.id}: nghỉ ⇒ ngừng hẹn khung", st.isAnimating(t + 200 + (SwipeTrailFx.MAX_PARTICLE_LIFE * 1000).toLong() + 10))
             assertEquals(0, st.liveParticles())
+            assertEquals(0, st.litGlows(t + 2_000))
+            assertFalse(st.seal(t + 2_000, out))
             System.gc()
             val grew = (rt.totalMemory() - rt.freeMemory()) - heap0
             assertTrue("${s.id}: heap tăng $grew B qua 180 cú vuốt", grew < 2_000_000)
@@ -402,11 +606,13 @@ class SwipeTrailStyleTests {
     @Test fun perMoveCostVsSimple() {
         val path = (0 until 60).map { i -> val f = i / 59.0; floatArrayOf((20 + 360 * f).toFloat(), (145 + 90 * sin(f * 3 * Math.PI)).toFloat()) }
         val out = FloatArray(5)
+        val g = FloatArray(1)
         fun run(s: SwipeTrailStyle, swipes: Int): DoubleArray {
             val st = SwipeTrailState(s, 2.75f)
             val r = DoubleArray(swipes * path.size)
             var t = 1_000L; var n = 0
             repeat(swipes) {
+                if (s.usesKeys) sampleKeys(st, 0f, 0f, 402f, 290f)   // = KeyboardView: chỉ kiểu cần phím
                 st.begin()
                 for (p in path) {
                     t += 8
@@ -414,6 +620,8 @@ class SwipeTrailStyleTests {
                     st.add(p[0], p[1], t)
                     st.build(t)
                     for (i in 0 until st.particleCount) st.particle(i, t, out)
+                    for (i in 0 until st.glowCount) st.glow(i, t, g)
+                    st.seal(t, out)
                     r[n++] = (System.nanoTime() - t0) / 1e6
                 }
                 st.end(true, t); st.commitBurst(t)
@@ -424,7 +632,9 @@ class SwipeTrailStyleTests {
         repeat(3) { run(SwipeTrailStyle.SIMPLE, 200); for (s in SwipeTrailStyle.entries) run(s, 50) }   // JIT
         for (s in listOf(SwipeTrailStyle.FIRE, SwipeTrailStyle.ELECTRIC, SwipeTrailStyle.BRUSH, SwipeTrailStyle.RAINBOW,
                 SwipeTrailStyle.NEON, SwipeTrailStyle.STARDUST, SwipeTrailStyle.FIREWORK, SwipeTrailStyle.PLASMA,
-                SwipeTrailStyle.KALEIDOSCOPE, SwipeTrailStyle.MELT, SwipeTrailStyle.CHROMA)) {
+                SwipeTrailStyle.KALEIDOSCOPE, SwipeTrailStyle.MELT, SwipeTrailStyle.CHROMA, SwipeTrailStyle.KEYS,
+                SwipeTrailStyle.CALLIGRAPHY, SwipeTrailStyle.COMET, SwipeTrailStyle.FIREFLY, SwipeTrailStyle.MATRIX,
+                SwipeTrailStyle.PETALS)) {
             val deltas = DoubleArray(5); var base = DoubleArray(0); var on = DoubleArray(0)
             for (b in 0 until 5) {
                 val a = run(SwipeTrailStyle.SIMPLE, 40); val x = run(s, 40)

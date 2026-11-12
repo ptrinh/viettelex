@@ -124,6 +124,7 @@ internal class SwipeTrailPreviewView(context: Context, private val th: ImeTheme)
     private fun run() {
         if (drawStyle == SwipeTrailStyle.NONE || width == 0) return
         clear()
+        setSampleKeys()   // Phím sáng theo đường / Ma trận: lưới QWERTY mẫu (kiểu khác: 0 việc)
         begin()
         start = SystemClock.uptimeMillis()
         running = true

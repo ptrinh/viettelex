@@ -22,6 +22,32 @@ class SwipeTrailViewTest {
 
     private class Probe(ctx: android.content.Context) : SwipeTrailView(ctx, ImeTheme(ctx)) {
         fun frame(c: Canvas, now: Long) = drawTrail(c, now)
+        fun sampleKeys() = setSampleKeys()
+        fun lit(now: Long) = state.litGlows(now)
+        val keyCount get() = state.keyCount
+    }
+
+    /** Phím sáng theo đường: lưới phím mẫu ⇒ ô sáng vẽ được, mờ hết ⇒ ngừng hẹn khung; kiểu khác bỏ qua phím. */
+    @Test fun keyGlowDrawsThenStops() {
+        val c = Canvas(Bitmap.createBitmap(400, 300, Bitmap.Config.ARGB_8888))
+        val v = Probe(ctx)
+        v.measure(View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(300, View.MeasureSpec.EXACTLY))
+        v.layout(0, 0, 400, 300)
+        v.configure(SwipeTrailStyle.SIMPLE)
+        v.sampleKeys()
+        assertTrue("Đơn giản: không nhận phím", v.keyCount == 0)
+        v.configure(SwipeTrailStyle.KEYS)
+        v.sampleKeys()
+        assertTrue(v.keyCount == 26)
+        v.begin()
+        val t0 = android.os.SystemClock.uptimeMillis() - 2_000L
+        for (i in 0 until 40) { v.add(20f + i * 9, 150f, t0 + i * 8); assertTrue(v.frame(c, t0 + i * 8)) }
+        assertTrue(v.lit(t0 + 312) >= 3)
+        v.end(fade = true)
+        val lift = android.os.SystemClock.uptimeMillis()
+        assertTrue(v.frame(c, lift))
+        assertFalse("mờ hết ⇒ ngừng hẹn khung", v.frame(c, lift + 400))
+        assertTrue(v.lit(lift + 400) == 0)
     }
 
     @Test fun everyStyleDrawsThenStopsWhenSettled() {

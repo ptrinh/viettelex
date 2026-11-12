@@ -2124,6 +2124,8 @@ class KeyboardView(
             if (j >= 0) s.begin(p.xs[j] / d, p.ys[j] / d, (p.ts[j] * 1000).toLong())
         }
         val tr = trail ?: return
+        // Phím sáng theo đường / Ma trận: khung phím chữ — một lần mỗi cú vuốt (kiểu khác: 0 việc).
+        if (tr.style.usesKeys) tr.setKeys(keys, yOffPx)
         tr.begin()
         for (j in 0 until p.count) tr.add(p.xs[j], p.ys[j] + yOffPx, (p.ts[j] * 1000).toLong())
     }

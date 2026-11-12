@@ -1,6 +1,8 @@
 package com.viettelex.keyboard
 
 import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
@@ -29,6 +31,12 @@ enum class SwipeTrailStyle(val id: String, val viTitle: String) {
     KALEIDOSCOPE("kaleidoscope", "Ảo ảnh"), // l10n-key
     MELT("melt", "Tan chảy"), // l10n-key
     CHROMA("chroma", "Vệt lặp"), // l10n-key
+    KEYS("keys", "Phím sáng theo đường"), // l10n-key
+    CALLIGRAPHY("calligraphy", "Thư pháp"), // l10n-key
+    COMET("comet", "Sao chổi"), // l10n-key
+    FIREFLY("firefly", "Đom đóm"), // l10n-key
+    MATRIX("matrix", "Ma trận"), // l10n-key
+    PETALS("petals", "Cánh hoa"), // l10n-key
     THEME("theme", "Theo giao diện"); // l10n-key
 
     val title: String get() = tr(viTitle)
@@ -42,10 +50,15 @@ enum class SwipeTrailStyle(val id: String, val viTitle: String) {
         STARDUST -> 4
         PLASMA -> 5
         MELT -> 4
+        FIREFLY -> 3
+        MATRIX -> 3
+        PETALS -> 4
         else -> 0
     }
     /** Có pool hạt (dọc đường hoặc chùm pháo hoa lúc nhấc tay). */
     val usesParticles: Boolean get() = spawnEvery > 0 || this == FIREWORK
+    /** Cần khung phím chữ (setKeys lúc bắt đầu vuốt): Phím sáng theo đường (sáng phím), Ma trận (chữ của phím). */
+    val usesKeys: Boolean get() = this == KEYS || this == MATRIX
 
     /**
      * Các lớp nét (dưới → trên) — = iOS strokes. [base] = bề rộng vệt Đơn giản (Android 5dp, iOS 6pt);
@@ -82,6 +95,20 @@ enum class SwipeTrailStyle(val id: String, val viTitle: String) {
                 SwipeTrailStroke(base * 1.1, 0x9930D158.toInt(), SwipeTrailStroke.Kind.GHOST),
                 SwipeTrailStroke(base * 1.1, 0x990A84FF.toInt(), SwipeTrailStroke.Kind.GHOST),
                 SwipeTrailStroke(base * 0.6, trail))
+            // Nét rất mờ — phím sáng ([SwipeTrailFx.keyGlowAlpha]) mới là chính (= iOS).
+            KEYS -> listOf(SwipeTrailStroke(base * 0.35, alpha(a, 0.3)))
+            // Mực đậm nền sáng / mực sáng nền tối; bề rộng theo tốc độ × ngòi xiên ([SwipeTrailFx.calliWidth]).
+            CALLIGRAPHY -> listOf(SwipeTrailStroke(0.0, if (dark) 0xF0EEE8DC.toInt() else 0xF0141210.toInt(), SwipeTrailStroke.Kind.FILL))
+            // 4 đoạn cũ → mới: mảnh + màu nhấn mờ ở đuôi → dày + trắng ở đầu; rồi quầng + lõi đầu (= iOS).
+            COMET -> List(4) { i ->
+                SwipeTrailStroke(base * SwipeTrailFx.COMET_WIDTHS[i],
+                    alpha(SwipeTrailFx.mix(a, 0xFFFFFF, SwipeTrailFx.COMET_WHITE[i]), SwipeTrailFx.COMET_ALPHA[i]),
+                    SwipeTrailStroke.Kind.SEGMENT)
+            } + listOf(SwipeTrailStroke(base * 4.4, alpha(a, 0.28), SwipeTrailStroke.Kind.HEAD),
+                SwipeTrailStroke(base * 1.5, 0xFFFFFFFF.toInt(), SwipeTrailStroke.Kind.HEAD))
+            FIREFLY -> listOf(SwipeTrailStroke(base * 0.3, 0x40D8FF5A))
+            MATRIX -> listOf(SwipeTrailStroke(base * 1.2, 0x2600FF66), SwipeTrailStroke(base * 0.35, 0xD900E05A.toInt()))
+            PETALS -> listOf(SwipeTrailStroke(base * 0.5, 0x59F58FB1))
         }
     }
 
@@ -92,6 +119,9 @@ enum class SwipeTrailStyle(val id: String, val viTitle: String) {
         FIREWORK -> intArrayOf(accent and 0xFFFFFF, 0xFFC93C, 0xFF5E7E, 0x4FC3F7)
         PLASMA -> intArrayOf(0xB44CFF, 0xE0B0FF, 0xF3E0FF)
         MELT -> intArrayOf(SwipeTrailFx.HUE_WHEEL[0], SwipeTrailFx.HUE_WHEEL[2], SwipeTrailFx.HUE_WHEEL[4])
+        FIREFLY -> intArrayOf(0xD8FF5A, 0xF2FF8A, 0xB6F23A)
+        MATRIX -> intArrayOf(0x3DFF6E, 0x00E05A, 0xB6FFC8)
+        PETALS -> intArrayOf(0xF58FB1, 0xFFC8DA, 0xF7A8C4)   // hồng sen + hồng nhạt
         else -> IntArray(0)
     }
 
@@ -116,9 +146,11 @@ data class SwipeTrailStroke(
 ) {
     /**
      * CONIC = nét tô bánh xe màu (Ảo ảnh), MIRROR = nhánh xoay quanh tâm vùng phím (Ảo ảnh), MELT = một đoạn nét
-     * Tan chảy (thứ tự = đoạn trong MELT_SEGMENTS), GHOST = bóng lệch màu (Vệt lặp, thứ tự = CHROMA_ANGLES). = iOS.
+     * Tan chảy (thứ tự = đoạn trong MELT_SEGMENTS), GHOST = bóng lệch màu (Vệt lặp, thứ tự = CHROMA_ANGLES),
+     * SEGMENT = một đoạn Sao chổi (thứ tự = đoạn trong COMET_SEGMENTS), HEAD = chấm tròn ở đầu ngón (Sao chổi,
+     * width = đường kính; không dùng Path chung). = iOS.
      */
-    enum class Kind { STROKE, FILL, GRADIENT, CONIC, MIRROR, MELT, GHOST }
+    enum class Kind { STROKE, FILL, GRADIENT, CONIC, MIRROR, MELT, GHOST, SEGMENT, HEAD }
 }
 
 /** Cổng Plus: đi cùng quyền theme cao cấp (như Hiệu ứng khi bấm phím). */
@@ -153,8 +185,8 @@ object SwipeTrailFx {
     const val BRUSH_FAST = 1.6
     const val BRUSH_SMOOTHING = 0.35
     const val BRUSH_TAPER = 6
-    /** Sống lâu nhất của hạt (giây). */
-    const val MAX_PARTICLE_LIFE = 1.1
+    /** Sống lâu nhất của hạt (giây) — Đom đóm sống tới 1,2 s. */
+    const val MAX_PARTICLE_LIFE = 1.25
     /** Cầu vồng: mốc màu (RGB), lặp 2 vòng. */
     val RAINBOW = intArrayOf(0xFF3B30, 0xFF9500, 0xFFCC00, 0x34C759, 0x00C7BE, 0x007AFF, 0xAF52DE,
         0xFF3B30, 0xFF9500, 0xFFCC00, 0x34C759, 0x00C7BE, 0x007AFF, 0xAF52DE)
@@ -175,6 +207,95 @@ object SwipeTrailFx {
     const val CHROMA_DRIFT = 8.0
     const val CHROMA_FADE = 0.45
     val CHROMA_ANGLES = doubleArrayOf(-90.0, 30.0, 150.0)
+
+    /** Đuôi nét (giây): Sao chổi dài gấp đôi, kiểu khác 0,3 s như vệt cũ (= iOS tail). */
+    const val COMET_TAIL = 0.6
+    fun tail(s: SwipeTrailStyle): Double = if (s == SwipeTrailStyle.COMET) COMET_TAIL else 0.3
+    /** Sao chổi: mốc 4 đoạn theo chiều dài (cũ → mới), bề rộng (× base), độ pha trắng, độ đậm từng đoạn. */
+    val COMET_SEGMENTS = doubleArrayOf(0.0, 0.4, 0.7, 0.88, 1.0)
+    val COMET_WIDTHS = doubleArrayOf(0.45, 0.8, 1.15, 1.5)
+    val COMET_WHITE = doubleArrayOf(0.0, 0.25, 0.6, 1.0)
+    val COMET_ALPHA = doubleArrayOf(0.3, 0.55, 0.8, 1.0)
+
+    /** Phím sáng theo đường: tắt dần sau khi rời phím (giây), số ô sáng tối đa, nới khung khi dò (dp), bo góc (dp). */
+    const val KEY_GLOW_FADE = 0.35
+    const val KEY_GLOW_CAP = 12
+    const val KEY_GLOW_SLOP = 2.0
+    const val KEY_GLOW_CORNER = 6.0
+    /** Độ sáng của phím đã rời được [s] giây (≤ 0 = ngón còn trong phím): tắt tuyến tính trong KEY_GLOW_FADE. */
+    fun keyGlowAlpha(s: Double): Double = if (s <= 0) 1.0 else max(0.0, 1 - s / KEY_GLOW_FADE)
+    /**
+     * Phím dưới điểm (x, y) (đã trừ độ dời điểm chọn phím): khung nới [slop] chứa điểm; nhiều khung ⇒ tâm gần
+     * nhất. −1 = không phím nào. Không cấp phát. = iOS keyHit (slop = KEY_GLOW_SLOP · density).
+     */
+    fun keyHit(x: Float, y: Float, left: FloatArray, top: FloatArray, right: FloatArray, bottom: FloatArray, n: Int,
+               slop: Float = KEY_GLOW_SLOP.toFloat()): Int {
+        var best = -1; var bestD = Float.MAX_VALUE
+        for (i in 0 until n) {
+            if (x < left[i] - slop || x > right[i] + slop || y < top[i] - slop || y > bottom[i] + slop) continue
+            val cx = (left[i] + right[i]) / 2 - x; val cy = (top[i] + bottom[i]) / 2 - y
+            val d = cx * cx + cy * cy
+            if (d < bestD) { bestD = d; best = i }
+        }
+        return best
+    }
+
+    /** Thư pháp: góc ngòi (độ), bề rộng tối thiểu dọc ngòi, hệ số dày so với Bút lông, mực đọng tối đa (dp) + tốc độ hết đọng (dp/ms). */
+    const val NIB_ANGLE = 35.0
+    const val NIB_MIN = 0.3
+    const val CALLI_SCALE = 1.25
+    const val CALLI_POOL_MAX = 4.0
+    const val CALLI_POOL_SPEED = 0.25
+    /** Ngòi xiên: nét vuông góc với ngòi dày nhất, dọc theo ngòi mảnh nhất (NIB_MIN). Hướng (0, 0) ⇒ 1. */
+    fun nibFactor(dx: Double, dy: Double): Double {
+        if (dx == 0.0 && dy == 0.0) return 1.0
+        return NIB_MIN + (1 - NIB_MIN) * abs(sin(atan2(dy, dx) - NIB_ANGLE * PI / 180))
+    }
+    /** Mực đọng (dp cộng thêm) theo tốc độ (dp/ms). */
+    fun calliPool(speed: Double): Double = CALLI_POOL_MAX * max(0.0, 1 - max(0.0, speed) / CALLI_POOL_SPEED)
+    /** Bề rộng nét thư pháp: Bút lông × CALLI_SCALE × ngòi + mực đọng. = iOS calliWidth. */
+    fun calliWidth(speed: Double, dx: Double, dy: Double): Double =
+        brushWidth(speed) * CALLI_SCALE * nibFactor(dx, dy) + calliPool(speed)
+    /** Dấu triện đỏ lúc nhấc tay: cạnh (dp), bo góc, đời (giây), màu son (RGB), nghiêng (độ). */
+    const val SEAL_SIZE = 15.0
+    const val SEAL_CORNER = 3.5
+    const val SEAL_LIFE = 0.9
+    const val SEAL_COLOR = 0xD1352B
+    const val SEAL_TILT = -8.0
+    /** Đóng dấu: phóng → 1 rồi giữ; hiện nhanh, giữ, mờ dần (= keyframes CA iOS). */
+    val SEAL_SCALE_T = doubleArrayOf(0.0, 0.15, 1.0); val SEAL_SCALE_V = doubleArrayOf(1.35, 1.0, 1.0)
+    val SEAL_ALPHA_T = doubleArrayOf(0.0, 0.08, 0.6, 1.0); val SEAL_ALPHA_V = doubleArrayOf(0.0, 1.0, 1.0, 0.0)
+    /** Nét khắc trắng (đơn vị = cạnh dấu, tâm 0): khung trong (nửa cạnh SEAL_INSET) + mỗi 4 số = (x0, y0, x1, y1). */
+    const val SEAL_INSET = 0.36
+    val SEAL_MARKS = doubleArrayOf(-0.24, -0.2, -0.02, -0.2, -0.24, 0.0, -0.02, 0.0, -0.24, 0.2, -0.02, 0.2,
+        0.13, -0.24, 0.13, 0.24, 0.13, -0.02, 0.26, 0.12)
+    /** Nội suy tuyến tính theo mốc (= CAKeyframeAnimation linear). f ngoài 0…1 ⇒ mốc biên. */
+    fun keyframe(f: Double, t: DoubleArray, v: DoubleArray): Double {
+        if (v.isEmpty()) return 0.0
+        if (f <= t[0]) return v[0]
+        for (k in 1 until t.size) if (f <= t[k]) {
+            val u = (f - t[k - 1]) / max(1e-9, t[k] - t[k - 1])
+            return v[k - 1] + (v[k] - v[k - 1]) * u
+        }
+        return v[v.size - 1]
+    }
+
+    /** Đom đóm: nhịp sáng (= opacity keyframes iOS). */
+    val FIREFLY_PULSE_T = doubleArrayOf(0.0, 0.15, 0.35, 0.5, 0.7, 0.85, 1.0)
+    val FIREFLY_PULSE_V = doubleArrayOf(0.0, 1.0, 0.35, 0.95, 0.3, 0.7, 0.0)
+
+    /** Ma trận: bảng chữ rơi (a–z rồi 0–9) — chuỗi 1 ký tự dựng sẵn để vẽ không cấp phát. */
+    const val MATRIX_GLYPHS = "abcdefghijklmnopqrstuvwxyz0123456789"
+    /**
+     * Chữ thứ [n] (đếm hạt đã bắn trong cú vuốt): cứ 3 chữ có 1 chữ số; còn lại = chữ của phím đang đi qua
+     * ([key] = 0 ⇒ không có; không phải a–z ⇒ chữ số). Trả chỉ số trong MATRIX_GLYPHS. = iOS matrixGlyph.
+     */
+    fun matrixGlyph(n: Int, key: Char): Int {
+        val digit = 26 + ((n * 7) % 10 + 10) % 10
+        if (n % 3 == 2) return digit
+        val c = if (key in 'A'..'Z') key + 32 else key
+        return if (c in 'a'..'z') c - 'a' else digit
+    }
 
     /** Màu bánh xe ở tỉ lệ f (vòng tròn: lấy phần lẻ) — nội suy tuyến tính giữa các mốc (= keyframes CA iOS). */
     fun cycleColor(f: Double): Int {
@@ -232,6 +353,9 @@ object SwipeTrailFx {
         SwipeTrailStyle.FIREWORK -> FIREWORK_COUNT
         SwipeTrailStyle.PLASMA -> 6
         SwipeTrailStyle.MELT -> 6
+        SwipeTrailStyle.FIREFLY -> 6
+        SwipeTrailStyle.MATRIX -> 6
+        SwipeTrailStyle.PETALS -> 8
         else -> 0
     }
 
@@ -254,7 +378,15 @@ object SwipeTrailFx {
             }
             // giọt nhỏ khỏi nét, rơi xuống rồi tan (= iOS)
             SwipeTrailStyle.MELT -> KeyEffectTrajectory(t * 2, 10 + (v % 3) * 4.0, 1.0, 0.3, 0.0, 0.6 + (v % 3) * 0.08)
-            else -> KeyEffectTrajectory(0.0, 0.0, 1.0, 1.0, 0.0, 0.0)
+            // trôi chậm lên, lượn nhẹ, nhịp sáng rồi tắt (= iOS)
+            SwipeTrailStyle.FIREFLY -> KeyEffectTrajectory(t * 6, -(4 + (v % 3) * 3.0), 0.7, 1.0, 0.0,
+                1.0 + (v % 3) * 0.1, sway = 2.5)
+            // chữ rơi thẳng xuống một đoạn ngắn rồi tắt (= iOS)
+            SwipeTrailStyle.MATRIX -> KeyEffectTrajectory(0.0, 14 + (v % 3) * 5.0, 1.0, 1.0, 0.0, 0.7 + (v % 3) * 0.08)
+            // cánh hoa rơi chậm, đung đưa, xoay (= iOS)
+            SwipeTrailStyle.PETALS -> KeyEffectTrajectory(t * 10, 18 + (v % 3) * 6.0, 1.0, 0.75, t * 2.4,
+                0.95 + (v % 3) * 0.08, sway = 5.0)
+            else ->KeyEffectTrajectory(0.0, 0.0, 1.0, 1.0, 0.0, 0.0)
         }
     }
 
@@ -268,6 +400,7 @@ object SwipeTrailFx {
             }
             return 0.0
         }
+        if (s == SwipeTrailStyle.FIREFLY) return keyframe(f, FIREFLY_PULSE_T, FIREFLY_PULSE_V)
         return if (f < 0.4) 1.0 else 1 - (f - 0.4) / 0.6
     }
     private val TWINKLE_T = doubleArrayOf(0.0, 0.12, 0.3, 0.45, 0.62, 0.78, 1.0)
@@ -318,6 +451,8 @@ class SwipeTrailState(val style: SwipeTrailStyle, private val density: Float) {
         private set
     /** Mờ hẳn sau nhấc tay (ms): Vệt lặp để bóng tan chậm hơn nét chính; kiểu khác = [FADE_MS]. */
     val fadeMs: Long = if (style == SwipeTrailStyle.CHROMA) (SwipeTrailFx.CHROMA_FADE * 1000).toLong() else FADE_MS
+    /** Đuôi nét (ms): Sao chổi 600, kiểu khác [TAIL_MS] (= iOS SwipeTrailFx.tail). */
+    val tailMs: Long = (SwipeTrailFx.tail(style) * 1000).toLong()
     /** Mốc thời gian của cú vuốt (điểm đầu) — màu / thở theo thời gian tính từ đây (iOS: animation gắn lúc begin). */
     private var startMs = -1L
     private val hw = FloatArray(CAP)
@@ -339,6 +474,36 @@ class SwipeTrailState(val style: SwipeTrailStyle, private val density: Float) {
     private val spawner = SwipeTrailFx.Spawner(style.spawnEvery)
     private var lastX = Float.NaN
     private var lastY = Float.NaN
+    /** Ma trận: chữ (chỉ số MATRIX_GLYPHS) của từng hạt + số chữ đã bắn trong cú vuốt. */
+    private val pglyph = IntArray(if (style == SwipeTrailStyle.MATRIX) particleCount else 0)
+    private var spawned = 0
+
+    // Phím sáng theo đường / Ma trận: khung phím chữ (px, toạ độ view) nhận lúc bắt đầu vuốt — mảng cố định.
+    private val usesKeys = style.usesKeys
+    private val kl = FloatArray(if (usesKeys) KEY_CAP else 0)
+    private val kt = FloatArray(kl.size)
+    private val kr = FloatArray(kl.size)
+    private val kb = FloatArray(kl.size)
+    private val kc = CharArray(kl.size)
+    var keyCount = 0
+        private set
+    private var hitDy = 0f
+    /** Phím ngón đang ở (−1 = không). */
+    var currentKey = -1
+        private set
+    // Ô sáng: phím + lúc rời (Long.MAX_VALUE = ngón còn trong phím).
+    val glowCount: Int = if (style == SwipeTrailStyle.KEYS) SwipeTrailFx.KEY_GLOW_CAP else 0
+    private val gKey = IntArray(glowCount) { -1 }
+    private val gLeave = LongArray(glowCount)
+    private var gCursor = 0
+    private var curGlow = -1
+    private val glowFadeMs = (SwipeTrailFx.KEY_GLOW_FADE * 1000).toLong()
+
+    // Thư pháp: dấu triện ở chỗ nhấc tay (lúc đóng; −1 = không có).
+    private var sealX = 0f
+    private var sealY = 0f
+    private var sealT0 = -1L
+    private val sealMs = (SwipeTrailFx.SEAL_LIFE * 1000).toLong()
 
     init {
         for (v in 0 until vCount) {
@@ -352,7 +517,69 @@ class SwipeTrailState(val style: SwipeTrailStyle, private val density: Float) {
     fun begin() {
         size = 0; head = 0; active = true; fadeStart = 0L; strokeAlpha = 1f; fadeFrac = 0f; spawner.reset(); lastX = Float.NaN
         startMs = -1L
+        currentKey = -1; curGlow = -1; spawned = 0
     }
+
+    /**
+     * Khung phím chữ thứ [i] (px, toạ độ view) — gọi lúc BẮT ĐẦU cú vuốt cho kiểu [SwipeTrailStyle.usesKeys]
+     * (kiểu khác: 0 việc). [count] = số phím, [hitDy] = độ dời điểm chọn phím (dò ở y − hitDy như bộ giải mã).
+     */
+    fun setKey(i: Int, left: Float, top: Float, right: Float, bottom: Float, ch: Char) {
+        if (i !in kl.indices) return
+        kl[i] = left; kt[i] = top; kr[i] = right; kb[i] = bottom; kc[i] = ch
+    }
+    fun setKeyCount(count: Int, hitDy: Float) {
+        keyCount = count.coerceIn(0, kl.size); this.hitDy = hitDy; currentKey = -1
+    }
+    fun keyLeft(k: Int) = kl[k]
+    fun keyTop(k: Int) = kt[k]
+    fun keyRight(k: Int) = kr[k]
+    fun keyBottom(k: Int) = kb[k]
+
+    /** Phím dưới ngón (dò ≤ KEY_CAP khung, không cấp phát). Đổi phím: ô cũ bắt đầu mờ, ô mới sáng. */
+    private fun trackKey(x: Float, y: Float, t: Long) {
+        val k = SwipeTrailFx.keyHit(x, y - hitDy, kl, kt, kr, kb, keyCount, (SwipeTrailFx.KEY_GLOW_SLOP * density).toFloat())
+        if (k == currentKey) return
+        currentKey = k
+        if (glowCount == 0) return
+        releaseGlow(t)
+        if (k >= 0) {
+            val i = gCursor
+            gCursor = (gCursor + 1) % glowCount
+            gKey[i] = k; gLeave[i] = Long.MAX_VALUE
+            curGlow = i
+        }
+    }
+
+    private fun releaseGlow(t: Long) {
+        if (curGlow >= 0) { gLeave[curGlow] = t; curGlow = -1 }
+    }
+
+    /** Ô sáng [i] lúc [nowMs]: phím (chỉ số setKey), −1 = không hiện. Độ sáng vào [alphaOut][0]. */
+    fun glow(i: Int, nowMs: Long, alphaOut: FloatArray): Int {
+        val k = gKey[i]
+        if (k < 0 || k >= keyCount) return -1
+        val leave = gLeave[i]
+        val a = if (leave == Long.MAX_VALUE) 1.0 else SwipeTrailFx.keyGlowAlpha((nowMs - leave) / 1000.0)
+        if (a <= 0.0) { gKey[i] = -1; return -1 }
+        alphaOut[0] = a.toFloat()
+        return k
+    }
+
+    /** Dấu triện lúc [nowMs] vào [out] = (x, y, scale, alpha); false = không hiện. */
+    fun seal(nowMs: Long, out: FloatArray): Boolean {
+        if (sealT0 < 0) return false
+        val f = (nowMs - sealT0).toDouble() / sealMs
+        if (f >= 1.0) { sealT0 = -1L; return false }
+        if (f < 0.0) return false
+        out[0] = sealX; out[1] = sealY
+        out[2] = SwipeTrailFx.keyframe(f, SwipeTrailFx.SEAL_SCALE_T, SwipeTrailFx.SEAL_SCALE_V).toFloat()
+        out[3] = SwipeTrailFx.keyframe(f, SwipeTrailFx.SEAL_ALPHA_T, SwipeTrailFx.SEAL_ALPHA_V).toFloat()
+        return true
+    }
+
+    /** Ma trận: chữ (chỉ số MATRIX_GLYPHS) của hạt [i]. */
+    fun glyph(i: Int): Int = if (i in pglyph.indices) pglyph[i] else 26
 
     /** Giây đã qua từ đầu cú vuốt (0 nếu chưa có điểm). */
     fun elapsed(nowMs: Long): Double = if (startMs < 0) 0.0 else max(0L, nowMs - startMs) / 1000.0
@@ -364,7 +591,14 @@ class SwipeTrailState(val style: SwipeTrailStyle, private val density: Float) {
         head = (head + 1) % CAP
         if (size < CAP) size++
         lastX = x; lastY = y
-        if (spawner.tick()) spawn(x, y, tMs)
+        if (usesKeys && keyCount > 0) trackKey(x, y, tMs)
+        if (spawner.tick()) {
+            if (pglyph.isNotEmpty()) {
+                pglyph[cursor] = SwipeTrailFx.matrixGlyph(spawned, if (currentKey >= 0) kc[currentKey] else 0.toChar())
+                spawned++
+            }
+            spawn(x, y, tMs)
+        }
     }
 
     /** Nhấc tay (mờ dần) hoặc huỷ ([fade] = false: xoá nét ngay). Hạt bay nốt. */
@@ -372,6 +606,10 @@ class SwipeTrailState(val style: SwipeTrailStyle, private val density: Float) {
         if (!active && size == 0) return
         active = false
         if (fade && size > 1) fadeStart = nowMs else size = 0
+        if (fade) releaseGlow(nowMs) else { curGlow = -1; java.util.Arrays.fill(gKey, -1) }
+        currentKey = -1
+        // Thư pháp: đóng dấu son ở chỗ nhấc tay.
+        if (fade && style == SwipeTrailStyle.CALLIGRAPHY && !lastX.isNaN()) { sealX = lastX; sealY = lastY; sealT0 = nowMs }
     }
 
     /** Đã chốt từ vuốt: "Pháo hoa cuối nét" bắn một chùm ở chỗ nhấc tay. Kiểu khác: 0 việc. */
@@ -402,7 +640,7 @@ class SwipeTrailState(val style: SwipeTrailStyle, private val density: Float) {
             fadeFrac = gone.toFloat() / fadeMs
         } else { strokeAlpha = 1f; fadeFrac = 0f }
         val ref = if (active) nowMs else fadeStart
-        val cutoff = ref - TAIL_MS
+        val cutoff = ref - tailMs
         var n = 0
         val first = (head - size + CAP) % CAP
         for (k in 0 until size) {
@@ -414,8 +652,10 @@ class SwipeTrailState(val style: SwipeTrailStyle, private val density: Float) {
         if (n < 2) return false
         when (style) {
             SwipeTrailStyle.ELECTRIC, SwipeTrailStyle.PLASMA -> jag(n)
-            SwipeTrailStyle.BRUSH -> { brush(n); return true }
+            SwipeTrailStyle.BRUSH -> { brush(n, false); return true }
+            SwipeTrailStyle.CALLIGRAPHY -> { brush(n, true); return true }
             SwipeTrailStyle.MELT -> melt(n, ref)
+            SwipeTrailStyle.COMET -> lengths(n)
             else -> {}
         }
         outN = n
@@ -424,7 +664,12 @@ class SwipeTrailState(val style: SwipeTrailStyle, private val density: Float) {
 
     /** Tan chảy: điểm càng cũ càng chảy xuống ([SwipeTrailFx.meltSag]); rồi chiều dài cộng dồn để chia đoạn. */
     private fun melt(n: Int, ref: Long) {
-        for (k in 0 until n) outY[k] += (SwipeTrailFx.meltSag((ref - tt[k]).toDouble() / TAIL_MS) * density).toFloat()
+        for (k in 0 until n) outY[k] += (SwipeTrailFx.meltSag((ref - tt[k]).toDouble() / tailMs) * density).toFloat()
+        lengths(n)
+    }
+
+    /** Chiều dài cộng dồn (px) — chia đoạn theo chiều dài (Tan chảy, Sao chổi; = iOS strokeStart / strokeEnd). */
+    private fun lengths(n: Int) {
         cum[0] = 0f
         for (k in 1 until n) {
             val dx = outX[k] - outX[k - 1]; val dy = outY[k] - outY[k - 1]
@@ -463,15 +708,20 @@ class SwipeTrailState(val style: SwipeTrailStyle, private val density: Float) {
         }
     }
 
-    /** Dải kín: n điểm cạnh trái rồi n điểm cạnh phải (ngược) vào outX/outY (2n). */
-    private fun brush(n: Int) {
+    /**
+     * Dải kín: n điểm cạnh trái rồi n điểm cạnh phải (ngược) vào outX/outY (2n). [calli] = Thư pháp: bề rộng
+     * còn theo hướng nét (ngòi xiên) + mực đọng ở chỗ chậm ([SwipeTrailFx.calliWidth]) — = iOS buildBrush.
+     */
+    private fun brush(n: Int, calli: Boolean) {
         // Nửa bề rộng (px) mỗi điểm: tốc độ dp/ms → bề rộng → làm mượt → vuốt nhọn hai đầu.
         var w = SwipeTrailFx.BRUSH_MAX
         for (k in 0 until n) {
             if (k > 0) {
                 val dx = (outX[k] - outX[k - 1]) / density; val dy = (outY[k] - outY[k - 1]) / density
                 val dt = max(0.001, (tt[k] - tt[k - 1]).toDouble())
-                w = SwipeTrailFx.brushSmooth(w, SwipeTrailFx.brushWidth(sqrt((dx * dx + dy * dy).toDouble()) / dt))
+                val v = sqrt((dx * dx + dy * dy).toDouble()) / dt
+                w = SwipeTrailFx.brushSmooth(w, if (calli) SwipeTrailFx.calliWidth(v, dx.toDouble(), dy.toDouble())
+                    else SwipeTrailFx.brushWidth(v))
             }
             hw[k] = (w * SwipeTrailFx.brushTaperFactor(k, n) / 2 * density).toFloat()
         }
@@ -504,10 +754,15 @@ class SwipeTrailState(val style: SwipeTrailStyle, private val density: Float) {
 
     fun liveParticles(): Int { var n = 0; for (a in alive) if (a) n++; return n }
 
-    /** Còn gì phải vẽ khung sau (đang vuốt / đang mờ / còn hạt)? false ⇒ View ngừng hẹn khung (0 animation). */
+    /** Còn gì phải vẽ khung sau (đang vuốt / đang mờ / còn hạt / ô sáng / dấu triện)? false ⇒ View ngừng hẹn khung. */
     fun isAnimating(nowMs: Long): Boolean {
         if (active && size > 0) return true
         if (!active && size > 1 && nowMs - fadeStart < fadeMs) return true
+        if (sealT0 >= 0) { if (nowMs - sealT0 < sealMs) return true; sealT0 = -1L }
+        for (i in 0 until glowCount) if (gKey[i] >= 0) {
+            if (gLeave[i] == Long.MAX_VALUE || nowMs - gLeave[i] < glowFadeMs) return true
+            gKey[i] = -1
+        }
         for (i in 0 until particleCount) if (alive[i]) {
             if (nowMs - pt0[i] < trDur[i % vCount]) return true
             alive[i] = false
@@ -516,11 +771,19 @@ class SwipeTrailState(val style: SwipeTrailStyle, private val density: Float) {
     }
 
     /** Dọn hết (ẩn bàn phím / đổi kiểu). */
-    fun clear() { size = 0; active = false; java.util.Arrays.fill(alive, false); outN = 0 }
+    fun clear() {
+        size = 0; active = false; java.util.Arrays.fill(alive, false); outN = 0
+        java.util.Arrays.fill(gKey, -1); curGlow = -1; currentKey = -1; sealT0 = -1L
+    }
+
+    /** Số ô sáng đang hiện (test). */
+    fun litGlows(nowMs: Long): Int { val a = FloatArray(1); var n = 0; for (i in 0 until glowCount) if (glow(i, nowMs, a) >= 0) n++; return n }
 
     companion object {
         const val CAP = 128
         const val TAIL_MS = 300L
         const val FADE_MS = 200L
+        /** Trần số phím chữ nhận cho Phím sáng theo đường / Ma trận (bàn chữ ≤ ~33 phím). */
+        const val KEY_CAP = 48
     }
 }
