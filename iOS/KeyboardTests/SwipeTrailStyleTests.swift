@@ -145,7 +145,7 @@ final class SwipeTrailStyleTests: XCTestCase {
 
     func testBuiltinThemesSwipeMapping() {
         let want: [String: String] = ["tet": "stardust", "tetMai": "stardust", "xmas": "stardust", "xmasSnow": "stardust",
-                                      "rgb": "rainbow", "neon": "neon", "space": "stardust", "typewriter": "brush",
+                                      "rgb": "rainbow", "neon": "neon", "space": "stardust", "typewriter": "brush", "sen": "brush",
                                       "halloween": "electric", "pixel": "neon", "ai": "neon", "nightclub": "neon", "trippy": "kaleidoscope", "drift": "stardust", "rainyNight": "simple", "gym": "neon",
                                       "zodiac": "stardust", "pride": "rainbow"]
         XCTAssertFalse(BuiltinThemes.specs.isEmpty)
@@ -175,7 +175,7 @@ final class SwipeTrailStyleTests: XCTestCase {
         XCTAssertEqual(ex.swipe, "neon")
     }
 
-    /// Chọn theme KHÔNG đổi cài đặt nét vuốt — "Theo giao diện" giải lúc vẽ.
+    /// Gõ vuốt TẮT (mặc định): chọn theme KHÔNG đổi cài đặt nét vuốt (Gõ vuốt bật ⇒ ThemeSwipeExtrasTests).
     func testSelectingThemeDoesNotTouchSwipeSetting() {
         let d = UserDefaults(suiteName: suite)!
         d.removePersistentDomain(forName: suite)

@@ -12,7 +12,7 @@ import Foundation
 //             "borderFx":"rainbow", "spaceDeco":"soundhole"},
 //             (deco "alt": motif thứ hai xen kẽ, vd {"motif":"pumpkin","alt":"bat",…})
 //    "dark":{…} | "same", "corner":70, "fontScale":110, "font":"serif", "weight":"bold",
-//    "sound":"phao", "effect":"blossom", "swipe":"stardust", "game":"mole", "keyShape":"pixel",
+//    "sound":"phao", "effect":"blossom", "swipe":"stardust", "swipeSound":"wand", "game":"mole", "keyShape":"pixel",
 //    "photoFx":"spotlight", "tags":["interactive"], "buddy":{"character":"ai","size":5}}
 //
 // "font" chuỗi (KeyLabelFont): "default" | "rounded" | "serif" | "mono" | "condensed" — phông hệ thống — | "pixel" — phông
@@ -88,8 +88,12 @@ import Foundation
 //
 // "sound" / "effect" (tuỳ chọn, id trong danh sách trắng ThemeExtraIds): âm phím / hiệu ứng bấm phím ĐI KÈM theme —
 // CHỈ áp MỘT lần lúc người dùng chọn theme (ThemeExtras.applyOnSelect); không bao giờ tự bật âm thanh phím.
-// "swipe" (tuỳ chọn, id SwipeTrailStyle trừ "theme"): nét vuốt của theme — KHÔNG áp lúc chọn theme; chỉ được
-// dùng khi người dùng chọn "Theo giao diện" (SwipeTrailPolicy giải lúc hiện bàn phím).
+// "swipe" (tuỳ chọn, id SwipeTrailStyle trừ "theme"): nét vuốt của theme — dùng khi người dùng chọn "Theo giao diện"
+// (SwipeTrailPolicy giải lúc hiện bàn phím); NGOÀI RA khi chọn theme mà Gõ vuốt đang BẬT ⇒ ghi MỘT lần vào cài đặt
+// nét vuốt (ThemeExtras.applyOnSelect; cổng Plus như trang Hiệu ứng nét vuốt; cài đặt đang "Theo giao diện" ⇒ giữ).
+// "swipeSound" (tuỳ chọn, id SwipeSoundStyle trừ "none"/"custom" — ThemeExtraIds.swipeSounds): âm thanh nét vuốt đi
+// kèm — chỉ ghi MỘT lần lúc chọn theme khi Gõ vuốt đang BẬT (cổng Plus như trang Âm thanh nét vuốt). Gõ vuốt TẮT ⇒
+// cả hai không ghi gì; không bao giờ tự bật Gõ vuốt. Id lạ ⇒ badValue (như "swipe").
 //
 // Tệp tải về (Plus — ThemeAssets.swift: kế hoạch / kho / dọn; App/ThemeAssetDownloader.swift: tải + xử lý):
 //   "font": "serif" | {"name":"Nunito","url":"https://….ttf|otf","sha256":"…"?}
@@ -747,8 +751,10 @@ struct ThemeSpec: Equatable {
     /// Âm phím / hiệu ứng bấm phím đi kèm (id ThemeExtraIds) — chỉ áp lúc chọn theme.
     var sound: String?
     var effect: String?
-    /// Nét vuốt của theme (id ThemeExtraIds.swipes) — chỉ dùng khi cài đặt nét vuốt = "Theo giao diện".
+    /// Nét vuốt của theme (id ThemeExtraIds.swipes) — "Theo giao diện" + ghi một lần lúc chọn theme khi Gõ vuốt bật.
     var swipe: String?
+    /// Âm thanh nét vuốt của theme (id ThemeExtraIds.swipeSounds) — ghi một lần lúc chọn theme khi Gõ vuốt bật.
+    var swipeSound: String? = nil
     /// Trò chơi khi gõ ("mole") — chạy khi theme đang dùng (ThemeExtraIds.games).
     var game: String?
     /// Dáng phím ("pixel") — ThemeExtraIds.keyShapes.
@@ -790,6 +796,7 @@ struct ThemeSpec: Equatable {
         k.sound = sound
         k.effect = effect
         k.swipe = swipe
+        k.swipeSound = swipeSound
         k.game = game
         k.keyShape = keyShape
         k.photoFx = photoFx
@@ -860,6 +867,8 @@ enum ThemeExtraIds {
     static let effects: Set<String> = Set(KeyEffect.allCases.map(\.rawValue))
     /// "swipe": kiểu nét vuốt cụ thể (không có "theme" — theme không trỏ về chính nó).
     static let swipes: Set<String> = Set(SwipeTrailStyle.themeIds)
+    /// "swipeSound": kiểu âm nét vuốt tổng hợp (không có "none" / "custom" — file riêng của người dùng không đi theo theme).
+    static let swipeSounds: Set<String> = Set(SwipeSoundStyle.synthesized.map(\.rawValue))
     /// "game": trò chơi khi gõ (Android ThemeExtraIds.GAMES y hệt).
     static let games: Set<String> = [MoleGame.themeGame]
     /// "keyShape": dáng phím (Android ThemeExtraIds.KEY_SHAPES y hệt).
@@ -891,7 +900,7 @@ enum ThemeSpecParser {
 
     static let assetKeys: Set<String> = ["background", "foreground", "keys"]
     static let rootKeys: Set<String> = Set(["v", "id", "name", "light", "dark", "corner", "fontScale", "font", "weight",
-                                            "sound", "effect", "swipe", "game", "keyShape", "schedule", "photoFx",
+                                            "sound", "effect", "swipe", "swipeSound", "game", "keyShape", "schedule", "photoFx",
                                             "keyMotion", "tags", "buddy", "variant", "particles", "keywords"])
         .union(assetKeys)
     static let slotKeys: Set<String> = Set(ThemeSlots.colorKeys + ["deco", "borderFx", "spaceDeco"])
@@ -977,6 +986,7 @@ enum ThemeSpecParser {
         spec.sound = typo.sound
         spec.effect = typo.effect
         spec.swipe = typo.swipe
+        spec.swipeSound = typo.swipeSound
         spec.game = typo.game
         spec.keyShape = typo.keyShape
         spec.photoFx = typo.photoFx
@@ -1184,6 +1194,7 @@ enum ThemeSpecParser {
         s.sound = pick("sound", ThemeExtraIds.sounds)
         s.effect = pick("effect", ThemeExtraIds.effects)
         s.swipe = pick("swipe", ThemeExtraIds.swipes)
+        s.swipeSound = pick("swipeSound", ThemeExtraIds.swipeSounds)
         s.game = pick("game", ThemeExtraIds.games)
         s.keyShape = pick("keyShape", ThemeExtraIds.keyShapes)
         s.photoFx = pick("photoFx", ThemeExtraIds.photoFx)
@@ -1273,7 +1284,7 @@ enum ThemeSpecParser {
         guard case .object(let m) = j else { return nil }
         var c = Ctx()
         let allowed: Set<String> = Set(["label", "fill", "accent", "corner", "fontScale", "font", "weight", "light", "dark",
-                                        "sound", "effect", "swipe", "game", "keyShape", "photoFx",
+                                        "sound", "effect", "swipe", "swipeSound", "game", "keyShape", "photoFx",
                                         "keyMotion"])
             .union(assetKeys)
         for (k, _) in m where !allowed.contains(k) { c.err(.unknownKey, k) }
@@ -1345,6 +1356,7 @@ extension ThemeSpec {
         if let sound { m.append(("sound", .string(sound))) }
         if let effect { m.append(("effect", .string(effect))) }
         if let swipe { m.append(("swipe", .string(swipe))) }
+        if let swipeSound { m.append(("swipeSound", .string(swipeSound))) }
         if let game { m.append(("game", .string(game))) }
         if let keyShape { m.append(("keyShape", .string(keyShape))) }
         if let photoFx { m.append(("photoFx", .string(photoFx))) }
@@ -1492,6 +1504,7 @@ extension ThemeSpec {
         s.sound = style.sound
         s.effect = style.effect
         s.swipe = style.swipe
+        s.swipeSound = style.swipeSound
         s.game = style.game
         s.keyShape = style.keyShape
         s.photoFx = style.photoFx
@@ -1636,6 +1649,7 @@ enum ThemeJSONActions {
             if st.sound == b.spec?.sound { st.sound = nil }
             if st.effect == b.spec?.effect { st.effect = nil }
             if st.swipe == b.spec?.swipe { st.swipe = nil }
+            if st.swipeSound == b.spec?.swipeSound { st.swipeSound = nil }
             if st.game == b.spec?.game { st.game = nil }
             if st.keyShape == b.spec?.keyShape { st.keyShape = nil }
             if st.photoFx == b.spec?.photoFx { st.photoFx = nil }

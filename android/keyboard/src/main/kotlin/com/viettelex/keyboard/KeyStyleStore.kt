@@ -57,6 +57,7 @@ object KeyStyleStore {
         st.sound?.let { f.add("sound" to SJ.Str(it)) }
         st.effect?.let { f.add("effect" to SJ.Str(it)) }
         st.swipe?.let { f.add("swipe" to SJ.Str(it)) }
+        st.swipeSound?.let { f.add("swipeSound" to SJ.Str(it)) }
         st.game?.let { f.add("game" to SJ.Str(it)) }
         st.keyShape?.let { f.add("keyShape" to SJ.Str(it)) }
         st.photoFx?.let { f.add("photoFx" to SJ.Str(it)) }

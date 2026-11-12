@@ -70,7 +70,8 @@ data class KeyStyle(
     /** Âm phím / hiệu ứng đi kèm theme ("sound" / "effect", [ThemeExtraIds]) — CHỈ áp lúc chọn theme ([ThemeExtras]). */
     val sound: String? = null,
     val effect: String? = null,
-    /** Nét vuốt theme ("swipe", [ThemeExtraIds.SWIPES]) — chỉ dùng khi chọn "Theo giao diện" ([SwipeTrailPolicy]). */
+    /** Nét vuốt theme ("swipe", [ThemeExtraIds.SWIPES]) — "Theo giao diện" ([SwipeTrailPolicy]) + ghi một lần lúc chọn
+     *  theme khi Gõ vuốt bật ([ThemeExtras]). */
     val swipe: String? = null,
     /** Trò chơi khi gõ của theme ("game", [ThemeExtraIds.GAMES]) — bàn phím đọc từ kiểu thực dùng ([MolePolicy]). */
     val game: String? = null,
@@ -81,6 +82,8 @@ data class KeyStyle(
     val photoFx: String? = null,
     /** Chuyển động nền của phím ("keyMotion", [ThemeExtraIds.KEY_MOTIONS]) — IME đọc từ kiểu thực dùng ([FloatPolicy]). */
     val keyMotion: String? = null,
+    /** Âm thanh nét vuốt theme ("swipeSound", [ThemeExtraIds.SWIPE_SOUNDS]) — ghi một lần lúc chọn theme khi Gõ vuốt bật. */
+    val swipeSound: String? = null,
 ) {
     val isDefault: Boolean get() = this == DEFAULT
     /** Có đổi chữ (phông / độ đậm / cỡ / phông tải về) ⇒ bật đo + kẹp chữ. */
@@ -205,7 +208,8 @@ data class KeyStyle(
             return KeyStyle(corner = edited.corner, fontScale = edited.fontScale, font = edited.font ?: KeyLabelFont.DEFAULT,
                 weight = edited.weight ?: KeyLabelWeight.REGULAR, light = l, dark = d, assets = edited.assets,
                 sound = edited.sound, effect = edited.effect, swipe = edited.swipe, game = edited.game,
-                keyShape = edited.keyShape, photoFx = edited.photoFx, keyMotion = edited.keyMotion) to (lostL || lostD)
+                keyShape = edited.keyShape, photoFx = edited.photoFx, keyMotion = edited.keyMotion,
+                swipeSound = edited.swipeSound) to (lostL || lostD)
         }
 
         fun parseColor(v: Any?): Int? = (v as? Number)?.toInt()?.takeIf { it in 0..0xFFFFFF }

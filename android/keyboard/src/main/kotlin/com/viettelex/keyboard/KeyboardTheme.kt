@@ -763,6 +763,8 @@ object ThemeExtraIds {
     val EFFECTS: Set<String> get() = KeyEffect.entries.map { it.id }.toSet()
     /** "swipe": kiểu nét vuốt cụ thể (không có "theme" — theme không trỏ về chính nó). */
     val SWIPES: Set<String> get() = SwipeTrailStyle.THEME_IDS.toSet()
+    /** "swipeSound": kiểu âm nét vuốt tổng hợp (không có "none" / "custom" — file riêng không đi theo theme). iOS swipeSounds. */
+    val SWIPE_SOUNDS: Set<String> get() = SwipeSoundStyle.SYNTHESIZED.map { it.id }.toSet()
     /** "game": trò chơi khi gõ (iOS ThemeExtraIds.games y hệt). */
     val GAMES: Set<String> = setOf(MoleGame.THEME_GAME)
     /** "keyShape": dáng phím (iOS ThemeExtraIds.keyShapes y hệt). */
@@ -790,28 +792,57 @@ object ThemeTags {
  * "sound" / "effect" đi kèm theme: áp MỘT lần ĐÚNG LÚC người dùng chọn theme (chạm thẻ "Chọn giao diện", dán rồi áp
  * theme tự tạo). Đổi tay sau đó thì giữ tới lần chọn theme kế; theme không khai báo ⇒ không đổi gì. KHÔNG BAO GIỜ
  * bật âm thanh phím: tắt thì chỉ lưu kiểu âm + [Outcome.soundHint] để app gợi ý "Bật". Id máy chưa có / bị khoá
- * Plus ⇒ bỏ qua. iOS ThemeExtras y hệt.
+ * Plus ⇒ bỏ qua. "swipe" / "swipeSound": cùng lúc đó, CHỈ khi Gõ vuốt đang bật — ghi nét vuốt (cài đặt đang "Theo
+ * giao diện" ⇒ giữ) + âm thanh nét vuốt; Gõ vuốt tắt ⇒ không đổi gì, không bao giờ bật Gõ vuốt. iOS ThemeExtras y hệt.
  */
 object ThemeExtras {
-    data class Outcome(val effect: String?, val sound: String?, val soundHint: Boolean)
+    data class Outcome(
+        val effect: String?, val sound: String?, val soundHint: Boolean,
+        /** Nét vuốt / âm thanh nét vuốt cần ghi (null = không đổi) — chỉ khi Gõ vuốt đang bật. */
+        val swipeTrail: String? = null, val swipeSound: String? = null,
+    )
 
-    /** Logic thuần: [st] = kiểu thực dùng của theme vừa chọn ([ThemeSettings.effectiveKeyStyle]). */
-    fun plan(st: KeyStyle, soundOn: Boolean, effectAllowed: (String) -> Boolean, soundAllowed: (String) -> Boolean): Outcome {
+    /**
+     * Logic thuần: [st] = kiểu thực dùng của theme vừa chọn ([ThemeSettings.effectiveKeyStyle]). Gõ vuốt bật ([swipeOn])
+     * ⇒ "swipe" / "swipeSound" (được phép) cũng được ghi; [currentTrail] = "theme" ⇒ giữ nét vuốt (đã tự theo theme).
+     */
+    fun plan(
+        st: KeyStyle, soundOn: Boolean, effectAllowed: (String) -> Boolean, soundAllowed: (String) -> Boolean,
+        swipeOn: Boolean = false, currentTrail: String? = null,
+        swipeTrailAllowed: (String) -> Boolean = { false }, swipeSoundAllowed: (String) -> Boolean = { false },
+    ): Outcome {
         val e = st.effect?.takeIf(effectAllowed)
         val snd = st.sound?.takeIf(soundAllowed)
-        return Outcome(e, snd, snd != null && !soundOn)
+        val r = Outcome(e, snd, snd != null && !soundOn)
+        if (!swipeOn) return r
+        val trail = if (currentTrail == SwipeTrailStyle.THEME.id) null else st.swipe?.takeIf(swipeTrailAllowed)
+        return r.copy(swipeTrail = trail, swipeSound = st.swipeSound?.takeIf(swipeSoundAllowed))
     }
 
     /** Hiệu ứng có trên máy + được phép (Plus) — id chưa có ⇒ bỏ qua. */
     fun effectAllowed(id: String): Boolean = KeyEffect.entries.firstOrNull { it.id == id }?.let(KeyEffectGate::allows) ?: false
     /** Kiểu âm dựng sẵn (kiểu âm không thuộc Plus — trang Âm thanh gõ chọn tự do). */
     fun soundAllowed(id: String): Boolean = id in KeySoundStyle.PRESET_IDS
+    /** Nét vuốt cụ thể có trên máy + được phép (Plus — như trang Hiệu ứng nét vuốt); "theme" / id lạ ⇒ bỏ qua. */
+    fun swipeTrailAllowed(id: String): Boolean =
+        SwipeTrailStyle.entries.firstOrNull { it.id == id && it != SwipeTrailStyle.THEME }?.let { SwipeTrailGate.allows(it) } ?: false
+    /** Âm nét vuốt tổng hợp có trên máy + được phép (Plus — như trang Âm thanh nét vuốt); "none" / "custom" / lạ ⇒ bỏ qua. */
+    fun swipeSoundAllowed(id: String): Boolean =
+        SwipeSoundStyle.SYNTHESIZED.firstOrNull { it.id == id }?.let { SwipeSoundGate.allows(it) } ?: false
 
-    /** Gọi NGAY sau khi lưu theme vừa chọn — đọc/ghi qua hai hàm (SharedPreferences ở app). */
-    fun applyOnSelect(st: KeyStyle, soundOn: Boolean, write: (key: String, value: String) -> Unit): Outcome {
-        val r = plan(st, soundOn, ::effectAllowed, ::soundAllowed)
+    /**
+     * Gọi NGAY sau khi lưu theme vừa chọn — đọc/ghi qua hai hàm (SharedPreferences ở app). [swipeOn] = công tắc Gõ vuốt
+     * ([Keys.SWIPE_TYPING]), [currentTrail] = giá trị [Keys.SWIPE_TRAIL] hiện tại.
+     */
+    fun applyOnSelect(
+        st: KeyStyle, soundOn: Boolean, swipeOn: Boolean = false, currentTrail: String? = null,
+        write: (key: String, value: String) -> Unit,
+    ): Outcome {
+        val r = plan(st, soundOn, ::effectAllowed, ::soundAllowed, swipeOn, currentTrail, ::swipeTrailAllowed, ::swipeSoundAllowed)
         r.effect?.let { write(Keys.KEY_EFFECT, it) }
         r.sound?.let { write(Keys.KEY_SOUND_STYLE, it) }
+        r.swipeTrail?.let { write(Keys.SWIPE_TRAIL, it) }
+        r.swipeSound?.let { write(Keys.SWIPE_SOUND, it) }
         return r
     }
 
@@ -993,6 +1024,7 @@ data class ThemeSettings(
             if (s.sound == null) s = s.copy(sound = typography.sound)
             if (s.effect == null) s = s.copy(effect = typography.effect)
             if (s.swipe == null) s = s.copy(swipe = typography.swipe)
+            if (s.swipeSound == null) s = s.copy(swipeSound = typography.swipeSound)
             if (s.game == null) s = s.copy(game = typography.game)
             if (s.keyShape == null) s = s.copy(keyShape = typography.keyShape)
             if (s.photoFx == null) s = s.copy(photoFx = typography.photoFx)

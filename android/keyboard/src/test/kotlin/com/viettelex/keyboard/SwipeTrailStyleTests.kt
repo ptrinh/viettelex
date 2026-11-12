@@ -112,7 +112,7 @@ class SwipeTrailStyleTests {
 
     @Test fun builtinThemesSwipeMapping() {
         val want = mapOf("tet" to "stardust", "tetMai" to "stardust", "xmas" to "stardust", "xmasSnow" to "stardust",
-            "rgb" to "rainbow", "neon" to "neon", "space" to "stardust", "typewriter" to "brush", "halloween" to "electric",
+            "rgb" to "rainbow", "neon" to "neon", "space" to "stardust", "typewriter" to "brush", "sen" to "brush", "halloween" to "electric",
             "pixel" to "neon", "ai" to "neon", "nightclub" to "neon", "trippy" to "kaleidoscope", "drift" to "stardust", "rainyNight" to "simple", "gym" to "neon",
             "zodiac" to "stardust", "pride" to "rainbow")
         assertTrue(BuiltinThemes.specs.isNotEmpty())
@@ -137,7 +137,7 @@ class SwipeTrailStyleTests {
         assertEquals("neon", ThemeSpec.export(null, "y", null, p, p, st).swipe)
     }
 
-    /** Chọn theme KHÔNG đổi cài đặt nét vuốt — "Theo giao diện" giải lúc vẽ. */
+    /** Gõ vuốt TẮT (mặc định): chọn theme KHÔNG đổi cài đặt nét vuốt (Gõ vuốt bật ⇒ ThemeSwipeExtrasTests). */
     @Test fun selectingThemeDoesNotWriteSwipeSetting() {
         val written = mutableMapOf<String, String>()
         ThemeExtras.applyOnSelect(BuiltinThemes.specs["rgb"]!!.typography, soundOn = false) { k, v -> written[k] = v }

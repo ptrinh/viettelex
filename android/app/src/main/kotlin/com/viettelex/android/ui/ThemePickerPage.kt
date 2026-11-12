@@ -95,10 +95,15 @@ internal fun ThemePickerPage(s: ThemeSettings, dark: Boolean, onSelect: (ThemeSe
         onSelect(ns)
         ThemeAssetFlow.gcAsync(ctx)        // tệp không còn theme nào dùng ⇒ xoá
     }
-    /** Âm / hiệu ứng đi kèm theme vừa chọn (chỉ lúc chọn — [ThemeExtras]); không bao giờ bật âm thanh phím. */
+    /**
+     * Âm / hiệu ứng (+ nét vuốt / âm nét vuốt khi Gõ vuốt đang bật) đi kèm theme vừa chọn (chỉ lúc chọn — [ThemeExtras]);
+     * không bao giờ bật âm thanh phím hay Gõ vuốt.
+     */
     fun applyExtras(ns: ThemeSettings) {
         val sp = Prefs.of(ctx)
-        val r = ThemeExtras.applyOnSelect(ns.effectiveKeyStyle, sp.getBoolean(Keys.KEY_SOUND, Prefs.D.keySound)) { k, v ->
+        val r = ThemeExtras.applyOnSelect(ns.effectiveKeyStyle, sp.getBoolean(Keys.KEY_SOUND, Prefs.D.keySound),
+            swipeOn = sp.getBoolean(Keys.SWIPE_TYPING, Prefs.D.swipeTyping),
+            currentTrail = sp.getString(Keys.SWIPE_TRAIL, null)) { k, v ->
             sp.edit().putString(k, v).apply()
         }
         ThemeExtras.applyBuddyOnSelect(ns.selectedSpec?.buddy, { k, v -> sp.edit().putString(k, v).apply() },

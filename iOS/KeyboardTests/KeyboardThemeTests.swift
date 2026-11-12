@@ -1945,3 +1945,186 @@ final class ThemeSetTests: XCTestCase {
         XCTAssertFalse(make(.peach).debugDecorationVisible)
     }
 }
+
+/// "swipe" / "swipeSound" của theme: ghi MỘT lần lúc chọn theme khi Gõ vuốt đang bật (ThemeExtras). Android
+/// ThemeSwipeExtrasTests y hệt.
+final class ThemeSwipeExtrasTests: XCTestCase {
+    private var savedPlus: UserDefaults!
+    private var savedPaywall = false
+    private var plusSuite = ""
+
+    override func setUp() {
+        super.setUp()
+        savedPlus = PlusGate.defaults
+        savedPaywall = PlusGate.paywallEnabled
+        plusSuite = "swipe-extras-plus-\(UUID().uuidString)"
+        PlusGate.defaults = UserDefaults(suiteName: plusSuite)!
+        PlusGate.paywallEnabled = false
+    }
+
+    override func tearDown() {
+        PlusGate.defaults.removePersistentDomain(forName: plusSuite)
+        PlusGate.defaults = savedPlus
+        PlusGate.paywallEnabled = savedPaywall
+        super.tearDown()
+    }
+
+    private let theme = KeyStyle(sound: "phao", effect: "blossom", swipe: "plasma", swipeSound: "wand")
+    private let yes: (String) -> Bool = { _ in true }
+
+    private func plan(_ st: KeyStyle, swipeOn: Bool, trail: String? = nil,
+                      trailOK: @escaping (String) -> Bool = { _ in true },
+                      soundOK: @escaping (String) -> Bool = { _ in true }) -> ThemeExtras.Outcome {
+        ThemeExtras.plan(st, soundOn: true, effectAllowed: yes, soundAllowed: yes, swipeOn: swipeOn, currentTrail: trail,
+                         swipeTrailAllowed: trailOK, swipeSoundAllowed: soundOK)
+    }
+
+    func testPlanSwipeOffWritesNoSwipe() {
+        let r = plan(theme, swipeOn: false)
+        XCTAssertNil(r.swipeTrail); XCTAssertNil(r.swipeSound)
+        // Âm / hiệu ứng phím vẫn như cũ.
+        XCTAssertEqual(r.effect, "blossom"); XCTAssertEqual(r.sound, "phao")
+        // Gọi kiểu cũ (không truyền swipeOn) = Gõ vuốt tắt.
+        let old = ThemeExtras.plan(theme, soundOn: true, effectAllowed: yes, soundAllowed: yes)
+        XCTAssertNil(old.swipeTrail); XCTAssertNil(old.swipeSound)
+    }
+
+    func testPlanSwipeOnAppliesAllowed() {
+        let r = plan(theme, swipeOn: true, trail: "simple")
+        XCTAssertEqual(r, ThemeExtras.Outcome(effect: "blossom", sound: "phao", soundHint: false,
+                                              swipeTrail: "plasma", swipeSound: "wand"))
+        // Chưa có cài đặt nét vuốt (nil) / đang Tắt ⇒ vẫn ghi.
+        XCTAssertEqual(plan(theme, swipeOn: true, trail: nil).swipeTrail, "plasma")
+        XCTAssertEqual(plan(theme, swipeOn: true, trail: "none").swipeTrail, "plasma")
+    }
+
+    func testPlanKeepsFollowThemeTrail() {
+        let r = plan(theme, swipeOn: true, trail: SwipeTrailStyle.theme.rawValue)
+        XCTAssertNil(r.swipeTrail, "đang Theo giao diện ⇒ giữ")
+        XCTAssertEqual(r.swipeSound, "wand")
+    }
+
+    func testPlanRespectsGates() {
+        let r = plan(theme, swipeOn: true, trailOK: { _ in false }, soundOK: { _ in false })
+        XCTAssertNil(r.swipeTrail); XCTAssertNil(r.swipeSound)
+        let onlySound = plan(theme, swipeOn: true, trailOK: { _ in false })
+        XCTAssertNil(onlySound.swipeTrail); XCTAssertEqual(onlySound.swipeSound, "wand")
+    }
+
+    func testPlanMissingFields() {
+        XCTAssertEqual(plan(KeyStyle(), swipeOn: true), ThemeExtras.Outcome(effect: nil, sound: nil, soundHint: false))
+        XCTAssertNil(plan(KeyStyle(swipe: "fire"), swipeOn: true).swipeSound)
+        XCTAssertNil(plan(KeyStyle(swipeSound: "chalk"), swipeOn: true).swipeTrail)
+    }
+
+    func testAllowedIdsAndPlusGate() {
+        for bad in ["theme", "nope", ""] { XCTAssertFalse(ThemeExtras.swipeTrailAllowed(bad), bad) }
+        for bad in ["none", "custom", "nope", ""] { XCTAssertFalse(ThemeExtras.swipeSoundAllowed(bad), bad) }
+        XCTAssertTrue(ThemeExtras.swipeTrailAllowed("plasma"))
+        XCTAssertTrue(ThemeExtras.swipeSoundAllowed("plasma"))
+        // Chưa có Plus: chỉ kiểu miễn phí (nét: Tắt / Đơn giản; âm: Bút chì).
+        PlusGate.paywallEnabled = true
+        XCTAssertTrue(ThemeExtras.swipeTrailAllowed("simple"))
+        XCTAssertTrue(ThemeExtras.swipeTrailAllowed("none"))
+        XCTAssertFalse(ThemeExtras.swipeTrailAllowed("plasma"))
+        XCTAssertTrue(ThemeExtras.swipeSoundAllowed("pencil"))
+        XCTAssertFalse(ThemeExtras.swipeSoundAllowed("wand"))
+    }
+
+    func testApplyOnSelectReadsSwipeTypingSwitch() throws {
+        let name = "swipe-extras-\(UUID().uuidString)"
+        let d = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { d.removePersistentDomain(forName: name) }
+        d.set("simple", forKey: SwipeTrailStyle.key)
+        d.set("pencil", forKey: SwipeSoundStyle.key)
+        // Gõ vuốt chưa bật (mặc định) ⇒ không đổi gì, không bật Gõ vuốt.
+        ThemeExtras.applyOnSelect(theme, to: d)
+        XCTAssertEqual(d.string(forKey: SwipeTrailStyle.key), "simple")
+        XCTAssertEqual(d.string(forKey: SwipeSoundStyle.key), "pencil")
+        XCTAssertNil(d.object(forKey: ThemeExtras.swipeTypingKey))
+        // Gõ vuốt bật ⇒ ghi cả hai; âm thanh phím vẫn không bị bật.
+        d.set(true, forKey: ThemeExtras.swipeTypingKey)
+        let r = ThemeExtras.applyOnSelect(theme, to: d)
+        XCTAssertEqual(r.swipeTrail, "plasma"); XCTAssertEqual(r.swipeSound, "wand")
+        XCTAssertEqual(d.string(forKey: SwipeTrailStyle.key), "plasma")
+        XCTAssertEqual(d.string(forKey: SwipeSoundStyle.key), "wand")
+        XCTAssertNil(d.object(forKey: ThemeExtras.soundOnKey))
+        XCTAssertTrue(d.bool(forKey: ThemeExtras.swipeTypingKey))
+        // Theme không khai báo ⇒ giữ lựa chọn tay.
+        d.set("fire", forKey: SwipeTrailStyle.key); d.set("chalk", forKey: SwipeSoundStyle.key)
+        ThemeExtras.applyOnSelect(KeyStyle(), to: d)
+        XCTAssertEqual(d.string(forKey: SwipeTrailStyle.key), "fire")
+        XCTAssertEqual(d.string(forKey: SwipeSoundStyle.key), "chalk")
+        // "Theo giao diện" ⇒ giữ; âm vẫn ghi.
+        d.set("theme", forKey: SwipeTrailStyle.key)
+        ThemeExtras.applyOnSelect(theme, to: d)
+        XCTAssertEqual(d.string(forKey: SwipeTrailStyle.key), "theme")
+        XCTAssertEqual(d.string(forKey: SwipeSoundStyle.key), "wand")
+        // Id lạ (kiểu mới chưa vào bản này) ⇒ bỏ qua.
+        d.set("fire", forKey: SwipeTrailStyle.key)
+        ThemeExtras.applyOnSelect(KeyStyle(swipe: "nope", swipeSound: "nope"), to: d)
+        XCTAssertEqual(d.string(forKey: SwipeTrailStyle.key), "fire")
+        XCTAssertEqual(d.string(forKey: SwipeSoundStyle.key), "wand")
+    }
+
+    // MARK: JSON "swipeSound"
+
+    private let base = ##"{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"}"##
+
+    func testSwipeSoundRoundTrips() throws {
+        let spec = try XCTUnwrap(ThemeSpecParser.parse(base + ##","swipe":"brush","swipeSound":"brush"}"##).spec)
+        XCTAssertEqual(spec.swipeSound, "brush")
+        XCTAssertEqual(spec.typography.swipeSound, "brush")
+        XCTAssertTrue(spec.json.canonical.contains(#""swipeSound":"brush""#))
+        XCTAssertEqual(try XCTUnwrap(ThemeSpecParser.parse(spec.json.canonical).spec), spec)
+        // Bản vá theo theme (KeyStyleStore) giữ "swipeSound".
+        var st = KeyStyle(); st.swipeSound = "chalk"
+        let raw = KeyStyleStore.serialize(["pink": st])
+        XCTAssertTrue(raw.contains(#""swipeSound":"chalk""#), raw)
+        XCTAssertEqual(KeyStyleStore.parse(raw)["pink"]?.swipeSound, "chalk")
+        XCTAssertEqual(ThemeSpecParser.override(from: .object([("swipeSound", .string("whip"))]))?.swipeSound, "whip")
+        // Export ("Chép JSON") mang "swipeSound".
+        let p = try XCTUnwrap(BuiltinThemes.specs["neon"]).palette(dark: false)
+        XCTAssertEqual(ThemeSpec.export(id: nil, nameVi: "y", nameEn: nil, light: p, dark: p, style: st).swipeSound, "chalk")
+    }
+
+    func testSwipeSoundRejectsBadIds() {
+        for bad in ["none", "custom", "nope", "THEME"] {
+            let out = ThemeSpecParser.parse(base + ",\"swipeSound\":\"\(bad)\"}")
+            XCTAssertTrue(out.issues.contains { $0.code == .badValue && $0.path == "swipeSound" }, bad)
+            XCTAssertNil(out.spec?.swipeSound, bad)
+            XCTAssertNil(ThemeSpecParser.override(from: .object([("swipeSound", .string(bad))])), bad)
+        }
+        let wrong = ThemeSpecParser.parse(base + ##","swipeSound":3}"##)
+        XCTAssertTrue(wrong.issues.contains { $0.code == .wrongType && $0.path == "swipeSound" })
+        XCTAssertEqual(ThemeExtraIds.swipeSounds, Set(SwipeSoundStyle.synthesized.map(\.rawValue)))
+    }
+
+    func testEffectiveStyleInheritsAndEditDropsSameAsBase() throws {
+        let space = try XCTUnwrap(KeyboardTheme(rawValue: "space"))
+        XCTAssertEqual(ThemeSettings(theme: space).effectiveKeyStyle.swipeSound, "plasma")
+        // Sửa JSON theme có sẵn mà giữ nguyên "swipeSound" ⇒ không lưu vào bản vá; đổi ⇒ lưu.
+        var s = ThemeSettings(theme: space)
+        var store: [String: ThemeSpec] = [:]
+        let text = try XCTUnwrap(ThemeJSONActions.copyText(.builtin(space), settings: s, store: store))
+        XCTAssertTrue(text.contains(#""swipeSound": "plasma""#), text)
+        XCTAssertTrue(ThemeJSONActions.save(text, to: .builtin(space), settings: &s, store: &store).ok)
+        XCTAssertNil(s.style(for: space).swipeSound)
+        let edited = text.replacingOccurrences(of: #""swipeSound": "plasma""#, with: #""swipeSound": "chalk""#)
+        XCTAssertTrue(ThemeJSONActions.save(edited, to: .builtin(space), settings: &s, store: &store).ok)
+        XCTAssertEqual(s.style(for: space).swipeSound, "chalk")
+        XCTAssertEqual(s.effectiveKeyStyle.swipeSound, "chalk")
+    }
+
+    func testBuiltinThemesSwipeSoundMapping() {
+        let want: [String: String] = ["xmas": "wand", "xmasSnow": "wand", "sen": "brush", "typewriter": "pencil",
+                                      "rgb": "lightning", "space": "plasma", "halloween": "lightning", "gym": "whip",
+                                      "zodiac": "wand"]
+        XCTAssertFalse(BuiltinThemes.specs.isEmpty)
+        for (id, spec) in BuiltinThemes.specs {
+            XCTAssertEqual(spec.swipeSound, want[id], id)
+            if let v = spec.swipeSound { XCTAssertTrue(ThemeExtraIds.swipeSounds.contains(v), id) }
+        }
+        for id in want.keys { XCTAssertNotNil(BuiltinThemes.specs[id], id) }
+    }
+}
