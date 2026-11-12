@@ -82,7 +82,7 @@ internal fun SwipeSoundPage(onOpenPlus: () -> Unit, onBack: () -> Unit) {
         }
     }
     VTSection(header = tr("Chạm một kiểu để chọn và nghe thử."),
-        footer = tr("Tiếng khẽ khi ngón đang vuốt một từ: to hơn khi vuốt nhanh, im khi ngón dừng. Roi vụt, Tia sét, Plasma và Đũa phép thêm một tiếng ngắn lúc nhấc tay. Tắt: không phát gì. Bút chì miễn phí, các kiểu còn lại thuộc VietTelex Plus.") +
+        footer = tr("Tiếng khẽ khi ngón đang vuốt một từ: to hơn khi vuốt nhanh, im khi ngón dừng. Nốt nhạc theo phím: mỗi phím ngón đi qua gảy một nốt, mỗi từ thành một giai điệu nhỏ (nhạc cụ theo Âm thanh phím nếu là Piano, Đàn tranh hay Ghi-ta mộc, không thì Đàn tranh). Sáo trúc: cao độ theo vị trí ngón. Roi vụt, Tia sét, Plasma, Đũa phép, Sóng biển, Mèo kêu và Chim hót thêm một tiếng ngắn lúc nhấc tay. Tắt: không phát gì. Bút chì miễn phí, các kiểu còn lại thuộc VietTelex Plus.") +
             " " + tr("Theo âm lượng của Âm thanh phím; im khi máy để Rung/Im lặng. Tự về Bút chì khi bật Trình tiết kiệm pin.")) {
         SwipeSoundStyle.entries.forEachIndexed { i, s ->
             if (i > 0) RowDivider()

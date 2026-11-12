@@ -64,8 +64,9 @@ class KeyboardView(
     /** Vệt gõ vuốt (overlay cùng toạ độ); null = không vẽ ("Hiệu ứng nét vuốt" = Tắt — IME đặt lúc hiện). */
     var trail: SwipeTrailView? = null,
 ) : View(context) {
-    /** "Âm thanh nét vuốt": null = Tắt (IME đặt lúc hiện) ⇒ đường vuốt chỉ đọc một biến null. */
+    /** "Âm thanh nét vuốt": null = Tắt (IME đặt lúc hiện) ⇒ đường vuốt chỉ đọc một biến null. Gán ⇒ nhận tâm phím hiện có. */
     var swipeSound: SwipeSoundPlayer? = null
+        set(v) { field = v; swipeLayout?.let { v?.setLayout(it, d) } }
 
     interface Listener {
         fun onKey(key: Key)
@@ -2070,6 +2071,7 @@ class KeyboardView(
         abortSwipe()
         swipeLayout = l
         swipePath = SwipePath(minDistance = kw / 5f)
+        swipeSound?.setLayout(l, d)   // âm nét vuốt dò phím (Nốt nhạc theo phím, Sáo trúc)
         listener?.onSwipeLayout(l)
     }
 
@@ -2120,8 +2122,9 @@ class KeyboardView(
         // Chữ đầu đã huỷ ⇒ shift một-lần bị nhả lúc chạm phải bật lại (từ vuốt viết hoa).
         if (swipeShift == Shift.ON && shift == Shift.OFF) { shift = Shift.ON; invalidate() }
         swipeSound?.let { s ->
-            val j = p.count - 1
-            if (j >= 0) s.begin(p.xs[j] / d, p.ys[j] / d, (p.ts[j] * 1000).toLong())
+            // Từ điểm chạm đầu, đưa nốt các điểm đã có: Nốt nhạc theo phím gảy cả phím bắt đầu + phím đi qua lúc phân loại.
+            if (p.count > 0) s.begin(p.xs[0] / d, p.ys[0] / d, (p.ts[0] * 1000).toLong())
+            for (j in 1 until p.count) s.move(p.xs[j] / d, p.ys[j] / d, (p.ts[j] * 1000).toLong())
         }
         val tr = trail ?: return
         tr.begin()

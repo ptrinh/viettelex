@@ -2,6 +2,8 @@
 // giá trị giữ), chính sách bật (Full Access, gõ vuốt, âm lượng 0), đường cong tốc độ → âm lượng, vỏ âm lượng (tắt dần
 // 100 ms), mẫu lặp tất định + checksum, chỗ nối vòng liền mạch, bản nghe thử, vòng đời engine (Tắt = không dựng gì), và chi
 // phí main mỗi điểm vuốt. Số tham chiếu GIỐNG HỆT Android SwipeSoundTests.kt.
+// Đợt 2 (Nốt nhạc theo phím, Sáo trúc, Sóng biển, Mèo kêu, Chim hót): bảng phím → nốt + dò phím (lõi, mỗi phím một nốt),
+// cao độ sáo, lịch tiếng hót, bộ nốt / vòng / lớp / tiếng nhấc tay / bản nghe thử tất định + checksum chung Android.
 import XCTest
 import AVFoundation
 
@@ -34,24 +36,34 @@ final class SwipeSoundTests: XCTestCase {
 
     func testIdsTitlesAndDefaults() {
         XCTAssertEqual(SwipeSoundStyle.allCases.map(\.rawValue),
-                       ["none", "pencil", "brush", "chalk", "marker", "whip", "lightning", "plasma", "wand", "custom"])
+                       ["none", "pencil", "brush", "chalk", "marker", "whip", "lightning", "plasma", "wand", "notes", "flute",
+                        "waves", "cat", "birds", "custom"])
         XCTAssertEqual(SwipeSoundStyle.key, "swipeSound")
         XCTAssertEqual(SwipeSoundStyle.defaultValue, .none)
         XCTAssertEqual(SwipeSoundStyle.parse(nil), .none)
         XCTAssertEqual(SwipeSoundStyle.parse("loud"), .none)
         XCTAssertEqual(SwipeSoundStyle.parse(7), .none)
         XCTAssertEqual(SwipeSoundStyle.parse("chalk"), .chalk)
-        XCTAssertEqual(SwipeSoundStyle.allCases.map(\.isPlus), [false, false, true, true, true, true, true, true, true, true])
-        XCTAssertEqual(SwipeSoundStyle.allCases.filter(\.hasLift), [.whip, .lightning, .plasma, .wand])
-        XCTAssertEqual(SwipeSoundStyle.synthesized.count, 8)
+        XCTAssertEqual(SwipeSoundStyle.allCases.map(\.isPlus), [false, false] + [Bool](repeating: true, count: 13))
+        XCTAssertEqual(SwipeSoundStyle.allCases.filter(\.hasLift), [.whip, .lightning, .plasma, .wand, .waves, .cat, .birds])
+        XCTAssertEqual(SwipeSoundStyle.synthesized.count, 12)
         XCTAssertFalse(SwipeSoundStyle.synthesized.contains(.custom))
+        XCTAssertFalse(SwipeSoundStyle.synthesized.contains(.notes), "Nốt nhạc theo phím không có vòng lặp")
+        XCTAssertEqual(SwipeSoundStyle.allCases.filter(\.isNotes), [.notes])
+        XCTAssertEqual(SwipeSoundStyle.allCases.filter(\.followsX), [.flute])
+        XCTAssertEqual(SwipeSoundStyle.allCases.filter(\.needsLayout), [.notes, .flute])
+        XCTAssertEqual([SwipeSoundStyle.notes, .flute, .waves, .cat, .birds].map(\.title),
+                       [L("Nốt nhạc theo phím"), L("Sáo trúc"), L("Sóng biển"), L("Mèo kêu"), L("Chim hót")])
+        XCTAssertEqual(L10n.en["Nốt nhạc theo phím"], "Key melody")
+        XCTAssertEqual(L10n.en["Sáo trúc"], "Bamboo flute")
+        XCTAssertEqual(SwipeSoundStyle.parse("birds"), .birds)
         XCTAssertEqual(SwipeSoundStyle.parse("wand"), .wand)
         XCTAssertEqual(SwipeSoundStyle.parse("custom"), .custom)
         for s in SwipeSoundStyle.allCases { XCTAssertNotNil(L10n.en[s.title], "thiếu bản dịch: \(s.title)") }
         XCTAssertNotNil(L10n.en["Âm thanh nét vuốt"])
         let spec = BackupSettings.all.first { $0.key == SwipeSoundStyle.key }
         XCTAssertEqual(spec?.kind, .string("none", ["none", "pencil", "brush", "chalk", "marker", "whip", "lightning",
-                                                    "plasma", "wand", "custom"]))
+                                                    "plasma", "wand", "notes", "flute", "waves", "cat", "birds", "custom"]))
     }
 
     func testPlusGateAndPolicy() {
@@ -65,7 +77,7 @@ final class SwipeSoundTests: XCTestCase {
         XCTAssertEqual(P.active(setting: .brush, plus: false, lowPower: false, volumePercent: 50), .pencil)
         XCTAssertEqual(P.active(setting: .chalk, plus: true, lowPower: true, volumePercent: 50), .pencil)
         XCTAssertEqual(P.active(setting: .marker, plus: true, lowPower: false, volumePercent: 1), .marker)
-        for s in [SwipeSoundStyle.whip, .lightning, .plasma, .wand, .custom] {
+        for s in [SwipeSoundStyle.whip, .lightning, .plasma, .wand, .notes, .flute, .waves, .cat, .birds, .custom] {
             XCTAssertEqual(P.active(setting: s, plus: false, lowPower: false, volumePercent: 50), .pencil, "\(s) cần Plus")
             XCTAssertEqual(P.active(setting: s, plus: true, lowPower: false, volumePercent: 50), s)
             XCTAssertEqual(SwipeSoundStyle.displayed(s.rawValue, plus: false), .pencil)
@@ -139,17 +151,38 @@ final class SwipeSoundTests: XCTestCase {
         for _ in 0..<Int(0.2 * sr) { b.next(1) }
         for _ in 0..<Int(SwipeSoundFx.rampTau * sr) { b.next(0) }
         XCTAssertEqual(b.gain, 0.367879, accuracy: 2e-3)
+        // Sáo trúc: tắt dần chậm hơn (fluteRelease 250 ms; Android 10 nhịp).
+        XCTAssertEqual(SwipeSoundFx.release(.flute), SwipeSoundFx.fluteRelease)
+        XCTAssertEqual(SwipeSoundFx.release(.pencil), SwipeSoundFx.fadeOut)
+        var f = SwipeSoundEnvelope(step: 1 / sr, fade: SwipeSoundFx.release(.flute))
+        for _ in 0..<Int(0.2 * sr) { f.next(0.8) }
+        f.release()
+        var m = 0
+        while !f.finished { f.next(1); m += 1; if m > Int(sr) { XCTFail("không tắt"); break } }
+        XCTAssertEqual(Double(m), SwipeSoundFx.fluteRelease * sr, accuracy: 2)
+        var ft = SwipeSoundEnvelope(step: SwipeSoundFx.tick, fade: SwipeSoundFx.fluteRelease)
+        for _ in 0..<20 { ft.next(0.5) }
+        ft.release()
+        var q = 0
+        while !ft.finished { ft.next(0.5); q += 1 }
+        XCTAssertTrue((10...11).contains(q), "fluteRelease / tick (Android): \(q)")   // 0,025/0,25 không chẵn nhị phân
     }
 
     // MARK: mẫu lặp
 
     static let golden: [SwipeSoundStyle: Double] = [.pencil: 1060.9227, .brush: 1786.0301, .chalk: 932.4742, .marker: 1379.6404,
-                                                    .whip: 1272.6721, .lightning: 878.1293, .plasma: 1586.8690, .wand: 1352.8294]
+                                                    .whip: 1272.6721, .lightning: 878.1293, .plasma: 1586.8690, .wand: 1352.8294,
+                                                    .flute: 1946.4318, .waves: 1681.5173, .cat: 475.8167, .birds: 424.2226]
     static let previewGolden: [SwipeSoundStyle: Double] = [.pencil: 593.6883, .brush: 842.1863, .chalk: 364.0651, .marker: 786.1841,
                                                            .whip: 786.1677, .lightning: 579.4536, .plasma: 1061.6143,
-                                                           .wand: 1066.6231]
-    static let liftGolden: [SwipeSoundStyle: Double] = [.whip: 94.7710, .lightning: 239.0145, .plasma: 434.8444, .wand: 581.7851]
-    static let layerGolden = 906.3455
+                                                           .wand: 1066.6231, .waves: 1376.3931, .cat: 1441.8459, .birds: 561.5857]
+    static let liftGolden: [SwipeSoundStyle: Double] = [.whip: 94.7710, .lightning: 239.0145, .plasma: 434.8444, .wand: 581.7851,
+                                                        .waves: 715.3403, .cat: 1502.8527, .birds: 363.6219]
+    static let layerGolden: [SwipeSoundStyle: Double] = [.wand: 906.3455, .birds: 344.4035]
+    /// Tổng |mẫu| của cả 14 nốt + bản nghe thử "viet" theo nhạc cụ (Nốt nhạc theo phím).
+    static let noteBankGolden: [KeyInstrument: Double] = [.dantranh: 5414.3445, .piano: 6428.3102, .guitar: 5343.4127]
+    static let notesPreviewGolden: [KeyInstrument: Double] = [.dantranh: 1564.3575, .piano: 1777.4152, .guitar: 1390.8450]
+    static let flutePreviewGolden = 924.0326
 
     func testLoopsAreDeterministicSoftAndSeamless() {
         let sr = KeySoundSynth.swipeSampleRate
@@ -186,25 +219,34 @@ final class SwipeSoundTests: XCTestCase {
         XCTAssertGreaterThan(centroid(.chalk), centroid(.brush))
         XCTAssertGreaterThan(centroid(.whip), centroid(.brush) + 1000, "roi vụt sáng/gió hơn chổi lông")
         XCTAssertLessThan(centroid(.plasma), centroid(.whip), "plasma ù trầm")
+        XCTAssertLessThan(centroid(.cat), 2000, "mèo rừ trầm")
+        XCTAssertLessThan(centroid(.cat), centroid(.waves))
+        XCTAssertLessThan(centroid(.waves), centroid(.whip), "sóng trầm hơn roi vụt")
     }
 
-    /// Lớp hạt dày (chỉ Đũa phép) + tiếng nhấc tay (Roi vụt, Tia sét, Plasma, Đũa phép): tất định, độ dài, đỉnh, checksum chung.
+    /// Lớp dày (Đũa phép, Chim hót) + tiếng nhấc tay (Roi vụt, Tia sét, Plasma, Đũa phép, Sóng biển, Mèo kêu, Chim hót):
+    /// tất định, độ dài, đỉnh, checksum chung.
     func testLayerAndLiftSamples() {
         let sr = KeySoundSynth.swipeSampleRate
-        for s in SwipeSoundStyle.allCases where s != .wand { XCTAssertTrue(KeySoundSynth.swipeLayerSamples(s).isEmpty, "\(s)") }
-        let layer = KeySoundSynth.swipeLayerSamples(.wand)
-        XCTAssertEqual(layer, KeySoundSynth.swipeLayerSamples(.wand))
-        XCTAssertEqual(layer.count, KeySoundSynth.swipeLoopSamples(.wand).count)
-        XCTAssertEqual(Double(layer.map(abs).max() ?? 0), KeySoundSynth.swipeLayerPeak, accuracy: 1e-6)
-        XCTAssertNotEqual(Array(layer[0..<2000]), Array(KeySoundSynth.swipeLoopSamples(.wand)[0..<2000]))
-        let lsum = layer.reduce(0.0) { $0 + Double(abs($1)) }
-        print("SWIPE-LAYER-GOLDEN wand=\(String(format: "%.4f", lsum))")
-        XCTAssertEqual(lsum, Self.layerGolden, accuracy: 0.01)
+        for s in SwipeSoundStyle.allCases where s != .wand && s != .birds {
+            XCTAssertTrue(KeySoundSynth.swipeLayerSamples(s).isEmpty, "\(s)")
+        }
+        for s in [SwipeSoundStyle.wand, .birds] {
+            let layer = KeySoundSynth.swipeLayerSamples(s)
+            XCTAssertEqual(layer, KeySoundSynth.swipeLayerSamples(s))
+            XCTAssertEqual(layer.count, KeySoundSynth.swipeLoopSamples(s).count)
+            XCTAssertEqual(Double(layer.map(abs).max() ?? 0), KeySoundSynth.swipeLayerPeak, accuracy: 1e-6)
+            XCTAssertNotEqual(Array(layer[0..<2000]), Array(KeySoundSynth.swipeLoopSamples(s)[0..<2000]))
+            let lsum = layer.reduce(0.0) { $0 + Double(abs($1)) }
+            print("SWIPE-LAYER-GOLDEN \(s.rawValue)=\(String(format: "%.4f", lsum))")
+            XCTAssertEqual(lsum, Self.layerGolden[s]!, accuracy: 0.01)
+        }
         for s in SwipeSoundStyle.allCases where !s.hasLift { XCTAssertTrue(KeySoundSynth.swipeLiftSamples(s).isEmpty, "\(s)") }
         for s in SwipeSoundStyle.allCases where s.hasLift {
             let x = KeySoundSynth.swipeLiftSamples(s)
             XCTAssertEqual(x, KeySoundSynth.swipeLiftSamples(s), "tất định \(s)")
-            XCTAssertTrue((Int(0.12 * sr)...Int(0.35 * sr)).contains(x.count), "ngắn: \(s) \(x.count)")
+            let maxLen = [.waves, .cat, .birds].contains(s) ? 0.6 : 0.35   // sóng rút / "meo" dài hơn tiếng "chát"
+            XCTAssertTrue((Int(0.12 * sr)...Int(maxLen * sr)).contains(x.count), "ngắn: \(s) \(x.count)")
             let peak = Double(x.map(abs).max() ?? 0)
             XCTAssertLessThanOrEqual(peak, 0.55 + 1e-6, "không chói: \(s)")
             XCTAssertGreaterThan(peak, 0.3)
@@ -224,6 +266,16 @@ final class SwipeSoundTests: XCTestCase {
         let zw = KeySoundSynth.swipeLiftSamples(.plasma), h = zw.count / 2
         XCTAssertGreaterThan(KeySoundSynth.spectralCentroid(Array(zw[h...]), sampleRate: sr),
                              KeySoundSynth.spectralCentroid(Array(zw[..<h]), sampleRate: sr))
+        // Sóng biển: đúng đoạn sóng vỡ + rút của theme Biển (dùng lại surfSamples), mở mềm.
+        let settle = KeySoundSynth.swipeLiftSamples(.waves)
+        XCTAssertEqual(settle.count, KeySoundSynth.surfSamples().count - Int((KeySoundSynth.swipeSettleFrom * sr).rounded()))
+        XCTAssertLessThan(abs(settle[0]), 1e-3, "mở mềm")
+        // Mèo kêu: "meo" có thân — 20 ms đầu nhỏ hơn hẳn giữa tiếng; đỉnh không ở đầu.
+        let meow = KeySoundSynth.swipeLiftSamples(.cat), mh = meow.count / 2, w20 = Int(0.02 * sr)
+        XCTAssertLessThan(KeySoundSynth.rms(Array(meow[0..<w20])), 0.5 * KeySoundSynth.rms(Array(meow[(mh - w20)..<(mh + w20)])))
+        // Chim hót: láy cao (trọng tâm phổ > 3 kHz).
+        let trill = KeySoundSynth.swipeLiftSamples(.birds)
+        XCTAssertGreaterThan(KeySoundSynth.spectralCentroid(Array(trill[0..<2048]), sampleRate: sr), 3000)
     }
 
     /// Độ to tiếng nhấc tay theo tốc độ 80 ms cuối: đứng yên / rê chậm ⇒ 0; nhanh ⇒ to; tốc độ đo đúng cửa sổ.
@@ -338,7 +390,7 @@ final class SwipeSoundTests: XCTestCase {
         XCTAssertEqual(KeySoundSynth.swipeDemoSpeed(0), 0)
         XCTAssertEqual(KeySoundSynth.swipeDemoSpeed(KeySoundSynth.swipePreviewLift), 0)
         XCTAssertEqual(KeySoundSynth.swipeDemoSpeed(KeySoundSynth.swipePreviewLift / 2), 675, accuracy: 1e-9)   // giữa nét: chậm ở phím
-        for s in SwipeSoundStyle.synthesized {
+        for s in SwipeSoundStyle.synthesized where s != .flute {
             let p = KeySoundSynth.swipePreviewSamples(s)
             let shot = KeySoundSynth.swipeLiftSamples(s)
             let liftAt = Int((KeySoundSynth.swipePreviewLift * sr).rounded())
@@ -352,13 +404,159 @@ final class SwipeSoundTests: XCTestCase {
                 if p[i] != want { XCTFail("sau tắt dần chỉ còn tiếng nhấc tay (\(s)) @\(i)"); break }
             }
             XCTAssertLessThan(abs(p[0]), 1e-3, "mở từ 0")
-            let cap = KeySoundSynth.swipePeak(s) + (s == .wand ? KeySoundSynth.swipeLayerPeak : 0)
+            let cap = KeySoundSynth.swipePeak(s) + (s == .wand || s == .birds ? KeySoundSynth.swipeLayerPeak : 0)
                 + (shot.map(abs).max().map { Double($0) } ?? 0) * SwipeSoundFx.previewLiftGain
             XCTAssertLessThanOrEqual(Double(p.map(abs).max() ?? 0), cap + 1e-6)
             let sum = p.reduce(0.0) { $0 + Double(abs($1)) }
             print("SWIPE-PREVIEW-GOLDEN \(s.rawValue)=\(String(format: "%.4f", sum))")
             XCTAssertEqual(sum, Self.previewGolden[s]!, accuracy: 0.01)
         }
+    }
+
+    // MARK: Nốt nhạc theo phím, Sáo trúc, Chim hót
+
+    /// Bảng phím → bậc: trái → phải đi lên, hàng trên lệch +2 bậc mỗi hàng; 14 bậc G3…D6 theo thang nhạc cụ.
+    func testNoteMapStepsAndMidi() {
+        XCTAssertEqual(SwipeNoteMap.letterSteps, [2, 4, 2, 4, 6, 5, 6, 7, 11, 8, 9, 10, 6, 5, 12, 13, 4, 7, 3, 8, 10, 3, 5, 1, 9, 0])
+        for row in SwipeNoteMap.rows {   // trong hàng: trái → phải tăng đúng một bậc
+            let st = row.unicodeScalars.map { SwipeNoteMap.step(letter: Int($0.value) - 97) }
+            XCTAssertEqual(st, Array(st[0]..<(st[0] + st.count)))
+        }
+        XCTAssertEqual(Set(SwipeNoteMap.letterSteps), Set(0..<SwipeNoteMap.steps))
+        XCTAssertEqual((0..<14).map { SwipeNoteMap.midi(step: $0, scale: NoteMap.dantranh.scale) },
+                       [55, 57, 60, 62, 64, 67, 69, 72, 74, 76, 79, 81, 84, 86])
+        XCTAssertEqual((0..<14).map { SwipeNoteMap.midi(step: $0, scale: NoteMap.piano.scale) },
+                       [55, 57, 59, 62, 64, 67, 69, 71, 74, 76, 79, 81, 83, 86])
+        XCTAssertEqual(SwipeSoundFx.noteVelocity(0), SwipeSoundFx.noteFloor, "vuốt chậm vẫn nghe")
+        XCTAssertEqual(SwipeSoundFx.noteVelocity(SwipeSoundFx.speedFull), 1, accuracy: 1e-12)
+        XCTAssertEqual(SwipeSoundFx.noteVelocity(525), 0.4 + 0.6 * 0.576361, accuracy: 1e-6)
+    }
+
+    /// Dò phím: tâm ⇒ đúng chữ; ngoài lõi 70 % / khe / hàng cách ⇒ −1; mỗi phím một nốt (rung ở ranh giới không gảy lặp);
+    /// quay lại phím cũ sau phím khác ⇒ gảy lại; nét "viet" ⇒ v h i u y t r e r t.
+    func testKeyTrackerCoreAndDedup() throws {
+        let kw: Float = 36, rh: Float = 54
+        let c = SwipeKeyTracker.qwertyCenters(keyWidth: kw, rowHeight: rh)
+        var tr = try XCTUnwrap(SwipeKeyTracker(centers: c, keyWidth: kw))
+        XCTAssertNil(SwipeKeyTracker(centers: c, keyWidth: 0))
+        XCTAssertNil(SwipeKeyTracker(centers: [Float](repeating: .infinity, count: 52), keyWidth: kw))
+        XCTAssertEqual(tr.rowHeight, 54); XCTAssertEqual(tr.minX, 0); XCTAssertEqual(tr.maxX, 360)
+        func at(_ ch: Character) -> (Double, Double) {
+            let k = Int(ch.asciiValue! - 97)
+            return (Double(c[2 * k]), Double(c[2 * k + 1]))
+        }
+        for k in 0..<26 { XCTAssertEqual(tr.key(x: Double(c[2 * k]), y: Double(c[2 * k + 1])), k) }
+        let (gx, gy) = at("g")
+        XCTAssertEqual(tr.key(x: gx + 0.34 * 36, y: gy), 6, "trong lõi")
+        XCTAssertEqual(tr.key(x: gx + 0.36 * 36, y: gy), -1, "ngoài lõi (ranh giới)")
+        XCTAssertEqual(tr.key(x: gx, y: gy + 0.36 * 54), -1)
+        XCTAssertEqual(tr.key(x: gx, y: 4 * 54), -1, "hàng cách")
+        XCTAssertEqual(tr.key(x: -100, y: gy), -1)
+        XCTAssertEqual(tr.feed(x: gx, y: gy), 6)
+        XCTAssertEqual(tr.feed(x: gx + 5, y: gy), -1, "cùng phím ⇒ một nốt")
+        let (hx, _) = at("h")
+        var hits = 0
+        for i in 0..<20 { if tr.feed(x: (gx + hx) / 2 + (i % 2 == 0 ? -2 : 2), y: gy) >= 0 { hits += 1 } }
+        XCTAssertEqual(hits, 0, "rung ở ranh giới g|h không gảy")
+        XCTAssertEqual(tr.feed(x: hx, y: gy), 7)
+        XCTAssertEqual(tr.feed(x: gx, y: gy), 6, "quay lại g sau h ⇒ gảy lại")
+        tr.reset()
+        XCTAssertEqual(tr.feed(x: gx, y: gy), 6, "cú vuốt mới")
+        XCTAssertEqual(tr.unitX(-50), 0); XCTAssertEqual(tr.unitX(180), 0.5); XCTAssertEqual(tr.unitX(999), 1)
+        // Nét mẫu "viet".
+        let d = KeySoundSynth.swipeDemoPath()
+        XCTAssertEqual(d.points.count, 103)
+        var t2 = try XCTUnwrap(SwipeKeyTracker(centers: d.centers, keyWidth: d.keyWidth))
+        var word = ""
+        for p in d.points { let k = t2.feed(x: p.x, y: p.y); if k >= 0 { word.append(Character(UnicodeScalar(UInt8(97 + k)))) } }
+        XCTAssertEqual(word, "vhiuytrert")
+        // Giai điệu của nét: bậc từng nốt (v h i u y t r e r t).
+        XCTAssertEqual(word.unicodeScalars.map { SwipeNoteMap.step(letter: Int($0.value) - 97) }, [3, 7, 11, 10, 9, 8, 7, 6, 7, 8])
+    }
+
+    /// Sáo trúc: vị trí ngang → cao độ (1,5 quãng tám quanh D5, kéo 70 % về ngũ cung), tốc độ đọc trong 0,5…2, không giảm.
+    func testFlutePitchMapping() {
+        typealias F = SwipeSoundFx
+        XCTAssertEqual(F.nearestPentatonic(65), 64); XCTAssertEqual(F.nearestPentatonic(66), 67)
+        XCTAssertEqual(F.nearestPentatonic(74.4), 74); XCTAssertEqual(F.nearestPentatonic(83), 84)
+        XCTAssertEqual(F.fluteMidi(0), 64.3, accuracy: 1e-9)
+        XCTAssertEqual(F.fluteMidi(0.5), 74, accuracy: 1e-9)
+        XCTAssertEqual(F.fluteMidi(1), 83.7, accuracy: 1e-9)
+        XCTAssertEqual(F.fluteMidi(-3), F.fluteMidi(0)); XCTAssertEqual(F.fluteMidi(9), F.fluteMidi(1))
+        XCTAssertEqual(F.fluteRate(0.5), 1, accuracy: 1e-12)
+        XCTAssertEqual(F.fluteRate(0.25), 0.755673, accuracy: 1e-6)   // số tham chiếu chung Android
+        XCTAssertEqual(F.fluteRate(0.9), 1.503509, accuracy: 1e-6)
+        var last = 0.0
+        for i in 0...200 {
+            let r = F.fluteRate(Double(i) / 200)
+            XCTAssertGreaterThanOrEqual(r, last); XCTAssertGreaterThanOrEqual(r, 0.5); XCTAssertLessThanOrEqual(r, 2)
+            last = r
+        }
+        XCTAssertGreaterThan(F.fluteRate(1) / F.fluteRate(0), pow(2, 1.5) * 0.95, "~1,5 quãng tám")
+    }
+
+    /// Lịch tiếng hót: tất định, câu 2–4 tiếng cùng độ dài, mọi tiếng trong [margin, vòng − margin], tần số trong khoảng.
+    func testBirdChirpSchedule() {
+        let L = KeySoundSynth.swipeLoopSeconds(.birds), m = KeySoundSynth.birdMargin
+        let sparse = KeySoundSynth.birdChirps(seed: KeySoundSynth.birdSeed, loopSec: L, gapMin: 0.18, gapRange: 0.30)
+        let dense = KeySoundSynth.birdChirps(seed: KeySoundSynth.birdLayerSeed, loopSec: L, gapMin: 0.04, gapRange: 0.10)
+        XCTAssertEqual(sparse, KeySoundSynth.birdChirps(seed: KeySoundSynth.birdSeed, loopSec: L, gapMin: 0.18, gapRange: 0.30))
+        XCTAssertEqual(sparse.count, 6); XCTAssertEqual(dense.count, 9)   // số tham chiếu chung Android
+        XCTAssertGreaterThan(dense.count, sparse.count, "lớp dày nhiều tiếng hơn")
+        for list in [sparse, dense] {
+            var phrase = 0, prevEnd = -1.0
+            for (i, c) in list.enumerated() {
+                XCTAssertGreaterThanOrEqual(c.start, m); XCTAssertLessThanOrEqual(c.start + c.duration, L - m + 1e-9)
+                XCTAssertTrue((0.035...0.07).contains(c.duration))
+                XCTAssertTrue((2600...4200 * 1.15 * 1.5).contains(max(c.f0, c.f1)))
+                XCTAssertTrue((0.6...1).contains(c.amp))
+                XCTAssertGreaterThan(c.start, prevEnd, "không chồng nhau")
+                prevEnd = c.start + c.duration
+                let sameDur = i > 0 && list[i - 1].duration == c.duration && c.start - (list[i - 1].start + c.duration) < 0.056
+                phrase = sameDur ? phrase + 1 : 1
+                XCTAssertLessThanOrEqual(phrase, 4)
+                if i + 1 == list.count || !(list[i + 1].duration == c.duration && list[i + 1].start - prevEnd < 0.056) {
+                    XCTAssertGreaterThanOrEqual(phrase, 2, "câu ít nhất 2 tiếng")
+                }
+            }
+        }
+    }
+
+    /// Bộ nốt (3 nhạc cụ) + bản nghe thử Nốt nhạc theo phím / Sáo trúc: tất định, độ dài, đỉnh, checksum chung Android.
+    func testNoteBankAndPitchedPreviews() {
+        let sr = KeySoundSynth.swipeSampleRate
+        XCTAssertTrue(KeySoundSynth.swipeLoopSamples(.notes).isEmpty)
+        XCTAssertEqual(KeySoundSynth.swipeNoteLength, Int(0.6 * sr))
+        for inst in KeyInstrument.allCases {
+            let bank = KeySoundSynth.swipeNoteBank(inst)
+            XCTAssertEqual(bank.count, 14)
+            var sum = 0.0
+            for x in bank {
+                XCTAssertEqual(x.count, KeySoundSynth.swipeNoteLength)
+                XCTAssertEqual(Double(x.map(abs).max() ?? 0), KeySoundSynth.swipeNotePeak, accuracy: 1e-6)
+                XCTAssertLessThan(abs(x[x.count - 1]), 1e-4, "đóng mềm")
+                sum += x.reduce(0.0) { $0 + Double(abs($1)) }
+            }
+            print("SWIPE-NOTES-GOLDEN \(inst.rawValue)=\(String(format: "%.4f", sum))")
+            XCTAssertEqual(sum, Self.noteBankGolden[inst]!, accuracy: 0.02, "checksum chung Android: \(inst)")
+            let p = KeySoundSynth.swipePreviewSamples(.notes, instrument: inst)
+            XCTAssertEqual(p, KeySoundSynth.swipeNotesPreview(inst))
+            XCTAssertEqual(p.count, Int((0.825 * sr).rounded()) + KeySoundSynth.swipeNoteLength)   // nốt cuối (t) ở 0,825 s
+            XCTAssertLessThan(Double(p.map(abs).max() ?? 0), 0.5)
+            let ps = p.reduce(0.0) { $0 + Double(abs($1)) }
+            print("SWIPE-NOTES-PREVIEW-GOLDEN \(inst.rawValue)=\(String(format: "%.4f", ps))")
+            XCTAssertEqual(ps, Self.notesPreviewGolden[inst]!, accuracy: 0.02)
+        }
+        let f = KeySoundSynth.swipePreviewSamples(.flute)
+        XCTAssertEqual(f, KeySoundSynth.swipeFlutePreview())
+        let lift = Int((KeySoundSynth.swipePreviewLift * sr).rounded())
+        XCTAssertEqual(f.count, max(Int(sr), lift + Int((SwipeSoundFx.fluteRelease * sr).rounded()) + 2))
+        XCTAssertLessThan(abs(f[0]), 1e-3, "mở từ 0")
+        XCTAssertEqual(f[f.count - 1], 0, "tắt dần hết sau fluteRelease")
+        XCTAssertLessThanOrEqual(Double(f.map(abs).max() ?? 0), KeySoundSynth.swipePeak(.flute) + 1e-6)
+        let fs = f.reduce(0.0) { $0 + Double(abs($1)) }
+        print("SWIPE-FLUTE-PREVIEW-GOLDEN \(String(format: "%.4f", fs))")
+        XCTAssertEqual(fs, Self.flutePreviewGolden, accuracy: 0.01)
     }
 
     // MARK: phát (bàn phím)
@@ -427,6 +625,51 @@ final class SwipeSoundTests: XCTestCase {
         s.shutdown(); s.debugDrain()
     }
 
+    /// Nốt nhạc theo phím: mỗi phím mới ⇒ một sự kiện (bậc, độ to) trong khối điều khiển; cùng phím ⇒ không; chưa có layout
+    /// ⇒ không gảy. Sáo trúc: tốc độ đọc đích theo vị trí ngang.
+    func testNotesAndFluteControl() {
+        let s = SwipeSound.shared
+        let c = SwipeKeyTracker.qwertyCenters(keyWidth: 36, rowHeight: 54)
+        func pt(_ ch: Character) -> (x: Double, y: Double) {
+            let k = Int(ch.asciiValue! - 97)
+            return (Double(c[2 * k]), Double(c[2 * k + 1]))
+        }
+        s.configure(style: .notes, volumePercent: 50, instrument: .piano)
+        s.setLayout(centers: c, keyWidth: 36)
+        XCTAssertTrue(s.debugHasLayout)
+        let n0 = s.debugNotes.count
+        let v = pt("v"), h = pt("h"), i = pt("i")
+        s.begin(x: v.x, y: v.y, t: 50)
+        XCTAssertEqual(s.debugNotes.count, n0 + 1, "phím bắt đầu cũng gảy")
+        XCTAssertEqual(s.debugNotes.step, 3)
+        XCTAssertEqual(s.debugNotes.gain, SwipeSoundFx.noteFloor, accuracy: 1e-9)
+        s.move(x: v.x + 3, y: v.y, t: 50.01)
+        XCTAssertEqual(s.debugNotes.count, n0 + 1, "cùng phím ⇒ một nốt")
+        s.move(x: h.x, y: h.y, t: 50.05)
+        XCTAssertEqual(s.debugNotes.count, n0 + 2); XCTAssertEqual(s.debugNotes.step, 7)
+        XCTAssertGreaterThan(s.debugNotes.gain, SwipeSoundFx.noteFloor, "đang đi nhanh ⇒ to hơn")
+        s.move(x: i.x, y: i.y, t: 50.1)
+        XCTAssertEqual(s.debugNotes.count, n0 + 3); XCTAssertEqual(s.debugNotes.step, 11)
+        let lifts = s.debugLift.count
+        s.end(liftAt: 50.1)
+        XCTAssertEqual(s.debugLift.count, lifts, "Nốt nhạc không có tiếng nhấc tay")
+        s.move(x: v.x, y: v.y, t: 50.2)
+        XCTAssertEqual(s.debugNotes.count, n0 + 3, "sau nhấc tay: bỏ qua")
+        s.debugDrain()
+        if s.debugHasEngine { XCTAssertEqual(s.debugBuiltStyle, .notes) }
+        // Sáo trúc.
+        s.configure(style: .flute, volumePercent: 50)
+        s.begin(x: 0, y: v.y, t: 60)
+        XCTAssertEqual(s.debugRate, SwipeSoundFx.fluteRate(0), accuracy: 1e-12)
+        s.move(x: 180, y: v.y, t: 60.05)
+        XCTAssertEqual(s.debugRate, 1, accuracy: 1e-12, "giữa bàn phím = cao độ gốc")
+        s.move(x: 360, y: v.y, t: 60.1)
+        XCTAssertEqual(s.debugRate, SwipeSoundFx.fluteRate(1), accuracy: 1e-12)
+        s.end()
+        s.shutdown(); s.debugDrain()
+        XCTAssertFalse(s.debugHasEngine)
+    }
+
     /// Chi phí main mỗi điểm vuốt (đo, không phải giả định): ≪ 1 µs — gõ vuốt không chậm đi.
     func testPerPointCostIsTiny() {
         let s = SwipeSound.shared
@@ -438,6 +681,16 @@ final class SwipeSoundTests: XCTestCase {
         let per = (CACurrentMediaTime() - t0) / Double(n) * 1e6
         print("SWIPE-SOUND-MOVE-COST \(String(format: "%.3f", per)) µs/điểm")
         XCTAssertLessThan(per, 2.0)
+        s.end()
+        // Nốt nhạc theo phím: + dò phím O(1) mỗi điểm (đi qua lại cả hàng phím).
+        s.configure(style: .notes, volumePercent: 50)
+        s.setLayout(centers: SwipeKeyTracker.qwertyCenters(keyWidth: 36, rowHeight: 54), keyWidth: 36)
+        s.begin(x: 0, y: 81, t: 0)
+        let t1 = CACurrentMediaTime()
+        for i in 0..<n { s.move(x: Double(i % 360), y: 81, t: Double(i) / 120) }
+        let per2 = (CACurrentMediaTime() - t1) / Double(n) * 1e6
+        print("SWIPE-SOUND-NOTES-MOVE-COST \(String(format: "%.3f", per2)) µs/điểm")
+        XCTAssertLessThan(per2, 4.0, "bản Debug không tối ưu; Release nhỏ hơn nhiều")
         s.end()
         s.shutdown(); s.debugDrain()
     }

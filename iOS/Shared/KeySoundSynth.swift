@@ -602,6 +602,19 @@ enum KeySoundSynth {
     //   Plasma "víu" 180 ms: sine quét mũ 300 → 1400 Hz (+ 2× 0,3), vỏ sin², chút nhiễu. Đỉnh 0,40.
     //   Đũa phép 340 ms: 5 nốt đi lên C7 D7 E7 G7 A7 cách 40 ms, τ80 ms. Đỉnh 0,40.
     //   Đóng 12 ms cuối (nửa cos). Seed riêng ("wcrk", "ltzp", "plzw", "wgls").
+    // Đợt 2 (11/2026):
+    //   Sáo trúc (1,2 s): tiếng sáo ở D5 (587,5 Hz = 705 chu kỳ/vòng) + bồi 2× 0,18, 3× 0,06, rung 5 Hz ±0,5 %, lắc 0,94 +
+    //     0,06·sin (3) + hơi thở nhiễu hp 1,5 kHz → lp 2 cực 5 kHz × 0,5 (× 0,7 + 0,3·sin pha). Đỉnh 0,20. Bàn phím đọc vòng
+    //     này nhanh/chậm theo vị trí ngón (SwipeSoundFx.fluteRate) ⇒ cao độ trượt theo ngón.
+    //   Sóng biển (1,4 s): thân "ào" hp 100 → lp 2 cực 650 Hz × (0,55 + 0,45·sin²(πt/L)) + bọt hp 1,2 → lp 2 cực 3,5 kHz × 0,5 ×
+    //     (0,3 + 0,7·sin²(πt/L + 0,5)). Đỉnh 0,30.
+    //   Mèo kêu (1,2 s): tiếng "rừ" khẽ — nhiễu hp 120 → lp 2 cực 600 Hz × nhịp 25 Hz (0,25 + 0,75·p³) × thở 0,65 + 0,35·sin².
+    //     Đỉnh 0,20.
+    //   Chim hót (1,4 s): nền lá xào xạc (hp 2,5 → lp 2 cực 6,5 kHz × 0,12) + các câu hót thưa (birdChirps "chrp", câu cách
+    //     0,18–0,48 s); lớp hót dày (birdChirps "chr2", câu cách 0,04–0,14 s, không nền, đỉnh 0,16) phát × âm lượng².
+    //   Tiếng nhấc tay: Sóng biển = con sóng theme Biển (surfSamples) từ ngay trước lúc vỡ, ~0,52 s, đỉnh 0,40; Mèo kêu "meo"
+    //     480 ms (formant), đỉnh 0,40; Chim hót "láy" 300 ms, đỉnh 0,36.
+    //   Nốt nhạc theo phím: không vòng lặp — swipeNoteSamples (nốt nhạc cụ âm phím cắt 0,6 s).
     // "Âm của bạn" (custom) không có công thức: hàm ở đây trả Bút chì (vòng dự phòng); file thật — SwipeSoundCustom.
 
     static func swipeLoopSeconds(_ s: SwipeSoundStyle) -> Double {
@@ -615,6 +628,11 @@ enum KeySoundSynth {
         case .lightning: return 1.2
         case .plasma: return 1.2
         case .wand: return 1.4
+        case .notes: return 0
+        case .flute: return 1.2
+        case .waves: return 1.4
+        case .cat: return 1.2
+        case .birds: return 1.4
         }
     }
 
@@ -629,10 +647,16 @@ enum KeySoundSynth {
         case .lightning: return 0.30
         case .plasma: return 0.28
         case .wand: return 0.22
+        case .notes: return 0
+        case .flute: return 0.20
+        case .waves: return 0.30
+        case .cat: return 0.20
+        case .birds: return 0.22
         }
     }
 
-    /// Seed cố định theo tên ("pncl", "brsh", "chlk", "mrkr", "whip", "ltng", "plsm", "wand") — không theo vị trí case.
+    /// Seed cố định theo tên ("pncl", "brsh", "chlk", "mrkr", "whip", "ltng", "plsm", "wand", "flut", "wave", "purr",
+    /// "brds") — không theo vị trí case.
     static func swipeSeed(_ s: SwipeSoundStyle) -> UInt32 {
         switch s {
         case .none: return 0
@@ -644,10 +668,15 @@ enum KeySoundSynth {
         case .lightning: return 0x6C74_6E67
         case .plasma: return 0x706C_736D
         case .wand: return 0x7761_6E64
+        case .notes: return 0
+        case .flute: return 0x666C_7574
+        case .waves: return 0x7761_7665
+        case .cat: return 0x7075_7272
+        case .birds: return 0x6272_6473
         }
     }
 
-    /// Đỉnh lớp hạt dày của Đũa phép.
+    /// Đỉnh lớp hạt dày của Đũa phép / lớp tiếng hót dày của Chim hót.
     static let swipeLayerPeak = 0.16
 
     /// MỘT vòng lặp liền mạch (22,05 kHz mono) của kiểu; Tắt ⇒ rỗng; Âm của bạn ⇒ Bút chì (dự phòng). Tất định —
@@ -658,10 +687,14 @@ enum KeySoundSynth {
         return swipeLoop(st, seed: swipeSeed(st), peak: swipePeak(st), layer: false)
     }
 
-    /// Lớp phát thêm × âm lượng² (dày lên khi vuốt nhanh) — chỉ Đũa phép; kiểu khác rỗng. Cùng độ dài vòng chính.
+    /// Lớp phát thêm × âm lượng² (dày lên khi vuốt nhanh) — Đũa phép (hạt chuông, seed "wnd2"), Chim hót (tiếng hót dày,
+    /// lịch "chr2"); kiểu khác rỗng. Cùng độ dài vòng chính.
     static func swipeLayerSamples(_ s: SwipeSoundStyle) -> [Float] {
-        guard s == .wand else { return [] }
-        return swipeLoop(s, seed: 0x776E_6432, peak: swipeLayerPeak, layer: true)
+        switch s {
+        case .wand: return swipeLoop(s, seed: 0x776E_6432, peak: swipeLayerPeak, layer: true)
+        case .birds: return swipeLoop(s, seed: swipeSeed(s), peak: swipeLayerPeak, layer: true)
+        default: return []
+        }
     }
 
     private static func swipeLoop(_ s: SwipeSoundStyle, seed: UInt32, peak target: Double, layer: Bool) -> [Float] {
@@ -739,7 +772,7 @@ enum KeySoundSynth {
         let pi = Double.pi
         var out = [Double](repeating: 0, count: n)
         switch s {
-        case .none, .custom: break
+        case .none, .custom, .notes: break
         case .pencil:
             let h = pole(2000), a = pole(5500)
             let gK = 1 - exp(-1 / (0.0015 * sr)), cD = exp(-1 / (0.0007 * sr))
@@ -866,6 +899,112 @@ enum KeySoundSynth {
         case .wand:
             out = layer ? swipeChimes(n, sr: sr, u: u, gapMin: 0.015, gapRange: 0.045, bed: 0)
                         : swipeChimes(n, sr: sr, u: u, gapMin: 0.04, gapRange: 0.12, bed: 0.25)
+        case .flute:
+            // Tần số gốc làm tròn để vòng có số chu kỳ NGUYÊN (705 chu kỳ / 1,2 s = 587,5 Hz) + rung 6 chu kỳ/vòng ⇒ pha
+            // tuần hoàn đúng một vòng: đoạn trộn nối vòng là hai bản cùng pha (không hụt tiếng).
+            let f0 = (587.33 * loopSec).rounded() / loopSec
+            let hb = pole(1500), ab = pole(5000)
+            var bi = 0.0, bo = 0.0, b1 = 0.0, b2 = 0.0, ph = 0.0
+            for i in 0..<n {
+                let t = Double(i) / sr
+                let x = 2 * u() - 1
+                bo = hb * (bo + x - bi); bi = x
+                b1 = (1 - ab) * bo + ab * b1; b2 = (1 - ab) * b1 + ab * b2
+                ph += 2 * pi * f0 * (1 + 0.005 * sin(2 * pi * 6 / loopSec * t)) / sr
+                let tone = sin(ph) + 0.18 * sin(2 * ph) + 0.06 * sin(3 * ph)
+                out[i] = tone * (0.94 + 0.06 * sin(2 * pi * 3 / loopSec * t)) + 0.5 * b2 * (0.7 + 0.3 * sin(ph))
+            }
+        case .waves:
+            let h1 = pole(100), a1 = pole(650), h2 = pole(1200), a2 = pole(3500)
+            var bi = 0.0, bo = 0.0, b1 = 0.0, b2 = 0.0, fi = 0.0, fo = 0.0, q1 = 0.0, q2 = 0.0
+            for i in 0..<n {
+                let t = Double(i) / sr
+                let x = 2 * u() - 1
+                bo = h1 * (bo + x - bi); bi = x
+                b1 = (1 - a1) * bo + a1 * b1; b2 = (1 - a1) * b1 + a1 * b2
+                fo = h2 * (fo + x - fi); fi = x
+                q1 = (1 - a2) * fo + a2 * q1; q2 = (1 - a2) * q1 + a2 * q2
+                let sw = sin(pi * t / loopSec), sf = sin(pi * t / loopSec + 0.5)
+                out[i] = b2 * (0.55 + 0.45 * sw * sw) + 0.5 * q2 * (0.3 + 0.7 * sf * sf)
+            }
+        case .cat:
+            let h = pole(120), a = pole(600)
+            var bi = 0.0, bo = 0.0, b1 = 0.0, b2 = 0.0
+            for i in 0..<n {
+                let t = Double(i) / sr
+                let x = 2 * u() - 1
+                bo = h * (bo + x - bi); bi = x
+                b1 = (1 - a) * bo + a * b1; b2 = (1 - a) * b1 + a * b2
+                let pl = 0.5 - 0.5 * cos(2 * pi * 25 * t)
+                let sb = sin(pi * t / loopSec)
+                out[i] = b2 * (0.25 + 0.75 * pl * pl * pl) * (0.65 + 0.35 * sb * sb)
+            }
+        case .birds:
+            if !layer {
+                let h = pole(2500), a = pole(6500)
+                var bi = 0.0, bo = 0.0, b1 = 0.0, b2 = 0.0
+                for i in 0..<n {
+                    let t = Double(i) / sr
+                    let x = 2 * u() - 1
+                    bo = h * (bo + x - bi); bi = x
+                    b1 = (1 - a) * bo + a * b1; b2 = (1 - a) * b1 + a * b2
+                    out[i] = 0.12 * b2 * (0.8 + 0.2 * sin(2 * pi * 2 / loopSec * t))
+                }
+            }
+            // Tiếng hót đặt theo giờ TRONG vòng (tính từ sau đoạn chạy trước) ⇒ không tiếng nào rơi vào chỗ nối.
+            let p = Int((swipePreroll * sr).rounded())
+            let chirps = layer ? birdChirps(seed: birdLayerSeed, loopSec: loopSec, gapMin: 0.04, gapRange: 0.10)
+                               : birdChirps(seed: birdSeed, loopSec: loopSec, gapMin: 0.18, gapRange: 0.30)
+            for c in chirps {
+                let s0 = p + Int(c.start * sr), m = Int(c.duration * sr)
+                var ph = 0.0
+                for j in 0..<m {
+                    if s0 + j >= n { break }
+                    let tau = Double(j) / sr
+                    ph += 2 * pi * c.f0 * pow(c.f1 / c.f0, tau / c.duration) / sr
+                    let e = sin(pi * tau / c.duration)
+                    out[s0 + j] += c.amp * e * e * (sin(ph) + 0.12 * sin(2 * ph))
+                }
+            }
+        }
+        return out
+    }
+
+    /// Một tiếng hót ngắn của Chim hót: quét tần số mũ f0 → f1 trong `duration` giây, vỏ sin², biên độ `amp`.
+    struct BirdChirp: Equatable {
+        let start: Double, duration: Double, f0: Double, f1: Double, amp: Double
+    }
+    static let birdSeed: UInt32 = 0x6368_7270        // "chrp"
+    static let birdLayerSeed: UInt32 = 0x6368_7232   // "chr2"
+    /// Không tiếng hót nào trong chừng này giây đầu/cuối vòng (chỗ nối chỉ còn nền lá xào xạc).
+    static let birdMargin = 0.1
+
+    /// Lịch tiếng hót trong MỘT vòng (thuần, tất định, = Android): từng câu 2–4 tiếng (35–70 ms, cách 25–55 ms) cùng
+    /// hướng quét (lên ×1,5 / xuống ×0,65, gốc 2,6–4,2 kHz, mỗi tiếng sau cao hơn 5 %), câu cách `gapMin` + `gapRange`·u;
+    /// mọi tiếng nằm trong [birdMargin, loopSec − birdMargin].
+    static func birdChirps(seed: UInt32, loopSec: Double, gapMin: Double, gapRange: Double) -> [BirdChirp] {
+        var state = seed
+        func u() -> Double {
+            state ^= state << 13; state ^= state >> 17; state ^= state << 5
+            return Double(state) / Double(UInt32.max)
+        }
+        var t = birdMargin + 0.5 * gapRange * u()
+        var out = [BirdChirp]()
+        while true {
+            let count = 2 + min(2, Int(u() * 3))
+            let base = 2600 + 1600 * u()
+            let up = u() < 0.5
+            let dur = 0.035 + 0.035 * u()
+            let gap = 0.025 + 0.03 * u()
+            let len = Double(count) * dur + Double(count - 1) * gap
+            if t + len > loopSec - birdMargin { break }
+            for c in 0..<count {
+                let amp = 0.6 + 0.4 * u()
+                let f0 = base * (1 + 0.05 * Double(c))
+                out.append(BirdChirp(start: t, duration: dur, f0: f0, f1: f0 * (up ? 1.5 : 0.65), amp: amp))
+                t += dur + gap
+            }
+            t += gapMin + gapRange * u()
         }
         return out
     }
@@ -878,6 +1017,9 @@ enum KeySoundSynth {
         case .lightning: cfg = (0.22, 0.50, 0x6C74_7A70)
         case .plasma: cfg = (0.18, 0.40, 0x706C_7A77)
         case .wand: cfg = (0.34, 0.40, 0x7767_6C73)
+        case .waves: return swipeSettleWave()
+        case .cat: cfg = (0.48, 0.34, 0x6D65_6F77)
+        case .birds: cfg = (0.30, 0.36, 0x7472_6C6C)
         default: return []
         }
         let dur = cfg.dur, target = cfg.target
@@ -941,9 +1083,48 @@ enum KeySoundSynth {
                 }
                 out[i] = v
             }
+        case .cat:
+            // "Meo" hoạt hình: nguồn hoạ âm (Chebyshev, ≤ 12 bậc dưới 5 kHz, nghiêng 1/k^0,6) qua 3 formant trượt i → a → u
+            // (F1 350 → 850 → 350, F2 2300 → 900, F3 3200); f0 520 → ~740 → 440 Hz + rung 6 Hz lớn dần; mở 40 ms, đóng 30 % cuối.
+            var ph = 0.0
+            for i in 0..<n {
+                let t = Double(i) / sr, uu = t / dur
+                let f0 = (520 + 260 * sin(pi * uu) - 80 * uu) * (1 + 0.015 * sin(2 * pi * 6 * t) * uu)
+                ph += 2 * pi * f0 / sr
+                let f1 = 350 + 500 * sin(pi * uu), f2 = 2300 - 1400 * uu
+                var env = t < 0.04 ? 0.5 - 0.5 * cos(pi * t / 0.04) : 1
+                if uu > 0.7 { env *= 0.5 + 0.5 * cos(pi * (uu - 0.7) / 0.3) }
+                let c2 = 2 * cos(ph)
+                var prev = 0.0, cur = sin(ph), acc = 0.0
+                for k in 1...12 {
+                    let fk = Double(k) * f0
+                    if fk >= 5000 { break }
+                    if k > 1 { let nx = c2 * cur - prev; prev = cur; cur = nx }
+                    let d1 = (fk - f1) / 130, d2 = (fk - f2) / 200, d3 = (fk - 3200) / 300
+                    acc += (1 / (1 + d1 * d1) + 0.7 / (1 + d2 * d2) + 0.25 / (1 + d3 * d3)) / pow(Double(k), 0.6) * cur
+                }
+                out[i] = env * acc
+            }
+        case .birds:
+            // Láy: tần số trượt 3,9 → 3,0 kHz, rung ±12 % 24 Hz, biên độ đập 24 Hz, mở 10 ms tắt τ150 ms.
+            var ph = 0.0
+            for i in 0..<n {
+                let t = Double(i) / sr
+                let f = (3900 - 900 * (t / dur)) * (1 + 0.12 * sin(2 * pi * 24 * t))
+                ph += 2 * pi * f / sr
+                let am = 0.5 - 0.5 * cos(2 * pi * 24 * t)
+                out[i] = am * min(1, t / 0.01) * exp(-t / 0.15) * (sin(ph) + 0.1 * sin(2 * ph))
+            }
         default: break
         }
-        let fo = Int((0.012 * sr).rounded())
+        return swipeLiftFinish(out, target: target)
+    }
+
+    /// Đóng 12 ms cuối (nửa cos) + chuẩn hoá đỉnh — chung mọi tiếng nhấc tay.
+    private static func swipeLiftFinish(_ x: [Double], target: Double) -> [Float] {
+        var out = x
+        let n = out.count, pi = Double.pi
+        let fo = Int((0.012 * swipeSampleRate).rounded())
         var peak = 0.0
         for i in 0..<n {
             let fe = n - 1 - i
@@ -952,6 +1133,122 @@ enum KeySoundSynth {
         }
         let norm = peak > 0 ? target / peak : 0
         return out.map { Float($0 * norm) }
+    }
+
+    /// Sóng biển — tiếng nhấc tay: DÙNG LẠI con sóng của theme Biển (surfSamples, cùng 22,05 kHz) từ ngay trước lúc vỡ
+    /// (`swipeSettleFrom` 1,08 s) tới hết: sóng vỡ rồi rút xì xào ~0,52 s; mở 25 ms nửa cos. Đỉnh 0,40.
+    static let swipeSettleFrom = 1.08
+    private static func swipeSettleWave() -> [Float] {
+        let x = surfSamples()
+        let i0 = Int((swipeSettleFrom * swipeSampleRate).rounded()), fi = Int((0.025 * swipeSampleRate).rounded())
+        var out = [Double](repeating: 0, count: x.count - i0)
+        for i in 0..<out.count {
+            var v = Double(x[i0 + i])
+            if i < fi { v *= 0.5 - 0.5 * cos(Double.pi * Double(i) / Double(fi)) }
+            out[i] = v
+        }
+        return swipeLiftFinish(out, target: 0.40)
+    }
+
+    // MARK: Nốt nhạc theo phím + Sáo trúc (bản nghe thử)
+    // Nốt: nốt thường của nhạc cụ (KeyInstrument.note — Piano / Đàn tranh / Ghi-ta, CÙNG bộ tổng hợp âm phím) cắt còn
+    // `swipeNoteDuration` (0,6 s), đóng 150 ms cuối nửa cos, chuẩn hoá đỉnh `swipeNotePeak` 0,26 (nhỏ hơn nốt âm phím; nhiều
+    // nốt chồng nhau khi vuốt nhanh). 14 bậc (SwipeNoteMap) ⇒ ~0,74 MB Float32 mỗi nhạc cụ, dựng lười ở cú vuốt đầu.
+    static let swipeNoteDuration = 0.6
+    static let swipeNoteFade = 0.15
+    static let swipeNotePeak = 0.26
+    static var swipeNoteLength: Int { Int((swipeNoteDuration * swipeSampleRate).rounded()) }
+
+    /// Nốt bậc `step` (0…13) của nhạc cụ, đã cắt/đóng/chuẩn hoá. Tất định — checksum chung Android.
+    static func swipeNoteSamples(_ inst: KeyInstrument, step: Int) -> [Float] {
+        let x = inst.note(SwipeNoteMap.midi(step: step, scale: inst.map.scale))
+        let n = swipeNoteLength, f = Int((swipeNoteFade * swipeSampleRate).rounded())
+        var out = [Double](repeating: 0, count: n)
+        var pk = 0.0
+        for i in 0..<min(n, x.count) {
+            var v = Double(x[i])
+            let fe = n - 1 - i
+            if fe < f { v *= 0.5 - 0.5 * cos(Double.pi * Double(fe) / Double(f)) }
+            out[i] = v
+            pk = max(pk, abs(v))
+        }
+        let g = pk > 0 ? swipeNotePeak / pk : 0
+        return out.map { Float($0 * g) }
+    }
+
+    /// Cả 14 nốt (chỉ số = bậc).
+    static func swipeNoteBank(_ inst: KeyInstrument) -> [[Float]] { (0..<SwipeNoteMap.steps).map { swipeNoteSamples(inst, step: $0) } }
+
+    /// Nét vuốt mẫu của bản nghe thử: chữ "viet" trên QWERTY chuẩn (phím 36 × hàng 54), đi đều 120 điểm/giây trong
+    /// `swipePreviewLift` giây. Trả tâm phím + các điểm (x, y, giây).
+    static let swipeDemoWord = "viet"
+    static func swipeDemoPath() -> (centers: [Float], keyWidth: Float, points: [(x: Double, y: Double, t: Double)]) {
+        let kw: Float = 36, c = SwipeKeyTracker.qwertyCenters(keyWidth: kw, rowHeight: 54)
+        let wp = swipeDemoWord.unicodeScalars.map { ch -> (Double, Double) in
+            let k = Int(ch.value) - 97
+            return (Double(c[2 * k]), Double(c[2 * k + 1]))
+        }
+        let seg = (0..<(wp.count - 1)).map { hypot(wp[$0 + 1].0 - wp[$0].0, wp[$0 + 1].1 - wp[$0].1) }
+        let total = seg.reduce(0, +)
+        let steps = Int(swipePreviewLift * 120)
+        var pts = [(x: Double, y: Double, t: Double)]()
+        for k in 0...steps {
+            var s = total * Double(k) / Double(steps)
+            var j = 0
+            while j < seg.count - 1 && s > seg[j] { s -= seg[j]; j += 1 }
+            let a = seg[j] > 0 ? min(1, s / seg[j]) : 0
+            pts.append((wp[j].0 + (wp[j + 1].0 - wp[j].0) * a, wp[j].1 + (wp[j + 1].1 - wp[j].1) * a, Double(k) / 120))
+        }
+        return (c, kw, pts)
+    }
+
+    /// Bản nghe thử Nốt nhạc theo phím: nét "viet" qua SwipeKeyTracker (cùng bộ dò phím với bàn phím) ⇒ v h i u y t r e r t,
+    /// mỗi nốt × `SwipeSoundFx.previewNoteGain`, ngân hết. Tất định — checksum chung Android.
+    static func swipeNotesPreview(_ inst: KeyInstrument) -> [Float] {
+        let d = swipeDemoPath()
+        guard var tr = SwipeKeyTracker(centers: d.centers, keyWidth: d.keyWidth) else { return [] }
+        var events = [(at: Int, step: Int)]()
+        for p in d.points {
+            let k = tr.feed(x: p.x, y: p.y)
+            if k >= 0 { events.append((Int((p.t * swipeSampleRate).rounded()), SwipeNoteMap.step(letter: k))) }
+        }
+        guard let lastAt = events.last?.at else { return [] }
+        let len = swipeNoteLength, g = SwipeSoundFx.previewNoteGain
+        var bank = [Int: [Float]]()
+        var out = [Double](repeating: 0, count: lastAt + len)
+        for e in events {
+            let x = bank[e.step] ?? swipeNoteSamples(inst, step: e.step)
+            bank[e.step] = x
+            for j in 0..<len { out[e.at + j] += Double(x[j]) * g }
+        }
+        return out.map { Float($0) }
+    }
+
+    /// Bản nghe thử Sáo trúc: vòng lặp đọc với tốc độ theo vị trí ngang của nét "viet" (SwipeSoundFx.fluteRate, trượt
+    /// τ glideTau, nội suy tuyến tính — y như render bàn phím), âm lượng theo đường cong tốc độ mẫu, tắt dần fluteRelease.
+    static func swipeFlutePreview() -> [Float] {
+        let loop = swipeLoopSamples(.flute), n0 = loop.count
+        let d = swipeDemoPath()
+        guard n0 > 0, let tr = SwipeKeyTracker(centers: d.centers, keyWidth: d.keyWidth) else { return [] }
+        let sr = swipeSampleRate
+        let lift = Int((swipePreviewLift * sr).rounded())
+        let n = max(Int((swipePreview * sr).rounded()), lift + Int((SwipeSoundFx.fluteRelease * sr).rounded()) + 2)
+        let kg = 1 - exp(-1 / (sr * SwipeSoundFx.glideTau))
+        var env = SwipeSoundEnvelope(step: 1 / sr, fade: SwipeSoundFx.fluteRelease)
+        var rate = SwipeSoundFx.fluteRate(tr.unitX(d.points[0].x)), pos = 0.0
+        let last = d.points.count - 1
+        var out = [Float](repeating: 0, count: n)
+        for i in 0..<n {
+            if i == lift { env.release() }
+            let g = env.next(SwipeSoundFx.speedGain(swipeDemoSpeed(Double(i) / sr)))
+            let j = min(last, Int(Double(i) / sr * 120))
+            rate += (SwipeSoundFx.fluteRate(tr.unitX(d.points[j].x)) - rate) * kg
+            let i0 = Int(pos), fr = pos - Double(i0)
+            out[i] = Float((Double(loop[i0]) * (1 - fr) + Double(loop[(i0 + 1) % n0]) * fr) * g)
+            pos += rate
+            if pos >= Double(n0) { pos -= Double(n0) }
+        }
+        return out
     }
 
     /// Tốc độ (pt/s) của nét vuốt mẫu ở giây `t`: lên nhanh, chậm lại ở 3 "phím", nhấc tay ở `swipePreviewLift`.
@@ -963,8 +1260,14 @@ enum KeySoundSynth {
 
     /// Bản nghe thử: vòng lặp × vỏ âm lượng y như lúc vuốt thật (cùng đường cong tốc độ + SwipeSoundEnvelope), lớp hạt dày
     /// × âm lượng², tiếng nhấc tay ở `swipePreviewLift` với độ to cố định `SwipeSoundFx.previewLiftGain`.
-    static func swipePreviewSamples(_ s: SwipeSoundStyle) -> [Float] {
-        swipePreview(loop: swipeLoopSamples(s), layer: swipeLayerSamples(s), lift: swipeLiftSamples(s))
+    /// Nốt nhạc theo phím: nét "viet" bằng nhạc cụ `instrument` (Âm thanh phím; không phải nhạc cụ ⇒ Đàn tranh).
+    /// Sáo trúc: cao độ theo nét "viet".
+    static func swipePreviewSamples(_ s: SwipeSoundStyle, instrument: KeyInstrument = .dantranh) -> [Float] {
+        switch s {
+        case .notes: return swipeNotesPreview(instrument)
+        case .flute: return swipeFlutePreview()
+        default: return swipePreview(loop: swipeLoopSamples(s), layer: swipeLayerSamples(s), lift: swipeLiftSamples(s))
+        }
     }
 
     /// Bản nghe thử từ vòng lặp cho sẵn ("Âm của bạn": vòng từ file). `loop` rỗng ⇒ rỗng.

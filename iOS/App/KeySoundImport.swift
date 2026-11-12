@@ -169,11 +169,13 @@ final class KeyFeedbackPreview {
             sessionReady = true
         }
         // Âm của bạn: dựng lại mỗi lần (file có thể vừa đổi); vắng/hỏng ⇒ Bút chì như bàn phím.
-        let key = s == .custom ? "swipe/custom/\(UUID())" : "swipe/" + s.rawValue
+        // Nốt nhạc theo phím: nhạc cụ của Âm thanh phím (không phải nhạc cụ ⇒ Đàn tranh) — như bàn phím.
+        let inst = KeyInstrument.of(UserDefaults(suiteName: AppFlavor.appGroup)?.string(forKey: "keySoundStyle")) ?? .dantranh
+        let key = s == .custom ? "swipe/custom/\(UUID())" : "swipe/" + s.rawValue + (s.isNotes ? "/" + inst.rawValue : "")
         if key != playerKey || player == nil {
             let samples = s == .custom
                 ? KeySoundSynth.swipePreview(loop: SwipeSoundCustom.resolvedLoop(SwipeSoundCustom.load(SwipeSoundCustom.fileURL)))
-                : KeySoundSynth.swipePreviewSamples(s)
+                : KeySoundSynth.swipePreviewSamples(s, instrument: inst)
             player = try? AVAudioPlayer(data: KeySoundSynth.wav(samples, sampleRate: Int(KeySoundSynth.swipeSampleRate)))
             player?.prepareToPlay()
             playerKey = key

@@ -7551,8 +7551,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         swipeCase = shift == .caps ? .upper : (shift == .on ? .capitalized : .lower)
         onSwipeBegan?()
         if let s = Self.swipeSound, let path = swipePath, path.count > 0 {
-            let j = path.count - 1
-            s.begin(x: Double(path.xs[j]), y: Double(path.ys[j]), t: path.ts[j])
+            // Từ điểm chạm đầu, đưa nốt các điểm đã có: Nốt nhạc theo phím gảy cả phím bắt đầu + phím đi qua lúc phân loại.
+            s.begin(x: Double(path.xs[0]), y: Double(path.ys[0]), t: path.ts[0])
+            for j in 1..<path.count { s.move(x: Double(path.xs[j]), y: Double(path.ys[j]), t: path.ts[j]) }
         }
         guard trailStyle != .none else { return }
         let t = trail ?? SwipeTrailRenderer()
