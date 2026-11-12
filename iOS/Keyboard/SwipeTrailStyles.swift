@@ -1,5 +1,5 @@
 // "Hiệu ứng nét vuốt" (Gõ vuốt → Hiệu ứng nét vuốt): Tắt, Đơn giản (mặc định, vệt cũ), Lửa, Điện, Bút lông,
-// Cầu vồng, Neon, Bụi sao, Pháo hoa cuối nét, Plasma, Theo giao diện. "Tắt" + "Đơn giản" miễn phí; còn lại Plus —
+// Cầu vồng, Neon, Bụi sao, Pháo hoa cuối nét, Plasma, Ảo ảnh, Tan chảy, Vệt lặp, Theo giao diện. "Tắt" + "Đơn giản" miễn phí; còn lại Plus —
 // chưa có Plus ⇒ vẽ "Đơn giản" (giá trị lưu giữ nguyên). Song sinh android/keyboard/.../SwipeTrailStyle.kt
 // (cùng khoá `swipeTrail`, cùng id, cùng hàm thuần: nhiễu tia điện, độ dày bút lông, quỹ đạo hạt).
 //
@@ -10,11 +10,15 @@
 //  • Hạt (Lửa, Bụi sao, Pháo hoa): pool ≤ 24 layer dựng lúc cấu hình, sinh tối đa mỗi N điểm; bắn = đổi
 //    position + beginTime (render server chạy animation) — không cấp phát mỗi lần di chuyển.
 //  • Vệt tắt hẳn ⇒ settle(): gỡ mọi animation (nhấp nháy điện, mờ dần, hạt) — 0 animation chạy khi nghỉ.
+//  • Ảo ảnh / Tan chảy / Vệt lặp (nặng nhất): vẫn MỘT path. Ảo ảnh = 5 bản xoay của CÙNG path qua
+//    CAReplicatorLayer (không dựng 6 path), màu = MỘT gradient nón xoay trên render server; Tan chảy = đổi màu
+//    + "thở" bằng animation CA (strokeColor / lineWidth); Vệt lặp = 3 lớp bóng dùng chung path, dời bằng
+//    transform. Mọi animation lặp gắn lúc begin, gỡ lúc settle.
 import UIKit
 
 /// Kiểu nét vuốt (giá trị lưu App Group / sao lưu = rawValue).
 enum SwipeTrailStyle: String, CaseIterable {
-    case none, simple, fire, electric, brush, rainbow, neon, stardust, firework, plasma, theme
+    case none, simple, fire, electric, brush, rainbow, neon, stardust, firework, plasma, kaleidoscope, melt, chroma, theme
 
     static let key = "swipeTrail"
     static let defaultValue: SwipeTrailStyle = .simple
@@ -45,6 +49,9 @@ enum SwipeTrailStyle: String, CaseIterable {
         case .stardust: return L("Bụi sao")
         case .firework: return L("Pháo hoa cuối nét")
         case .plasma: return L("Plasma")
+        case .kaleidoscope: return L("Ảo ảnh")
+        case .melt: return L("Tan chảy")
+        case .chroma: return L("Vệt lặp")
         case .theme: return L("Theo giao diện")
         }
     }
@@ -58,6 +65,7 @@ enum SwipeTrailStyle: String, CaseIterable {
         case .fire: return 3
         case .stardust: return 4
         case .plasma: return 5
+        case .melt: return 4
         default: return 0
         }
     }
@@ -91,6 +99,22 @@ enum SwipeTrailStyle: String, CaseIterable {
             return [SwipeTrailStroke(width: w * 2.4, argb: 0x59B4_4CFF),
                     SwipeTrailStroke(width: w * 1.1, argb: 0xBFC7_7DFF),
                     SwipeTrailStroke(width: w * 0.4, argb: 0xFFF3_E0FF)]
+        case .kaleidoscope:
+            // Nhánh xoay (mảnh, mờ — nét thật vẫn dễ đọc) dưới nét thật tô bánh xe màu, lõi trắng trên cùng.
+            return [SwipeTrailStroke(width: w * 0.6, argb: 0x73FF_FFFF, kind: .mirror),
+                    SwipeTrailStroke(width: w * 1.3, argb: 0xFFFF_FFFF, kind: .conic),
+                    SwipeTrailStroke(width: w * 0.35, argb: 0xD9FF_FFFF)]
+        case .melt:
+            // 3 đoạn cũ → mới (SwipeTrailFx.meltSegments): đoạn cũ mờ hơn. Màu + bề rộng đổi theo thời gian.
+            return [0.45, 0.75, 1.0].map {
+                SwipeTrailStroke(width: w * 1.5, argb: alpha(SwipeTrailFx.hueWheel[0], $0), kind: .melt)
+            }
+        case .chroma:
+            // 3 bóng đỏ / lục / lam lệch nhau (SwipeTrailFx.chromaShift) dưới nét chính màu vệt theme.
+            return [SwipeTrailStroke(width: w * 1.1, argb: 0x99FF_2D55, kind: .ghost),
+                    SwipeTrailStroke(width: w * 1.1, argb: 0x9930_D158, kind: .ghost),
+                    SwipeTrailStroke(width: w * 1.1, argb: 0x990A_84FF, kind: .ghost),
+                    SwipeTrailStroke(width: w * 0.6, argb: trail)]
         }
     }
 
@@ -101,13 +125,16 @@ enum SwipeTrailStyle: String, CaseIterable {
         case .stardust: return [0xFFC93C, accent & 0xFFFFFF, 0xFFE7A0]
         case .firework: return [accent & 0xFFFFFF, 0xFFC93C, 0xFF5E7E, 0x4FC3F7]
         case .plasma: return [0xB44CFF, 0xE0B0FF, 0xF3E0FF]
+        case .melt: return [SwipeTrailFx.hueWheel[0], SwipeTrailFx.hueWheel[2], SwipeTrailFx.hueWheel[4]]
         default: return []
         }
     }
 }
 
 struct SwipeTrailStroke: Equatable {
-    enum Kind { case stroke, fill, gradient }
+    /// conic = nét tô bánh xe màu (Ảo ảnh), mirror = nhánh xoay quanh tâm vùng phím (Ảo ảnh), melt = một đoạn
+    /// của nét Tan chảy (thứ tự = đoạn trong meltSegments), ghost = bóng lệch màu (Vệt lặp, thứ tự = chromaAngles).
+    enum Kind { case stroke, fill, gradient, conic, mirror, melt, ghost }
     /// pt (iOS) / dp (Android). Bút lông (fill) = 0: bề rộng theo tốc độ (SwipeTrailFx.brushWidth).
     var width: Double
     var argb: UInt32
@@ -165,6 +192,49 @@ enum SwipeTrailFx {
     /// Mờ dần lúc nhấc tay (giây).
     static let fade = 0.2
 
+    /// Bánh xe màu (RGB) — Ảo ảnh (gradient nón quanh tâm) + Tan chảy (đổi màu theo thời gian). Mốc cuối = mốc
+    /// đầu (khép vòng), các mốc cách đều.
+    static let hueWheel: [UInt32] = [0xFF4D6D, 0xFFB84D, 0xE8FF4D, 0x4DFF88, 0x4DD8FF, 0x6B5BFF, 0xE04DFF, 0xFF4D6D]
+    /// Ảo ảnh: số nhánh đối xứng xoay (gồm nét thật) quanh TÂM VÙNG PHÍM; một vòng xoay bánh xe màu (giây).
+    static let kaleidoBranches = 6
+    static let kaleidoHuePeriod = 4.0
+    /// Tan chảy: một vòng màu (giây, chậm); chu kỳ "thở" (giây) + biên độ (× bề rộng); đuôi chảy xuống tối đa
+    /// (pt / dp); mốc chia 3 đoạn cũ → mới theo chiều dài nét (đoạn cũ mờ hơn).
+    static let meltHuePeriod = 6.0
+    static let meltBreathPeriod = 1.2
+    static let meltBreathAmp = 0.3
+    static let meltDrip = 7.0
+    static let meltSegments: [Double] = [0, 0.35, 0.7, 1]
+    /// Vệt lặp: độ lệch bóng lúc vuốt / lúc tan hẳn (pt / dp), thời gian bóng trôi + mờ sau nhấc tay (giây),
+    /// hướng lệch từng bóng (độ; đỏ lên trên, lục dưới phải, lam dưới trái — cách đều 120°).
+    static let chromaOffset = 2.5
+    static let chromaDrift = 8.0
+    static let chromaFade = 0.45
+    static let chromaAngles: [Double] = [-90, 30, 150]
+
+    /// Màu bánh xe ở tỉ lệ f (vòng tròn: f lấy phần lẻ) — nội suy tuyến tính giữa các mốc (= keyframes CA).
+    static func cycleColor(_ f: Double) -> UInt32 {
+        let n = hueWheel.count - 1
+        var u = f - f.rounded(.down)
+        if u < 0 { u += 1 }
+        let x = u * Double(n)
+        let k = min(n - 1, Int(x))
+        return mix(hueWheel[k], hueWheel[k + 1], x - Double(k))
+    }
+    /// Hệ số bề rộng Tan chảy ở pha (số chu kỳ thở đã qua): 1 ± meltBreathAmp, hình sin.
+    static func meltBreath(_ phase: Double) -> Double { 1 + meltBreathAmp * sin(2 * .pi * phase) }
+    /// Độ chảy xuống (pt / dp) của điểm có tuổi u = tuổi / đuôi (0 = mới nhất, 1 = sắp hết): bậc hai.
+    static func meltSag(_ u: Double) -> Double {
+        let x = min(1, max(0, u))
+        return meltDrip * x * x
+    }
+    /// Độ lệch bóng i ở tiến độ trôi e (0 = đang vuốt, 1 = tan hẳn; đã qua easeOut).
+    static func chromaShift(_ i: Int, _ e: Double) -> (dx: Double, dy: Double) {
+        let d = chromaOffset + (chromaDrift - chromaOffset) * min(1, max(0, e))
+        let a = chromaAngles[i % chromaAngles.count] * .pi / 180
+        return (cos(a) * d, sin(a) * d)
+    }
+
     /// Nhiễu tia điện cho điểm `index` với `seed` (mỗi lần vẽ một seed ⇒ nhấp nháy) — −1…1, tất định.
     /// LCG 32-bit như FxRandom; Kotlin Int tràn số y hệt.
     static func jitter(seed: Int, index: Int) -> Double {
@@ -202,6 +272,7 @@ enum SwipeTrailFx {
         case .stardust: return 6
         case .firework: return fireworkCount
         case .plasma: return 6
+        case .melt: return 6
         default: return 0
         }
     }
@@ -226,6 +297,9 @@ enum SwipeTrailFx {
             let up = v % 2 == 0 ? -1.0 : 1.0
             return KeyEffectTrajectory(dx: t * 10, dy: up * (6 + Double(v % 3) * 3), scaleFrom: 1, scaleTo: 0.2,
                                        rotation: 0, duration: 0.32 + Double(v % 3) * 0.05)
+        case .melt:     // giọt nhỏ khỏi nét, rơi xuống rồi tan
+            return KeyEffectTrajectory(dx: t * 2, dy: 10 + Double(v % 3) * 4, scaleFrom: 1, scaleTo: 0.3,
+                                       rotation: 0, duration: 0.6 + Double(v % 3) * 0.08)
         default:
             return KeyEffectTrajectory(dx: 0, dy: 0, scaleFrom: 1, scaleTo: 1, rotation: 0, duration: 0)
         }
@@ -285,7 +359,18 @@ final class SwipeTrailRenderer {
     private var particleAnims: [CAAnimation] = []
     private var pool = KeyEffectPool(capacity: 1)
     private var spawner = SwipeTrailFx.Spawner(every: 0)
-    private var flicker: CAAnimation?
+    /// Animation lặp (nhấp nháy Điện/Plasma, xoay màu Ảo ảnh, đổi màu + thở Tan chảy): dựng ở configure, gắn
+    /// lúc begin, gỡ lúc huỷ / settle — chạy trên render server, main thread không làm gì mỗi khung.
+    private var loops: [(layer: CALayer, key: String, anim: CAAnimation)] = []
+    // Ảo ảnh: kaleidoRoot (mask = kaleidoMask) chứa bánh xe màu `hue`; mask = nét thật + replicator nhánh.
+    private var kaleidoRoot: CALayer?
+    private var kaleidoMask: CALayer?
+    private var hue: CAGradientLayer?
+    private var mirror: CAReplicatorLayer?
+    private var mirrorShape: CAShapeLayer?
+    // Vệt lặp: bóng nằm DƯỚI nhóm nét, mờ chậm hơn (chromaFade) nên tách nhóm riêng (chỉ gắn khi dùng).
+    private let ghostRoot = CALayer()
+    private var ghosts: [CAShapeLayer] = []
     private var seed = 0
     private var lastPoint: CGPoint?
     private var settleGen = 0
@@ -296,7 +381,7 @@ final class SwipeTrailRenderer {
     init() {
         layer.addSublayer(strokeRoot)
         layer.addSublayer(particleRoot)
-        for l in [layer, strokeRoot, particleRoot] { l.actions = Self.noActions }
+        for l in [layer, strokeRoot, particleRoot, ghostRoot] { l.actions = Self.noActions }
     }
 
     private static let noActions: [String: CAAction] = ["position": NSNull(), "bounds": NSNull(), "path": NSNull(),
@@ -317,7 +402,13 @@ final class SwipeTrailRenderer {
         gradient?.removeFromSuperlayer(); gradient = nil
         particles.forEach { $0.removeFromSuperlayer() }
         particles.removeAll(); particleAnims.removeAll()
-        flicker = nil
+        loops.removeAll()
+        kaleidoRoot?.removeFromSuperlayer()
+        kaleidoRoot = nil; kaleidoMask = nil; hue = nil; mirror = nil; mirrorShape = nil
+        ghosts.forEach { $0.removeFromSuperlayer() }
+        ghosts.removeAll()
+        if style == .chroma { layer.insertSublayer(ghostRoot, at: 0) } else { ghostRoot.removeFromSuperlayer() }
+        var meltIndex = 0
         for s in style.strokes(base: base, trail: trail.argb32, accent: accent.argb32 & 0xFFFFFF, dark: dark) {
             let l = CAShapeLayer()
             l.actions = Self.noActions
@@ -346,6 +437,48 @@ final class SwipeTrailRenderer {
                 g.mask = l
                 strokeRoot.addSublayer(g)
                 gradient = g
+            case .conic, .mirror:
+                // Mask chỉ dùng kênh alpha: nét trắng có alpha của kiểu, màu lấy từ bánh xe `hue` bên dưới.
+                l.fillColor = nil
+                l.lineWidth = CGFloat(s.width)
+                l.strokeColor = UIColor(argb: s.argb).cgColor
+                buildKaleido()
+                if s.kind == .conic {
+                    kaleidoMask?.addSublayer(l)
+                } else {
+                    // Nhánh đầu xoay sẵn 60°, replicator nhân thêm bản, mỗi bản xoay tiếp 60° (cùng path).
+                    l.transform = Self.branchTurn
+                    mirror?.addSublayer(l)
+                    mirrorShape = l
+                }
+            case .melt:
+                l.fillColor = nil
+                l.lineWidth = CGFloat(s.width)
+                l.strokeColor = UIColor(argb: s.argb).cgColor
+                let seg = SwipeTrailFx.meltSegments
+                l.strokeStart = CGFloat(seg[min(meltIndex, seg.count - 2)])
+                l.strokeEnd = CGFloat(seg[min(meltIndex + 1, seg.count - 1)])
+                l.lineCap = .butt     // đầu tròn chồng nhau ⇒ cục sáng ở chỗ nối đoạn
+                meltIndex += 1
+                strokeRoot.addSublayer(l)
+                let breath = CAKeyframeAnimation(keyPath: "lineWidth")
+                breath.values = (0...8).map { s.width * SwipeTrailFx.meltBreath(Double($0) / 8) }
+                breath.calculationMode = .cubic
+                breath.duration = SwipeTrailFx.meltBreathPeriod
+                breath.repeatCount = .infinity
+                let tint = CAKeyframeAnimation(keyPath: "strokeColor")
+                tint.values = SwipeTrailFx.hueWheel.map { UIColor(argb: (s.argb & 0xFF00_0000) | $0).cgColor }
+                tint.duration = SwipeTrailFx.meltHuePeriod
+                tint.repeatCount = .infinity
+                loops.append((l, "breath", breath))
+                loops.append((l, "tint", tint))
+            case .ghost:
+                l.fillColor = nil
+                l.lineWidth = CGFloat(s.width)
+                l.strokeColor = UIColor(argb: s.argb).cgColor
+                l.transform = Self.ghostTransform(ghosts.count, 0)
+                ghostRoot.addSublayer(l)
+                ghosts.append(l)
             }
             strokeLayers.append(l)
         }
@@ -354,12 +487,43 @@ final class SwipeTrailRenderer {
             f.values = [1, 0.55, 1, 0.8, 0.45, 1]
             f.duration = 0.22
             f.repeatCount = .infinity
-            flicker = f
+            loops.append((strokeRoot, "flicker", f))
         }
         if style.usesParticles { buildParticles(accent: accent.argb32 & 0xFFFFFF) }
         pool = KeyEffectPool(capacity: max(1, particles.count))
         spawner = SwipeTrailFx.Spawner(every: style.spawnEvery)
         CATransaction.commit()
+    }
+
+    private static let branchTurn = CATransform3DMakeRotation(2 * .pi / CGFloat(SwipeTrailFx.kaleidoBranches), 0, 0, 1)
+
+    private static func ghostTransform(_ i: Int, _ e: Double) -> CATransform3D {
+        let d = SwipeTrailFx.chromaShift(i, e)
+        return CATransform3DMakeTranslation(CGFloat(d.dx), CGFloat(d.dy), 0)
+    }
+
+    /// Ảo ảnh: dựng MỘT lần — bánh xe màu (gradient nón) + mask chứa nét thật và replicator nhánh.
+    private func buildKaleido() {
+        guard kaleidoRoot == nil else { return }
+        let root = CALayer(), mask = CALayer(), rep = CAReplicatorLayer(), g = CAGradientLayer()
+        for l in [root, mask, rep, g] as [CALayer] { l.actions = Self.noActions }
+        g.type = .conic
+        g.colors = SwipeTrailFx.hueWheel.map { UIColor(argb: 0xFF00_0000 | $0).cgColor }
+        g.startPoint = CGPoint(x: 0.5, y: 0.5)
+        g.endPoint = CGPoint(x: 1, y: 0.5)
+        rep.instanceCount = SwipeTrailFx.kaleidoBranches - 1
+        rep.instanceTransform = Self.branchTurn      // quanh tâm replicator = tâm vùng phím
+        mask.addSublayer(rep)
+        root.addSublayer(g)
+        root.mask = mask
+        strokeRoot.addSublayer(root)
+        let spin = CABasicAnimation(keyPath: "transform.rotation.z")
+        spin.fromValue = 0
+        spin.toValue = 2 * Double.pi
+        spin.duration = SwipeTrailFx.kaleidoHuePeriod
+        spin.repeatCount = .infinity
+        loops.append((g, "spin", spin))
+        kaleidoRoot = root; kaleidoMask = mask; mirror = rep; hue = g
     }
 
     private func buildParticles(accent: UInt32) {
@@ -445,10 +609,24 @@ final class SwipeTrailRenderer {
         // Trước đây frame = bounds nhưng gốc bounds 0 ⇒ vệt vẽ lệch lên đúng phần dư.
         Self.share(layer, bounds); Self.share(strokeRoot, bounds); Self.share(particleRoot, bounds)
         if let g = gradient { Self.share(g, bounds) }   // gradient dựng lại (đổi kiểu) sau lần begin trước
+        // Ảo ảnh: mọi lớp phủ vùng phím ⇒ nhánh / replicator xoay quanh TÂM VÙNG PHÍM; bánh xe màu là hình
+        // vuông cạnh = đường chéo (xoay không lộ góc trống).
+        for l in [kaleidoRoot, kaleidoMask, mirror, mirrorShape] as [CALayer?] { if let l { Self.share(l, bounds) } }
+        if let g = hue {
+            let d = (bounds.width * bounds.width + bounds.height * bounds.height).squareRoot()
+            g.bounds = CGRect(x: 0, y: 0, width: d, height: d)
+            g.position = CGPoint(x: bounds.midX, y: bounds.midY)
+        }
+        if !ghosts.isEmpty {
+            Self.share(ghostRoot, bounds)
+            ghostRoot.removeAnimation(forKey: "fade")
+            ghostRoot.opacity = 1
+            for (i, g) in ghosts.enumerated() { g.removeAnimation(forKey: "drift"); g.transform = Self.ghostTransform(i, 0) }
+        }
         strokeRoot.removeAnimation(forKey: "fade")
         strokeRoot.opacity = 1
         for l in strokeLayers { l.path = nil }
-        if let f = flicker { strokeRoot.add(f, forKey: "flicker") }
+        for x in loops { x.layer.add(x.anim, forKey: x.key) }
         CATransaction.commit()
     }
 
@@ -504,9 +682,13 @@ final class SwipeTrailRenderer {
             let jag = style == .electric || style == .plasma
             if jag { seed &+= 1 }
             let amp = CGFloat(style == .plasma ? SwipeTrailFx.plasmaAmplitude : SwipeTrailFx.electricAmplitude)
+            // Tan chảy: điểm càng cũ (so với điểm mới nhất) càng chảy xuống.
+            let melt = style == .melt
+            let newest = ts[(head + count - 1) % Self.cap]
             for k in 0..<count {
                 let i = (head + k) % Self.cap
                 var p = CGPoint(x: xs[i], y: ys[i])
+                if melt { p.y += CGFloat(SwipeTrailFx.meltSag((newest - ts[i]) / Self.tail)) }
                 if jag, k > 0, k < count - 1 {
                     let a = (head + k - 1) % Self.cap, b = (head + k + 1) % Self.cap
                     let dx = xs[b] - xs[a], dy = ys[b] - ys[a]
@@ -562,12 +744,28 @@ final class SwipeTrailRenderer {
         CATransaction.setDisableActions(true)
         if reduceMotion {
             for l in strokeLayers { l.path = nil }
-            strokeRoot.removeAnimation(forKey: "flicker")
+            for x in loops { x.layer.removeAnimation(forKey: x.key) }
         } else {
             let a = CABasicAnimation(keyPath: "opacity")
             a.fromValue = 1; a.toValue = 0; a.duration = SwipeTrailFx.fade
             strokeRoot.add(a, forKey: "fade")
             strokeRoot.opacity = 0
+            if !ghosts.isEmpty {
+                // Vệt lặp: bóng trôi xa nhau rồi tan, chậm hơn nét chính.
+                let g = CABasicAnimation(keyPath: "opacity")
+                g.fromValue = 1; g.toValue = 0; g.duration = SwipeTrailFx.chromaFade
+                ghostRoot.add(g, forKey: "fade")
+                ghostRoot.opacity = 0
+                for (i, l) in ghosts.enumerated() {
+                    let d = CABasicAnimation(keyPath: "transform")
+                    d.fromValue = NSValue(caTransform3D: Self.ghostTransform(i, 0))
+                    d.toValue = NSValue(caTransform3D: Self.ghostTransform(i, 1))
+                    d.duration = SwipeTrailFx.chromaFade
+                    d.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                    l.add(d, forKey: "drift")
+                    l.transform = Self.ghostTransform(i, 1)
+                }
+            }
         }
         CATransaction.commit()
         scheduleSettle()
@@ -597,15 +795,21 @@ final class SwipeTrailRenderer {
     func settleNow() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        strokeRoot.removeAllAnimations()
+        // Gỡ animation cả cây (mờ dần, nhấp nháy, xoay màu, đổi màu / thở, bóng trôi, hạt).
+        func strip(_ l: CALayer) { l.removeAllAnimations(); l.sublayers?.forEach(strip) }
+        strip(layer)
         for l in strokeLayers { l.path = nil }
-        for l in particles { l.removeAllAnimations(); l.isHidden = true }
+        for l in particles { l.isHidden = true }
         CATransaction.commit()
     }
 
     #if DEBUG
     var debugStrokeLayers: [CAShapeLayer] { strokeLayers }
     var debugGradient: CAGradientLayer? { gradient }
+    var debugHue: CAGradientLayer? { hue }
+    var debugMirror: CAReplicatorLayer? { mirror }
+    var debugGhosts: [CAShapeLayer] { ghosts }
+    var debugLoopCount: Int { loops.count }
     var debugParticles: [CAShapeLayer] { particles }
     var debugVisibleParticles: Int { particles.filter { !$0.isHidden }.count }
     /// Mọi animation còn gắn trong cây vệt (0 sau settle).

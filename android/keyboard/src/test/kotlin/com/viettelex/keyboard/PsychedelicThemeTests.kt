@@ -185,7 +185,7 @@ class PsychedelicThemeTests {
         assertEquals("Psychedelic", L10nTable.EN["Ảo giác"])
         val spec = t.spec!!
         assertEquals("Ảo giác", spec.nameVi); assertEquals("Psychedelic", spec.nameEn)
-        assertEquals("kaleido", spec.effect); assertEquals("dream", spec.sound); assertEquals("rainbow", spec.swipe)
+        assertEquals("kaleido", spec.effect); assertEquals("dream", spec.sound); assertEquals("kaleidoscope", spec.swipe)
         for (dark in listOf(false, true)) {
             val p = t.palette(dark)!!
             assertTrue(p.hueFlow); assertFalse(p.rainbowBorder); assertFalse(p.auroraBorder)

@@ -368,8 +368,11 @@ enum L10n {
         "Cầu vồng": "Rainbow",
         "Bụi sao": "Stardust",
         "Pháo hoa cuối nét": "Firework finish",
+        "Ảo ảnh": "Kaleidoscope",
+        "Tan chảy": "Melt",
+        "Vệt lặp": "Chroma echo",
         "Theo giao diện": "Match theme",
-        "Nét vẽ theo ngón tay khi gõ vuốt. Tắt: không vẽ gì. Lửa, Điện, Bút lông, Cầu vồng, Neon, Bụi sao, Pháo hoa cuối nét và Theo giao diện thuộc VietTelex Plus. Theo giao diện: dùng nét vuốt của giao diện đang chọn (Đơn giản nếu giao diện không có).": "The line drawn under your finger while swipe typing. Off: nothing is drawn. Fire, Electric, Ink brush, Rainbow, Neon, Stardust, Firework finish and Match theme are part of VietTelex Plus. Match theme: uses the current theme's swipe trail (Simple if the theme has none).",
+        "Nét vẽ theo ngón tay khi gõ vuốt. Tắt: không vẽ gì. Tắt và Đơn giản miễn phí, mọi kiểu khác (kể cả Theo giao diện) thuộc VietTelex Plus. Theo giao diện: dùng nét vuốt của giao diện đang chọn (Đơn giản nếu giao diện không có).": "The line drawn under your finger while swipe typing. Off: nothing is drawn. Off and Simple are free; every other style (including Match theme) is part of VietTelex Plus. Match theme: uses the current theme's swipe trail (Simple if the theme has none).",
         "Vẽ trên lớp riêng, không làm chậm nhận diện nét vuốt; tự về Đơn giản khi bật Chế độ nguồn điện thấp.": "Drawn on its own layer, so swipe recognition never slows down; falls back to Simple in Low Power Mode.",
         // Hiệu ứng khi bấm phím (KeyEffects.swift)
         "Hiệu ứng khi bấm phím": "Key press effect",

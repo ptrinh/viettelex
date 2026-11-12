@@ -34,7 +34,7 @@ class SwipeTrailStyleTests {
     // --- model / id / sao lưu
 
     @Test fun idsMatchIosAndDefaultIsSimple() {
-        assertEquals(listOf("none", "simple", "fire", "electric", "brush", "rainbow", "neon", "stardust", "firework", "plasma", "theme"),
+        assertEquals(listOf("none", "simple", "fire", "electric", "brush", "rainbow", "neon", "stardust", "firework", "plasma", "kaleidoscope", "melt", "chroma", "theme"),
             SwipeTrailStyle.entries.map { it.id })
         assertEquals("swipeTrail", Keys.SWIPE_TRAIL)
         assertEquals(SwipeTrailStyle.SIMPLE, SwipeTrailStyle.DEFAULT)
@@ -42,7 +42,7 @@ class SwipeTrailStyleTests {
         assertEquals(SwipeTrailStyle.SIMPLE, SwipeTrailStyle.of("glitter"))
         assertEquals(SwipeTrailStyle.SIMPLE, SwipeTrailStyle.of(7))
         assertEquals(SwipeTrailStyle.NONE, SwipeTrailStyle.of("none"))
-        assertEquals(listOf("none", "simple", "fire", "electric", "brush", "rainbow", "neon", "stardust", "firework", "plasma"),
+        assertEquals(listOf("none", "simple", "fire", "electric", "brush", "rainbow", "neon", "stardust", "firework", "plasma", "kaleidoscope", "melt", "chroma"),
             SwipeTrailStyle.THEME_IDS)
         assertEquals(SwipeTrailStyle.THEME_IDS.toSet(), ThemeExtraIds.SWIPES)
     }
@@ -57,7 +57,7 @@ class SwipeTrailStyleTests {
     @Test fun backupSpecWhitelistsIds() {
         val spec = BackupSettings.all.first { it.key == Keys.SWIPE_TRAIL }
         assertEquals(SettingKind.Choice("simple", setOf("none", "simple", "fire", "electric", "brush", "rainbow", "neon",
-            "stardust", "firework", "plasma", "theme")), spec.kind)
+            "stardust", "firework", "plasma", "kaleidoscope", "melt", "chroma", "theme")), spec.kind)
     }
 
     @Test fun titlesBilingual() {
@@ -113,7 +113,7 @@ class SwipeTrailStyleTests {
     @Test fun builtinThemesSwipeMapping() {
         val want = mapOf("tet" to "stardust", "tetMai" to "stardust", "xmas" to "stardust", "xmasSnow" to "stardust",
             "rgb" to "rainbow", "neon" to "neon", "space" to "stardust", "typewriter" to "brush", "halloween" to "electric",
-            "pixel" to "neon", "ai" to "neon", "nightclub" to "neon", "trippy" to "rainbow", "drift" to "stardust", "rainyNight" to "simple", "gym" to "neon",
+            "pixel" to "neon", "ai" to "neon", "nightclub" to "neon", "trippy" to "kaleidoscope", "drift" to "stardust", "rainyNight" to "simple", "gym" to "neon",
             "zodiac" to "stardust", "pride" to "rainbow")
         assertTrue(BuiltinThemes.specs.isNotEmpty())
         for ((id, spec) in BuiltinThemes.specs) {
@@ -149,7 +149,8 @@ class SwipeTrailStyleTests {
     @Test fun strokeConfigPerStyle() {
         val n = mapOf(SwipeTrailStyle.NONE to 0, SwipeTrailStyle.THEME to 0, SwipeTrailStyle.SIMPLE to 1, SwipeTrailStyle.FIREWORK to 1,
             SwipeTrailStyle.FIRE to 3, SwipeTrailStyle.ELECTRIC to 3, SwipeTrailStyle.NEON to 3, SwipeTrailStyle.RAINBOW to 1,
-            SwipeTrailStyle.BRUSH to 1, SwipeTrailStyle.STARDUST to 1, SwipeTrailStyle.PLASMA to 3)
+            SwipeTrailStyle.BRUSH to 1, SwipeTrailStyle.STARDUST to 1, SwipeTrailStyle.PLASMA to 3,
+            SwipeTrailStyle.KALEIDOSCOPE to 3, SwipeTrailStyle.MELT to 3, SwipeTrailStyle.CHROMA to 4)
         for (s in SwipeTrailStyle.entries) {
             val k = s.strokes(6.0, 0x99FFFFFF.toInt(), 0x0A84FF, false)
             assertEquals(s.id, n[s], k.size)
@@ -167,7 +168,7 @@ class SwipeTrailStyleTests {
         assertEquals(5, SwipeTrailStyle.PLASMA.spawnEvery)
         for (s in SwipeTrailStyle.entries) {
             val expect = s == SwipeTrailStyle.FIRE || s == SwipeTrailStyle.STARDUST || s == SwipeTrailStyle.FIREWORK ||
-                s == SwipeTrailStyle.PLASMA
+                s == SwipeTrailStyle.PLASMA || s == SwipeTrailStyle.MELT
             assertEquals(s.id, expect, s.usesParticles)
             assertEquals(s.id, if (expect) SwipeTrailFx.PARTICLE_CAP else 0, SwipeTrailState(s, 2f).particleCount)
         }
@@ -246,7 +247,8 @@ class SwipeTrailStyleTests {
         assertEquals(8.0 * 3 / 7, e5.dx, 1e-9); assertEquals(-34.0, e5.dy, 0.0)
         val s2 = SwipeTrailFx.trajectory(SwipeTrailStyle.STARDUST, 2)
         assertEquals(-0.16, s2.rotation, 1e-9); assertEquals(1.1, s2.duration, 1e-9)
-        for (s in listOf(SwipeTrailStyle.FIRE, SwipeTrailStyle.STARDUST, SwipeTrailStyle.FIREWORK, SwipeTrailStyle.PLASMA))
+        for (s in listOf(SwipeTrailStyle.FIRE, SwipeTrailStyle.STARDUST, SwipeTrailStyle.FIREWORK, SwipeTrailStyle.PLASMA,
+                SwipeTrailStyle.MELT))
             for (v in 0 until SwipeTrailFx.variants(s)) assertTrue(SwipeTrailFx.trajectory(s, v).duration <= SwipeTrailFx.MAX_PARTICLE_LIFE)
         val sp = SwipeTrailFx.Spawner(3)
         assertEquals(listOf(false, false, true, false, false, true, false, false, true), (0 until 9).map { sp.tick() })
@@ -257,10 +259,95 @@ class SwipeTrailStyleTests {
         assertEquals(0.5, SwipeTrailFx.particleAlpha(SwipeTrailStyle.FIRE, 0.7), 1e-9)
     }
 
+    // --- Ảo ảnh / Tan chảy / Vệt lặp (số tham chiếu chung iOS)
+
+    @Test fun newStylesPureParity() {
+        assertEquals(4, SwipeTrailStyle.MELT.spawnEvery)
+        assertEquals(6, SwipeTrailFx.KALEIDO_BRANCHES)
+        assertEquals(SwipeTrailFx.HUE_WHEEL.first(), SwipeTrailFx.HUE_WHEEL.last())
+        assertEquals(0xFF4D6D, SwipeTrailFx.cycleColor(0.0))
+        assertEquals(0xFF4D6D, SwipeTrailFx.cycleColor(1.0))
+        assertEquals(SwipeTrailFx.mix(0x4DFF88, 0x4DD8FF, 0.5), SwipeTrailFx.cycleColor(0.5))
+        assertEquals(SwipeTrailFx.cycleColor(0.25), SwipeTrailFx.cycleColor(1.25))
+        assertEquals(SwipeTrailFx.cycleColor(0.25), SwipeTrailFx.cycleColor(-0.75))
+        assertEquals("1,75 mốc: giữa cam và vàng chanh", 0xEEED4D, SwipeTrailFx.cycleColor(0.25))
+        assertEquals(1.0, SwipeTrailFx.meltBreath(0.0), 1e-9)
+        assertEquals(1.3, SwipeTrailFx.meltBreath(0.25), 1e-9)
+        assertEquals(0.7, SwipeTrailFx.meltBreath(0.75), 1e-9)
+        assertEquals(0.0, SwipeTrailFx.meltSag(0.0), 0.0)
+        assertEquals(1.75, SwipeTrailFx.meltSag(0.5), 1e-9)
+        assertEquals(7.0, SwipeTrailFx.meltSag(1.0), 0.0)
+        assertEquals(7.0, SwipeTrailFx.meltSag(3.0), 0.0)
+        assertEquals(0.0, SwipeTrailFx.meltSag(-1.0), 0.0)
+        assertEquals(0.0, SwipeTrailFx.chromaShiftX(0, 0.0), 1e-9); assertEquals(-2.5, SwipeTrailFx.chromaShiftY(0, 0.0), 1e-9)
+        assertEquals(8 * Math.sqrt(3.0) / 2, SwipeTrailFx.chromaShiftX(1, 1.0), 1e-9); assertEquals(4.0, SwipeTrailFx.chromaShiftY(1, 1.0), 1e-9)
+        assertEquals(-5.25 * Math.sqrt(3.0) / 2, SwipeTrailFx.chromaShiftX(2, 0.5), 1e-9)
+        assertEquals(2.625, SwipeTrailFx.chromaShiftY(2, 0.5), 1e-9)
+        val m4 = SwipeTrailFx.trajectory(SwipeTrailStyle.MELT, 4)
+        assertEquals(1.2, m4.dx, 1e-9); assertEquals(14.0, m4.dy, 0.0); assertEquals(0.68, m4.duration, 1e-9)
+        for (v in 0 until SwipeTrailFx.variants(SwipeTrailStyle.MELT)) assertTrue(SwipeTrailFx.trajectory(SwipeTrailStyle.MELT, v).dy > 0)
+        val k = SwipeTrailStyle.KALEIDOSCOPE.strokes(6.0, 0, 0, false)
+        assertEquals(listOf(0x73FFFFFF, 0xFFFFFFFF.toInt(), 0xD9FFFFFF.toInt()), k.map { it.argb })
+        assertEquals(listOf(SwipeTrailStroke.Kind.MIRROR, SwipeTrailStroke.Kind.CONIC, SwipeTrailStroke.Kind.STROKE), k.map { it.kind })
+        assertTrue("nhánh mảnh hơn nét thật", k[0].width < k[1].width)
+        assertTrue("nhánh mờ hơn nét thật", (k[0].argb ushr 24) < (k[1].argb ushr 24))
+        assertEquals(listOf(0x73FF4D6D, 0xBFFF4D6D.toInt(), 0xFFFF4D6D.toInt()),
+            SwipeTrailStyle.MELT.strokes(6.0, 0, 0, false).map { it.argb })
+        assertEquals(listOf(0x99FF2D55.toInt(), 0x9930D158.toInt(), 0x990A84FF.toInt(), 0x99ABCDEF.toInt()),
+            SwipeTrailStyle.CHROMA.strokes(6.0, 0x99ABCDEF.toInt(), 0, false).map { it.argb })
+        assertTrue(intArrayOf(0xFF4D6D, 0xE8FF4D, 0x4DD8FF).contentEquals(SwipeTrailStyle.MELT.particleColors(0)))
+    }
+
+    /** Tan chảy: điểm mới nhất không chảy, cũ nhất chảy meltSag(tuổi/đuôi); chia đoạn theo chiều dài (= iOS strokeStart). */
+    @Test fun meltSagAndLengthCuts() {
+        val st = SwipeTrailState(SwipeTrailStyle.MELT, 2f)
+        st.begin()
+        for (i in 0 until 25) st.add(20f + i * 15, 150f, 1_000L + i * 10)
+        assertTrue(st.build(1_240))
+        assertEquals(25, st.outN)
+        assertEquals(150f, st.outY[24], 1e-4f)
+        assertEquals((150 + SwipeTrailFx.meltSag(0.8) * 2).toFloat(), st.outY[0], 1e-3f)
+        assertTrue(st.outY.copyOf(st.outN).all { it >= 150f && it <= 150f + SwipeTrailFx.MELT_DRIP.toFloat() * 2 + 1e-3f })
+        assertEquals(0f, st.cut(0.0), 0f)
+        assertEquals(24f, st.cut(1.0), 1e-4f)
+        val a = st.cut(0.35); val b = st.cut(0.7)
+        assertTrue("$a $b", a > 0f && a < b && b < 24f)
+        // Gần như thẳng ngang (độ võng nhỏ so với chiều dài) ⇒ mốc ≈ tỉ lệ số điểm.
+        assertEquals(0.35f * 24, a, 0.6f); assertEquals(0.7f * 24, b, 0.6f)
+        // Thời gian (màu / thở) tính từ điểm đầu cú vuốt.
+        assertEquals(0.24, st.elapsed(1_240), 1e-9)
+        assertEquals(0.0, SwipeTrailState(SwipeTrailStyle.MELT, 1f).elapsed(5_000), 0.0)
+    }
+
+    /** Vệt lặp: nét chính mờ trong FADE_MS như mọi kiểu, bóng còn trôi + mờ tới CHROMA_FADE rồi ngừng hẹn khung. */
+    @Test fun chromaGhostsOutliveMainStrokeThenStop() {
+        val st = SwipeTrailState(SwipeTrailStyle.CHROMA, 1f)
+        assertEquals(450L, st.fadeMs)
+        assertEquals(SwipeTrailState.FADE_MS, SwipeTrailState(SwipeTrailStyle.KALEIDOSCOPE, 1f).fadeMs)
+        st.begin()
+        for (i in 0 until 10) st.add(10f + i * 10, 50f, 1_000L + i * 10)
+        assertTrue(st.build(1_090)); assertEquals(0f, st.fadeFrac, 0f); assertEquals(1f, st.strokeAlpha, 0f)
+        st.end(fade = true, nowMs = 1_100)
+        assertTrue(st.build(1_200))
+        assertEquals(0.5f, st.strokeAlpha, 1e-6f)
+        assertEquals(100f / 450, st.fadeFrac, 1e-6f)
+        assertTrue("nét chính đã tắt, bóng còn", st.build(1_400))
+        assertEquals(0f, st.strokeAlpha, 0f)
+        assertTrue(st.isAnimating(1_540))
+        assertFalse(st.build(1_550))
+        assertFalse("tan hẳn ⇒ ngừng hẹn khung", st.isAnimating(1_560))
+        // Kiểu khác: vẫn 200 ms như cũ.
+        val k = SwipeTrailState(SwipeTrailStyle.KALEIDOSCOPE, 1f)
+        k.begin(); for (i in 0 until 10) k.add(10f + i * 10, 50f, 1_000L + i * 10)
+        k.end(fade = true, nowMs = 1_100)
+        assertTrue(k.build(1_250)); assertFalse(k.build(1_300))
+    }
+
     // --- trần hạt / không rò / nghỉ = không hẹn khung
 
     @Test fun particlesCappedNoLeakOver200SwipesAndIdleStops() {
-        for (s in listOf(SwipeTrailStyle.FIRE, SwipeTrailStyle.STARDUST, SwipeTrailStyle.FIREWORK, SwipeTrailStyle.ELECTRIC)) {
+        for (s in listOf(SwipeTrailStyle.FIRE, SwipeTrailStyle.STARDUST, SwipeTrailStyle.FIREWORK, SwipeTrailStyle.ELECTRIC,
+                SwipeTrailStyle.PLASMA, SwipeTrailStyle.KALEIDOSCOPE, SwipeTrailStyle.MELT, SwipeTrailStyle.CHROMA)) {
             val st = SwipeTrailState(s, 2.5f)
             val out = FloatArray(5)
             var t = 1_000L
@@ -336,7 +423,8 @@ class SwipeTrailStyleTests {
         fun pct(a: DoubleArray, q: Double): Double { val s = a.sorted(); return s[minOf(s.size - 1, (s.size * q).toInt())] }
         repeat(3) { run(SwipeTrailStyle.SIMPLE, 200); for (s in SwipeTrailStyle.entries) run(s, 50) }   // JIT
         for (s in listOf(SwipeTrailStyle.FIRE, SwipeTrailStyle.ELECTRIC, SwipeTrailStyle.BRUSH, SwipeTrailStyle.RAINBOW,
-                SwipeTrailStyle.NEON, SwipeTrailStyle.STARDUST, SwipeTrailStyle.FIREWORK)) {
+                SwipeTrailStyle.NEON, SwipeTrailStyle.STARDUST, SwipeTrailStyle.FIREWORK, SwipeTrailStyle.PLASMA,
+                SwipeTrailStyle.KALEIDOSCOPE, SwipeTrailStyle.MELT, SwipeTrailStyle.CHROMA)) {
             val deltas = DoubleArray(5); var base = DoubleArray(0); var on = DoubleArray(0)
             for (b in 0 until 5) {
                 val a = run(SwipeTrailStyle.SIMPLE, 40); val x = run(s, 40)
