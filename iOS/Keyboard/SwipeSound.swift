@@ -12,6 +12,9 @@
 // - PIN: nghỉ `idleTimeout` (8 s) không vuốt ⇒ engine.pause() + nhả session (giữ buffer). Cú vuốt kế khởi động lại NỀN —
 //   tiếng vào khi engine sẵn sàng (tiếng mở dần nên trễ vài chục ms không nghe ra).
 // - Ẩn bàn phím ⇒ shutdown (nhả engine + buffer). Cảnh báo bộ nhớ ⇒ nhả nếu không đang vuốt (cú vuốt kế dựng lại lười).
+// - Roi vụt / Tia sét / Plasma / Đũa phép: tiếng nhấc tay (KeySoundSynth.swipeLiftSamples) trộn trong CÙNG render — main chỉ
+//   ghi độ to (SwipeSoundFx.liftGain của tốc độ 80 ms cuối) + tăng bộ đếm; huỷ ⇒ không kêu. Đũa phép: lớp hạt dày × âm lượng².
+// - Âm của bạn: vòng lặp đọc từ App Group (SwipeSoundCustom) lúc dựng engine; vắng/hỏng ⇒ Bút chì.
 import AVFoundation
 import QuartzCore
 
@@ -29,13 +32,15 @@ final class SwipeSound {
     var idleTimeout: TimeInterval = 8
 
     /// Khối điều khiển main ⇄ render: [đích âm lượng, giờ điểm cuối, số lần begin, số lần end, engine chạy (0/1),
-    /// giờ hoạt động cuối]. Cấp MỘT lần, không bao giờ giải phóng (singleton).
+    /// giờ hoạt động cuối, độ to tiếng nhấc tay, số lần nhấc tay có tiếng]. Cấp MỘT lần, không bao giờ giải phóng (singleton).
     private let ctl: UnsafeMutablePointer<Double> = {
-        let p = UnsafeMutablePointer<Double>.allocate(capacity: 6)
-        p.initialize(repeating: 0, count: 6)
+        let p = UnsafeMutablePointer<Double>.allocate(capacity: 8)
+        p.initialize(repeating: 0, count: 8)
         return p
     }()
-    private enum C { static let target = 0, lastMove = 1, begins = 2, ends = 3, running = 4, lastActive = 5 }
+    private enum C {
+        static let target = 0, lastMove = 1, begins = 2, ends = 3, running = 4, lastActive = 5, liftGain = 6, lifts = 7
+    }
 
     // --- chỉ main ---
     private var meter = SwipeSoundMeter()
@@ -56,17 +61,28 @@ final class SwipeSound {
     private var wantedGain: Float = 0
     private var starting = false
 
-    /// Trạng thái riêng của luồng render (vị trí đọc vòng lặp + vỏ âm lượng). Giữ buffer vòng lặp.
+    /// Trạng thái riêng của luồng render (vị trí đọc + vỏ âm lượng). Giữ buffer vòng lặp, lớp hạt dày, tiếng nhấc tay.
     private final class RenderState {
         let loop: UnsafeMutableBufferPointer<Float>
-        var pos = 0
+        let layer: UnsafeMutableBufferPointer<Float>
+        let shot: UnsafeMutableBufferPointer<Float>
+        var pos = 0, lpos = 0
+        /// Vị trí đọc tiếng nhấc tay (= shot.count ⇒ không phát).
+        var spos: Int
+        var shotGain = 0.0
         var env = SwipeSoundEnvelope(step: 1 / KeySoundSynth.swipeSampleRate)
-        var seenBegins = 0.0, seenEnds = 0.0
-        init(_ samples: [Float]) {
-            loop = .allocate(capacity: samples.count)
-            _ = loop.initialize(from: samples)
+        var seenBegins = 0.0, seenEnds = 0.0, seenLifts = 0.0
+        init(_ samples: [Float], layer l: [Float], shot sh: [Float], lifts: Double) {
+            loop = Self.copy(samples); layer = Self.copy(l); shot = Self.copy(sh)
+            spos = sh.count
+            seenLifts = lifts
         }
-        deinit { loop.deallocate() }
+        private static func copy(_ x: [Float]) -> UnsafeMutableBufferPointer<Float> {
+            let b = UnsafeMutableBufferPointer<Float>.allocate(capacity: max(1, x.count))
+            _ = b.initialize(from: x)
+            return UnsafeMutableBufferPointer(rebasing: b[0..<x.count])
+        }
+        deinit { loop.baseAddress?.deallocate(); layer.baseAddress?.deallocate(); shot.baseAddress?.deallocate() }
     }
 
     // MARK: cấu hình (main, lúc hiện bàn phím) — không chờ
@@ -118,10 +134,15 @@ final class SwipeSound {
         ctl[C.lastMove] = CACurrentMediaTime()
     }
 
-    /// Nhấc tay / huỷ: render tắt dần `fadeOut`.
-    func end() {
+    /// Nhấc tay (`liftAt` = timestamp của touch nhấc) / huỷ (nil): render tắt dần `fadeOut`. Nhấc tay ở kiểu có tiếng nhấc
+    /// tay ⇒ một tiếng ngắn, to theo tốc độ `liftWindow` cuối (gần như đứng yên ⇒ không kêu). Huỷ ⇒ không kêu.
+    func end(liftAt t: TimeInterval? = nil) {
         guard swiping else { return }
         swiping = false
+        if let t, style.hasLift {
+            let g = SwipeSoundFx.liftGain(meter.recentSpeed(at: t))
+            if g > 0 { ctl[C.liftGain] = g; ctl[C.lifts] += 1 }   // độ to ghi TRƯỚC bộ đếm
+        }
         ctl[C.ends] += 1
         ctl[C.lastActive] = CACurrentMediaTime()
     }
@@ -141,7 +162,11 @@ final class SwipeSound {
                 stopNow(keepWanted: true)
                 guard let fmt = AVAudioFormat(standardFormatWithSampleRate: KeySoundSynth.swipeSampleRate, channels: 1)
                 else { return false }
-                let st = RenderState(KeySoundSynth.swipeLoopSamples(wantedStyle))
+                let w = wantedStyle
+                let loop = w == .custom ? SwipeSoundCustom.resolvedLoop(SwipeSoundCustom.load(SwipeSoundCustom.fileURL))
+                                        : KeySoundSynth.swipeLoopSamples(w)
+                let st = RenderState(loop, layer: KeySoundSynth.swipeLayerSamples(w),
+                                     shot: KeySoundSynth.swipeLiftSamples(w), lifts: ctl[C.lifts])
                 let node = Self.makeSource(fmt, st, ctl)
                 let e = AVAudioEngine()
                 e.attach(node)
@@ -166,7 +191,8 @@ final class SwipeSound {
         }
     }
 
-    /// Nguồn âm: đọc vòng lặp × vỏ âm lượng từng mẫu. Chạy trên luồng render thời gian thực — không cấp phát, không khoá.
+    /// Nguồn âm: vòng lặp × vỏ âm lượng từng mẫu (+ lớp hạt dày × âm lượng², + tiếng nhấc tay). Chạy trên luồng render
+    /// thời gian thực — không cấp phát, không khoá.
     private static func makeSource(_ fmt: AVAudioFormat, _ st: RenderState, _ ctl: UnsafeMutablePointer<Double>) -> AVAudioSourceNode {
         AVAudioSourceNode(format: fmt) { _, _, frameCount, abl -> OSStatus in
             let buffers = UnsafeMutableAudioBufferListPointer(abl)
@@ -174,16 +200,27 @@ final class SwipeSound {
             let begins = ctl[C.begins], ends = ctl[C.ends]
             if begins != st.seenBegins { st.seenBegins = begins; st.env.begin() }
             if ends != st.seenEnds { st.seenEnds = ends; if ends >= begins { st.env.release() } }
+            let lifts = ctl[C.lifts]
+            if lifts != st.seenLifts { st.seenLifts = lifts; st.spos = 0; st.shotGain = ctl[C.liftGain] }
             let target = SwipeSoundFx.target(ctl[C.target], sinceMove: CACurrentMediaTime() - ctl[C.lastMove])
-            let loop = st.loop, n = loop.count
-            var pos = st.pos, env = st.env   // bản chép cục bộ: vòng mẫu không truy cập thuộc tính lớp
+            let loop = st.loop, n = loop.count, layer = st.layer, ln = layer.count, shot = st.shot, sn = shot.count
+            let sg = Float(st.shotGain)
+            // bản chép cục bộ: vòng mẫu không truy cập thuộc tính lớp
+            var pos = st.pos, lpos = st.lpos, spos = st.spos, env = st.env
             for i in 0..<Int(frameCount) {
                 let g = env.next(target)
-                out[i] = g > 0 ? loop[pos] * Float(g) : 0
+                var v: Float = 0
+                if g > 0 {
+                    v = loop[pos] * Float(g)
+                    if ln > 0 { v += layer[lpos] * Float(g * g) }
+                }
+                if spos < sn { v += shot[spos] * sg; spos += 1 }
+                out[i] = v
                 pos += 1
                 if pos == n { pos = 0 }
+                if ln > 0 { lpos += 1; if lpos == ln { lpos = 0 } }
             }
-            st.pos = pos; st.env = env
+            st.pos = pos; st.lpos = lpos; st.spos = spos; st.env = env
             return noErr
         }
     }
@@ -225,5 +262,6 @@ final class SwipeSound {
     var debugBuiltStyle: SwipeSoundStyle { queue.sync { builtStyle } }
     var debugIsSwiping: Bool { swiping }
     var debugControl: (target: Double, begins: Double, ends: Double) { (ctl[C.target], ctl[C.begins], ctl[C.ends]) }
+    var debugLift: (gain: Double, count: Double) { (ctl[C.liftGain], ctl[C.lifts]) }
     #endif
 }

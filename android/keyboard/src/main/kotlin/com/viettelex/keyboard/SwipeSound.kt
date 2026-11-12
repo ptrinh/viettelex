@@ -1,7 +1,12 @@
 package com.viettelex.keyboard
 
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.hypot
+import kotlin.math.roundToInt
+import kotlin.math.sin
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -15,6 +20,10 @@ import kotlin.math.sqrt
  * "Tắt" (mặc định) + "Bút chì" miễn phí; còn lại Plus (cùng cổng với Hiệu ứng nét vuốt) — chưa có Plus / bật
  * Trình tiết kiệm pin ⇒ phát Bút chì, giá trị lưu giữ nguyên.
  *
+ * Roi vụt / Tia sét / Plasma / Đũa phép: thêm MỘT tiếng ngắn lúc nhấc tay (không khi huỷ), to theo tốc độ ngón ~80 ms cuối
+ * ([SwipeSoundFx.liftGain] — ngón gần như đứng yên ⇒ không kêu). Đũa phép thêm lớp hạt dày (× âm lượng²) ⇒ vuốt nhanh dày
+ * hơn. "Âm của bạn" (custom): file người dùng chọn, xử lý thành vòng lặp ([SwipeSoundCustom]) — vắng/hỏng ⇒ Bút chì.
+ *
  * Luật hiệu năng: Tắt (hoặc âm lượng phím 0 %) ⇒ IME không dựng SoundPool, KeyboardView giữ `swipeSound = null`
  * — đường vuốt chỉ đọc một biến null. Bật: mỗi điểm vuốt chỉ cập nhật [SwipeSoundMeter] (vài phép tính, không cấp
  * phát); âm lượng đặt theo nhịp [SwipeSoundFx.TICK] trên main, chỉ trong lúc vuốt + tắt dần.
@@ -24,18 +33,27 @@ enum class SwipeSoundStyle(val id: String, val viTitle: String) {
     PENCIL("pencil", "Bút chì"), // l10n-key
     BRUSH("brush", "Chổi lông"), // l10n-key
     CHALK("chalk", "Phấn bảng"), // l10n-key
-    MARKER("marker", "Bút dạ"); // l10n-key
+    MARKER("marker", "Bút dạ"), // l10n-key
+    WHIP("whip", "Roi vụt"), // l10n-key
+    LIGHTNING("lightning", "Tia sét"), // l10n-key
+    PLASMA("plasma", "Plasma"), // l10n-key
+    WAND("wand", "Đũa phép"), // l10n-key
+    CUSTOM("custom", "Âm của bạn"); // l10n-key
 
     val title: String get() = tr(viTitle)
 
     /** Tắt + Bút chì miễn phí; còn lại thuộc Plus. */
     val isPlus: Boolean get() = this != NONE && this != PENCIL
+    /** Có tiếng ngắn lúc nhấc tay ([KeySoundSynth.swipeLiftSamples]). */
+    val hasLift: Boolean get() = this == WHIP || this == LIGHTNING || this == PLASMA || this == WAND
 
     companion object {
         val DEFAULT = NONE
         /** Kiểu miễn phí thay cho kiểu Plus khi chưa có Plus / tiết kiệm pin. */
         val FALLBACK = PENCIL
         val IDS: Set<String> = entries.map { it.id }.toSet()
+        /** Kiểu tổng hợp (có vòng lặp riêng trong KeySoundSynth) — trừ Tắt và Âm của bạn. */
+        val SYNTHESIZED: List<SwipeSoundStyle> = entries.filter { it != NONE && it != CUSTOM }
         /** Giá trị lạ / thiếu ⇒ Tắt. */
         fun of(raw: Any?): SwipeSoundStyle = entries.firstOrNull { it.id == raw } ?: DEFAULT
         /** Kiểu hiện ở dòng cài đặt: kiểu Plus khi chưa có Plus ⇒ Bút chì (giá trị lưu giữ nguyên). */
@@ -80,11 +98,23 @@ object SwipeSoundFx {
     const val FADE_OUT = 0.1
     /** Android: nhịp đặt âm lượng SoundPool lúc đang vuốt (giây). iOS chạy từng mẫu trong render. */
     const val TICK = 0.025
+    /** Tiếng nhấc tay: đo tốc độ trong chừng này giây cuối trước khi nhấc. */
+    const val LIFT_WINDOW = 0.08
+    /** Dưới tốc độ này (dp/s, trung bình [LIFT_WINDOW] cuối) ⇒ không có tiếng nhấc tay (ngón gần như đứng yên). */
+    const val LIFT_MIN = 150.0
+    /** Bản nghe thử trong app: độ to tiếng nhấc tay cố định (nét mẫu chậm dần về 0 ở cuối). */
+    const val PREVIEW_LIFT_GAIN = 0.8
 
     /** Tốc độ (đã làm mượt) → 0…1: căn bậc hai cho cảm giác đều tay, trần 1. */
     fun speedGain(speed: Double): Double {
         if (speed <= SPEED_MIN) return 0.0
         return sqrt(min(1.0, (speed - SPEED_MIN) / (SPEED_FULL - SPEED_MIN)))
+    }
+
+    /** Độ to tiếng nhấc tay 0…1 theo tốc độ ~80 ms cuối: dưới [LIFT_MIN] ⇒ 0; căn bậc hai, đủ cỡ từ [SPEED_FULL]. */
+    fun liftGain(speed: Double): Double {
+        if (speed <= LIFT_MIN) return 0.0
+        return sqrt(min(1.0, (speed - LIFT_MIN) / (SPEED_FULL - LIFT_MIN)))
     }
 
     /** Đích âm lượng: ngón đứng yên quá [HOLD] ⇒ 0. */
@@ -97,26 +127,51 @@ object SwipeSoundFx {
     }
 }
 
-/** Đo tốc độ ngón (main, mỗi điểm vuốt) — không cấp phát. = iOS SwipeSoundMeter. */
+/** Đo tốc độ ngón (main, mỗi điểm vuốt) — không cấp phát (vòng đệm cấp một lần). = iOS SwipeSoundMeter. */
 class SwipeSoundMeter {
     var speed = 0.0
         private set
     private var lastX = 0.0
     private var lastY = 0.0
     private var lastT = 0.0
+    /** Vòng đệm các đoạn gần nhất (quãng đường, giờ cuối đoạn) — cho tốc độ [SwipeSoundFx.LIFT_WINDOW] cuối lúc nhấc tay. */
+    private val segD = DoubleArray(RING)
+    private val segT = DoubleArray(RING)
+    private var head = 0
+    private var filled = 0
 
-    fun reset(x: Double, y: Double, t: Double) { lastX = x; lastY = y; lastT = t; speed = 0.0 }
+    fun reset(x: Double, y: Double, t: Double) { lastX = x; lastY = y; lastT = t; speed = 0.0; filled = 0 }
 
     /** Một điểm mới (toạ độ pt/dp, thời gian giây). */
     fun move(x: Double, y: Double, t: Double) {
         val dt = t - lastT
         if (dt < SwipeSoundFx.MIN_DT) return          // điểm gộp trùng giờ: đo từ điểm cũ ở lần sau
-        val inst = hypot(x - lastX, y - lastY) / dt
-        speed = SwipeSoundFx.smooth(speed, inst, dt)
+        val dist = hypot(x - lastX, y - lastY)
+        speed = SwipeSoundFx.smooth(speed, dist / dt, dt)
         lastX = x; lastY = y; lastT = t
+        segD[head] = dist; segT[head] = t
+        head = (head + 1) % RING
+        filled = min(filled + 1, RING)
     }
 
     val gain: Double get() = SwipeSoundFx.speedGain(speed)
+
+    /**
+     * Tốc độ trung bình trong [SwipeSoundFx.LIFT_WINDOW] giây trước [now] (quãng đường các đoạn kết thúc trong cửa sổ /
+     * cửa sổ). Ngón đứng yên lâu hơn cửa sổ trước khi nhấc ⇒ 0.
+     */
+    fun recentSpeed(now: Double): Double {
+        val from = now - SwipeSoundFx.LIFT_WINDOW
+        var sum = 0.0
+        for (k in 0 until filled) {
+            val j = (head - 1 - k + RING) % RING
+            if (segT[j] < from) break
+            if (segT[j] <= now + 1e-9) sum += segD[j]
+        }
+        return sum / SwipeSoundFx.LIFT_WINDOW
+    }
+
+    companion object { const val RING = 32 }
 }
 
 /**
@@ -150,4 +205,78 @@ class SwipeSoundEnvelope(step: Double) {
     val finished: Boolean get() = releasing && gain <= 0.0
 
     fun reset() { gain = 0.0; releasing = false; fadeStep = 0.0 }
+}
+
+/**
+ * "Âm của bạn": file người dùng chọn → MỘT vòng lặp liền mạch (22,05 kHz mono). Xử lý thuần (= iOS SwipeSoundCustom):
+ * giải mã ở app (MediaCodec, KeySoundImport.decode) → [process] → WAV trong noBackupFilesDir ([FILE_NAME]; IME cùng
+ * process đọc). Chỉ trên máy: không tải lên đâu, KHÔNG vào Auto Backup / file sao lưu (như âm phím tự chọn).
+ */
+object SwipeSoundCustom {
+    /** Tối đa chừng này giây làm vòng lặp (phần sau bị cắt). */
+    const val MAX_DURATION = 3.0
+    /** Âm ngắn hơn ⇒ lặp lại nối tiếp cho đủ (vòng quá ngắn nghe như rè). */
+    const val MIN_LOOP = 0.5
+    /** Cùng đỉnh với vòng lặp tổng hợp (Bút chì / Phấn bảng). */
+    const val TARGET_PEAK = 0.30f
+    const val FILE_NAME = "swipesound-custom.wav"
+
+    class Failure(val silent: Boolean) : Exception(if (silent) "silent" else "empty")
+    data class Result(val samples: FloatArray, val truncated: Boolean)
+
+    /**
+     * mono ở [sampleRate] → 22,05 kHz, bỏ lặng đầu/cuối, cắt ≤ [MAX_DURATION], nối đuôi vào đầu bằng trộn công suất đều
+     * 80 ms (như vòng tổng hợp ⇒ không "tách"), chuẩn hoá đỉnh [TARGET_PEAK].
+     */
+    fun process(mono: FloatArray, sampleRate: Double): Result {
+        if (mono.isEmpty() || sampleRate <= 0) throw Failure(silent = false)
+        val sr = KeySoundSynth.SWIPE_SAMPLE_RATE.toDouble()
+        val x = KeySoundCustom.resample(mono, sampleRate, sr)
+        val peak = x.maxOf { abs(it) }
+        if (peak < 0.001f) throw Failure(silent = true)
+        val thr = maxOf(peak * 0.05f, 0.001f)
+        val first = x.indexOfFirst { abs(it) >= thr }.coerceAtLeast(0)
+        val last = x.indexOfLast { abs(it) >= thr }.let { if (it < 0) x.size - 1 else it }
+        val f = (KeySoundSynth.SWIPE_CROSSFADE * sr).roundToInt()
+        val cap = (MAX_DURATION * sr).roundToInt()
+        val avail = last + 1 - first
+        val truncated = avail > cap + f
+        var y = x.copyOfRange(first, first + minOf(avail, cap + f))
+        val need = (MIN_LOOP * sr).roundToInt() + f
+        if (y.size < need) {
+            // Âm ngắn: mở/đóng 5 ms rồi lặp lại nối tiếp cho đủ.
+            val e = minOf(y.size / 2, (0.005 * sr).roundToInt())
+            for (i in 0 until e) {
+                val w = (0.5 - 0.5 * cos(PI * i / e)).toFloat()
+                y[i] *= w; y[y.size - 1 - i] *= w
+            }
+            val reps = (need + y.size - 1) / y.size
+            val z = FloatArray(reps * y.size)
+            for (r in 0 until reps) y.copyInto(z, r * y.size)
+            y = z
+        }
+        val len = y.size - f
+        val out = FloatArray(len) { i ->
+            if (i < f) {
+                val w = i.toDouble() / f
+                (y[i] * sin(PI / 2 * w) + y[len + i] * cos(PI / 2 * w)).toFloat()
+            } else y[i]
+        }
+        val p2 = out.maxOf { abs(it) }
+        if (p2 <= 0f) throw Failure(silent = true)
+        val g = TARGET_PEAK / p2
+        return Result(FloatArray(len) { out[it] * g }, truncated)
+    }
+
+    /** Vòng lặp đã xử lý (WAV 22,05 kHz mono). null ⇒ vắng/hỏng. */
+    fun load(f: java.io.File?): FloatArray? {
+        if (f == null || !f.isFile) return null
+        val (s, rate) = runCatching { KeySoundSynth.parseWav(f.readBytes()) }.getOrNull() ?: return null
+        if (s.isEmpty() || s.size > (MAX_DURATION * KeySoundSynth.SWIPE_SAMPLE_RATE).toInt() + 16) return null
+        return KeySoundCustom.resample(s, rate, KeySoundSynth.SWIPE_SAMPLE_RATE.toDouble())
+    }
+
+    /** Vòng lặp phát cho "Âm của bạn": file hợp lệ, không thì Bút chì (giá trị lưu giữ nguyên). */
+    fun resolvedLoop(custom: FloatArray?): FloatArray =
+        if (custom != null && custom.isNotEmpty()) custom else KeySoundSynth.swipeLoopSamples(SwipeSoundStyle.PENCIL)
 }

@@ -4,6 +4,7 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -414,38 +415,62 @@ object KeySoundSynth {
 
     fun swipeLoopSeconds(s: SwipeSoundStyle): Double = when (s) {
         SwipeSoundStyle.NONE -> 0.0
-        SwipeSoundStyle.PENCIL -> 1.0
+        SwipeSoundStyle.PENCIL, SwipeSoundStyle.CUSTOM -> 1.0
         SwipeSoundStyle.BRUSH -> 1.2
         SwipeSoundStyle.CHALK -> 1.4
         SwipeSoundStyle.MARKER -> 1.0
+        SwipeSoundStyle.WHIP -> 1.0
+        SwipeSoundStyle.LIGHTNING -> 1.2
+        SwipeSoundStyle.PLASMA -> 1.2
+        SwipeSoundStyle.WAND -> 1.4
     }
 
     fun swipePeak(s: SwipeSoundStyle): Double = when (s) {
         SwipeSoundStyle.NONE -> 0.0
-        SwipeSoundStyle.PENCIL -> 0.30
+        SwipeSoundStyle.PENCIL, SwipeSoundStyle.CUSTOM -> 0.30
         SwipeSoundStyle.BRUSH -> 0.34
         SwipeSoundStyle.CHALK -> 0.30
         SwipeSoundStyle.MARKER -> 0.28
+        SwipeSoundStyle.WHIP -> 0.30
+        SwipeSoundStyle.LIGHTNING -> 0.30
+        SwipeSoundStyle.PLASMA -> 0.28
+        SwipeSoundStyle.WAND -> 0.22
     }
 
-    /** Seed cố định theo tên ("pncl", "brsh", "chlk", "mrkr") — không theo vị trí enum. */
+    /** Seed cố định theo tên ("pncl", "brsh", "chlk", "mrkr", "whip", "ltng", "plsm", "wand") — không theo vị trí enum. */
     fun swipeSeed(s: SwipeSoundStyle): Int = when (s) {
         SwipeSoundStyle.NONE -> 0
-        SwipeSoundStyle.PENCIL -> 0x706E636C
+        SwipeSoundStyle.PENCIL, SwipeSoundStyle.CUSTOM -> 0x706E636C
         SwipeSoundStyle.BRUSH -> 0x62727368
         SwipeSoundStyle.CHALK -> 0x63686C6B
         SwipeSoundStyle.MARKER -> 0x6D726B72
+        SwipeSoundStyle.WHIP -> 0x77686970
+        SwipeSoundStyle.LIGHTNING -> 0x6C746E67
+        SwipeSoundStyle.PLASMA -> 0x706C736D
+        SwipeSoundStyle.WAND -> 0x77616E64
     }
 
-    /** MỘT vòng lặp liền mạch (22,05 kHz mono) của kiểu; Tắt ⇒ rỗng. Tất định — checksum chung iOS. */
+    /** Đỉnh lớp hạt dày của Đũa phép. */
+    const val SWIPE_LAYER_PEAK = 0.16
+
+    /** MỘT vòng lặp liền mạch (22,05 kHz mono) của kiểu; Tắt ⇒ rỗng; Âm của bạn ⇒ Bút chì (dự phòng). Tất định — checksum chung iOS. */
     fun swipeLoopSamples(s: SwipeSoundStyle): FloatArray {
         if (s == SwipeSoundStyle.NONE) return FloatArray(0)
+        val st = if (s == SwipeSoundStyle.CUSTOM) SwipeSoundStyle.PENCIL else s
+        return swipeLoop(st, swipeSeed(st), swipePeak(st), layer = false)
+    }
+
+    /** Lớp phát thêm × âm lượng² (dày lên khi vuốt nhanh) — chỉ Đũa phép; kiểu khác rỗng. Cùng độ dài vòng chính. */
+    fun swipeLayerSamples(s: SwipeSoundStyle): FloatArray =
+        if (s != SwipeSoundStyle.WAND) FloatArray(0) else swipeLoop(s, 0x776E6432, SWIPE_LAYER_PEAK, layer = true)
+
+    private fun swipeLoop(s: SwipeSoundStyle, seed: Int, target: Double, layer: Boolean): FloatArray {
         val sr = SWIPE_SAMPLE_RATE.toDouble()
         val loopSec = swipeLoopSeconds(s)
         val len = (loopSec * sr).roundToInt()
         val f = (SWIPE_CROSSFADE * sr).roundToInt()
         val p = (SWIPE_PREROLL * sr).roundToInt()
-        val y = swipeRaw(s, p + len + f, sr, loopSec)
+        val y = swipeRaw(s, p + len + f, sr, loopSec, seed, layer)
         val out = DoubleArray(len)
         var peak = 0.0
         for (i in 0 until len) {
@@ -457,21 +482,59 @@ object KeySoundSynth {
             out[i] = v
             peak = maxOf(peak, abs(v))
         }
-        val norm = if (peak > 0) swipePeak(s) / peak else 0.0
+        val norm = if (peak > 0) target / peak else 0.0
         return FloatArray(len) { (out[it] * norm).toFloat() }
     }
 
+    /** Hạt chuông của Đũa phép: 6 giọng xoay vòng, hạt cách [gapMin] + [gapRange]·u giây; [bed] > 0 ⇒ thêm nền gió. */
+    private fun swipeChimes(n: Int, sr: Double, u: () -> Double, gapMin: Double, gapRange: Double, bed: Double): DoubleArray {
+        val notes = doubleArrayOf(1568.0, 1760.0, 2093.0, 2349.0, 2637.0, 3136.0)
+        fun pole(f: Double) = exp(-2 * PI * f / sr)
+        val ph = DoubleArray(6); val fr = DoubleArray(6); val amp = DoubleArray(6); val dec = DoubleArray(6)
+        var voice = 0; var next = 0
+        val h = pole(3000.0); val a = pole(7000.0)
+        var hi = 0.0; var ho = 0.0; var l1 = 0.0; var l2 = 0.0
+        val out = DoubleArray(n)
+        for (i in 0 until n) {
+            next -= 1
+            if (next <= 0) {
+                val k = minOf(5, (u() * 6).toInt())
+                fr[voice] = notes[k] * (1 + 0.004 * (u() - 0.5))
+                amp[voice] = 0.4 + 0.6 * u()
+                dec[voice] = exp(-1 / ((0.06 + 0.06 * u()) * sr))
+                ph[voice] = 0.0
+                voice = (voice + 1) % 6
+                next = ((gapMin + gapRange * u()) * sr).toInt()
+            }
+            var v = 0.0
+            for (j in 0 until 6) {
+                if (amp[j] <= 1e-4) continue
+                ph[j] += 2 * PI * fr[j] / sr
+                v += amp[j] * (sin(ph[j]) + 0.15 * sin(2.76 * ph[j]))
+                amp[j] *= dec[j]
+            }
+            if (bed > 0) {
+                val x = 2 * u() - 1
+                ho = h * (ho + x - hi); hi = x
+                l1 = (1 - a) * ho + a * l1; l2 = (1 - a) * l1 + a * l2
+                v += bed * l2
+            }
+            out[i] = v
+        }
+        return out
+    }
+
     /** Dòng nhiễu đã lọc của kiểu (chưa nối vòng, chưa chuẩn hoá). */
-    private fun swipeRaw(s: SwipeSoundStyle, n: Int, sr: Double, loopSec: Double): DoubleArray {
-        var state = swipeSeed(s)
+    private fun swipeRaw(s: SwipeSoundStyle, n: Int, sr: Double, loopSec: Double, seed: Int, layer: Boolean): DoubleArray {
+        var state = seed
         fun u(): Double {
             state = state xor (state shl 13); state = state xor (state ushr 17); state = state xor (state shl 5)
             return (state.toLong() and 0xFFFFFFFFL).toDouble() / 4294967295.0
         }
         fun pole(f: Double) = exp(-2 * PI * f / sr)
-        val out = DoubleArray(n)
+        var out = DoubleArray(n)
         when (s) {
-            SwipeSoundStyle.NONE -> Unit
+            SwipeSoundStyle.NONE, SwipeSoundStyle.CUSTOM -> Unit
             SwipeSoundStyle.PENCIL -> {
                 val h = pole(2000.0); val a = pole(5500.0)
                 val gK = 1 - exp(-1 / (0.0015 * sr)); val cD = exp(-1 / (0.0007 * sr))
@@ -549,8 +612,150 @@ object KeySoundSynth {
                     out[i] = (0.7 * n2 + 8 * y) * (0.9 + 0.1 * sin(2 * PI * 3 / loopSec * t))
                 }
             }
+            SwipeSoundStyle.WHIP -> {
+                val h = pole(1500.0); val a = pole(6500.0)
+                var hi1 = 0.0; var ho1 = 0.0; var hi2 = 0.0; var ho2 = 0.0; var l1 = 0.0; var l2 = 0.0
+                for (i in 0 until n) {
+                    val t = i / sr
+                    val x = 2 * u() - 1
+                    ho1 = h * (ho1 + x - hi1); hi1 = x
+                    ho2 = h * (ho2 + ho1 - hi2); hi2 = ho1
+                    l1 = (1 - a) * ho2 + a * l1; l2 = (1 - a) * l1 + a * l2
+                    out[i] = l2 * (0.7 + 0.3 * sin(2 * PI * 2 / loopSec * t)) * (0.9 + 0.1 * sin(2 * PI * 7 / loopSec * t))
+                }
+            }
+            SwipeSoundStyle.LIGHTNING -> {
+                val h = pole(1500.0); val a = pole(5000.0); val cD = exp(-1 / (0.0004 * sr))
+                var hi = 0.0; var ho = 0.0; var l1 = 0.0; var l2 = 0.0
+                var next = (0.05 * sr).toInt(); var bLeft = 0; var imp = 0.0
+                for (i in 0 until n) {
+                    val t = i / sr
+                    val x = 2 * u() - 1
+                    next -= 1
+                    if (next <= 0) {
+                        bLeft = ((0.008 + 0.032 * u()) * sr).toInt()
+                        next = bLeft + ((0.03 + 0.15 * u()) * sr).toInt()
+                    }
+                    var c = 0.0
+                    if (bLeft > 0) {
+                        bLeft -= 1
+                        if (u() < 0.08) imp = (if (u() < 0.5) -1.0 else 1.0) * (0.5 + 0.5 * u())
+                        c = 0.3 * x
+                    }
+                    val v = c + imp
+                    imp *= cD
+                    ho = h * (ho + v - hi); hi = v
+                    l1 = (1 - a) * ho + a * l1; l2 = (1 - a) * l1 + a * l2
+                    val hum = sin(2 * PI * 100 * t) + 0.6 * sin(2 * PI * 200 * t) + 0.4 * sin(2 * PI * 300 * t) +
+                        0.25 * sin(2 * PI * 400 * t)
+                    out[i] = l2 + 0.1 * hum
+                }
+            }
+            SwipeSoundStyle.PLASMA -> {
+                val hn = pole(400.0); val an = pole(1200.0)
+                var ni = 0.0; var no = 0.0; var n1 = 0.0; var n2 = 0.0; var ph = 0.0
+                for (i in 0 until n) {
+                    val t = i / sr
+                    val x = 2 * u() - 1
+                    no = hn * (no + x - ni); ni = x
+                    n1 = (1 - an) * no + an * n1; n2 = (1 - an) * n1 + an * n2
+                    val wob = 0.75 + 0.25 * sin(2 * PI * 3 / loopSec * t)
+                    ph += 2 * PI * (160 + 6 * sin(2 * PI / loopSec * t)) / sr
+                    val tone = sin(ph) + 0.5 * sin(2 * ph + 0.4 * sin(2 * PI * 5 / loopSec * t)) + 0.25 * sin(3 * ph)
+                    out[i] = (0.5 * tone + 2.0 * n2) * wob
+                }
+            }
+            SwipeSoundStyle.WAND -> {
+                out = if (layer) swipeChimes(n, sr, ::u, 0.015, 0.045, 0.0) else swipeChimes(n, sr, ::u, 0.04, 0.12, 0.25)
+            }
         }
         return out
+    }
+
+    /** Tiếng ngắn lúc nhấc tay (22,05 kHz mono, đã chuẩn hoá đỉnh); kiểu không có ⇒ rỗng. Tất định — checksum chung iOS. */
+    fun swipeLiftSamples(s: SwipeSoundStyle): FloatArray {
+        val (dur, target, seed) = when (s) {
+            SwipeSoundStyle.WHIP -> Triple(0.16, 0.55, 0x7763726B)
+            SwipeSoundStyle.LIGHTNING -> Triple(0.22, 0.50, 0x6C747A70)
+            SwipeSoundStyle.PLASMA -> Triple(0.18, 0.40, 0x706C7A77)
+            SwipeSoundStyle.WAND -> Triple(0.34, 0.40, 0x77676C73)
+            else -> return FloatArray(0)
+        }
+        val sr = SWIPE_SAMPLE_RATE.toDouble()
+        var state = seed
+        fun u(): Double {
+            state = state xor (state shl 13); state = state xor (state ushr 17); state = state xor (state shl 5)
+            return (state.toLong() and 0xFFFFFFFFL).toDouble() / 4294967295.0
+        }
+        fun pole(f: Double) = exp(-2 * PI * f / sr)
+        val n = (dur * sr).roundToInt()
+        val out = DoubleArray(n)
+        when (s) {
+            SwipeSoundStyle.WHIP -> {
+                val h = pole(1200.0); val a = pole(7000.0)
+                var hi = 0.0; var ho = 0.0; var l1 = 0.0; var l2 = 0.0
+                for (i in 0 until n) {
+                    val t = i / sr
+                    val x = 2 * u() - 1
+                    val env = (if (t < 0.0006) t / 0.0006 else 1.0) * (0.9 * exp(-t / 0.003) + 0.35 * exp(-t / 0.035))
+                    val v = x * env
+                    ho = h * (ho + v - hi); hi = v
+                    l1 = (1 - a) * ho + a * l1; l2 = (1 - a) * l1 + a * l2
+                    out[i] = l2 + 0.25 * exp(-t / 0.0015) * sin(2 * PI * 2600 * t)
+                }
+            }
+            SwipeSoundStyle.LIGHTNING -> {
+                val h = pole(1500.0); val a = pole(6000.0); val b = pole(180.0); val cD = exp(-1 / (0.0003 * sr))
+                var hi = 0.0; var ho = 0.0; var l1 = 0.0; var l2 = 0.0; var r1 = 0.0; var r2 = 0.0; var imp = 0.0
+                for (i in 0 until n) {
+                    val t = i / sr
+                    val x = 2 * u() - 1
+                    val pr = if (t < 0.03) 0.25 else 0.02 * exp(-(t - 0.03) / 0.05)
+                    if (u() < pr) imp = (if (u() < 0.5) -1.0 else 1.0) * (0.5 + 0.5 * u())
+                    val v = imp + 0.2 * x * exp(-t / 0.04)
+                    imp *= cD
+                    ho = h * (ho + v - hi); hi = v
+                    l1 = (1 - a) * ho + a * l1; l2 = (1 - a) * l1 + a * l2
+                    r1 = (1 - b) * x + b * r1; r2 = (1 - b) * r1 + b * r2
+                    out[i] = l2 + 12 * r2 * (1 - exp(-t / 0.01)) * exp(-t / 0.07)
+                }
+            }
+            SwipeSoundStyle.PLASMA -> {
+                var ph = 0.0
+                for (i in 0 until n) {
+                    val t = i / sr
+                    ph += 2 * PI * (300 * (1400.0 / 300).pow(t / dur)) / sr
+                    val e = sin(PI * t / dur)
+                    out[i] = e * e * (sin(ph) + 0.3 * sin(2 * ph)) + 0.03 * (2 * u() - 1) * e
+                }
+            }
+            SwipeSoundStyle.WAND -> {
+                val notes = doubleArrayOf(2093.0, 2349.0, 2637.0, 3136.0, 3520.0)
+                val det = DoubleArray(5) { 1 + 0.003 * (u() - 0.5) }
+                for (i in 0 until n) {
+                    val t = i / sr
+                    var v = 0.0
+                    for (k in 0 until 5) {
+                        val a0 = t - 0.04 * k
+                        if (a0 >= 0) {
+                            val ph = 2 * PI * notes[k] * det[k] * a0
+                            v += (0.6 + 0.1 * k) * exp(-a0 / 0.08) * (sin(ph) + 0.1 * sin(2.76 * ph))
+                        }
+                    }
+                    out[i] = v
+                }
+            }
+            else -> Unit
+        }
+        val fo = (0.012 * sr).roundToInt()
+        var peak = 0.0
+        for (i in 0 until n) {
+            val fe = n - 1 - i
+            if (fe < fo) out[i] *= 0.5 - 0.5 * cos(PI * fe / fo)
+            peak = maxOf(peak, abs(out[i]))
+        }
+        val norm = if (peak > 0) target / peak else 0.0
+        return FloatArray(n) { (out[it] * norm).toFloat() }
     }
 
     /** Tốc độ (pt/s) của nét vuốt mẫu ở giây [t]: lên nhanh, chậm lại ở 3 "phím", nhấc tay ở [SWIPE_PREVIEW_LIFT]. */
@@ -558,18 +763,28 @@ object KeySoundSynth {
         if (t < 0 || t >= SWIPE_PREVIEW_LIFT) 0.0
         else SwipeSoundFx.SPEED_FULL * sin(PI * t / SWIPE_PREVIEW_LIFT) * (0.45 + 0.55 * abs(cos(3 * PI * t / SWIPE_PREVIEW_LIFT)))
 
-    /** Bản nghe thử: vòng lặp × vỏ âm lượng y như lúc vuốt thật (cùng [SwipeSoundMeter]-đường cong + [SwipeSoundEnvelope]). */
-    fun swipePreviewSamples(s: SwipeSoundStyle): FloatArray {
-        val loop = swipeLoopSamples(s)
+    /**
+     * Bản nghe thử: vòng lặp × vỏ âm lượng y như lúc vuốt thật (cùng đường cong tốc độ + [SwipeSoundEnvelope]), lớp hạt dày
+     * × âm lượng², tiếng nhấc tay ở [SWIPE_PREVIEW_LIFT] với độ to cố định [SwipeSoundFx.PREVIEW_LIFT_GAIN].
+     */
+    fun swipePreviewSamples(s: SwipeSoundStyle): FloatArray =
+        swipePreview(swipeLoopSamples(s), swipeLayerSamples(s), swipeLiftSamples(s))
+
+    /** Bản nghe thử từ vòng lặp cho sẵn ("Âm của bạn": vòng từ file). [loop] rỗng ⇒ rỗng. */
+    fun swipePreview(loop: FloatArray, layer: FloatArray = FloatArray(0), shot: FloatArray = FloatArray(0)): FloatArray {
         if (loop.isEmpty()) return loop
         val sr = SWIPE_SAMPLE_RATE.toDouble()
-        val n = (SWIPE_PREVIEW * sr).roundToInt()
         val lift = (SWIPE_PREVIEW_LIFT * sr).roundToInt()
+        val n = maxOf((SWIPE_PREVIEW * sr).roundToInt(), lift + shot.size)
+        val lg = SwipeSoundFx.PREVIEW_LIFT_GAIN
         val env = SwipeSoundEnvelope(1 / sr)
         return FloatArray(n) { i ->
             if (i == lift) env.release()
             val g = env.next(SwipeSoundFx.speedGain(swipeDemoSpeed(i / sr)))
-            (loop[i % loop.size].toDouble() * g).toFloat()
+            var v = loop[i % loop.size].toDouble() * g
+            if (layer.isNotEmpty()) v += layer[i % layer.size].toDouble() * g * g
+            if (i >= lift && i - lift < shot.size) v += shot[i - lift].toDouble() * lg
+            v.toFloat()
         }
     }
 
