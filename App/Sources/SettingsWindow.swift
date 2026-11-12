@@ -894,7 +894,7 @@ struct TypingTab: View {
         static let frequency = "At the start, “his” stays English, not “hí”; switches back if the sentence is Vietnamese."
         static let hotkey = "Press and release just these keys to switch input source. Needs {PANE} permission."
         static let sticky = "When macOS switches input source on a new field (e.g. Word comments), switch back."
-        static let switchSound = "A rising tone means VietTelex, a falling one another keyboard. Only when you switch. Needs Accessibility."
+        static let switchSound = "A rising tone means VietTelex, a falling one another keyboard. Not when macOS switches per app."
         static let osShortcut = "Set in macOS Keyboard Shortcuts → Input Sources."
         static let liveSpell = "Stop adding tones once a word can’t be Vietnamese (google, github)."
         /// Thay cả nhóm "Gõ lẫn tiếng Anh" khi chọn VNI (spec §1) — cùng chữ iOS/Android.

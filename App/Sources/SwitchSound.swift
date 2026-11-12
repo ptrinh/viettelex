@@ -3,8 +3,9 @@
 // bộ gõ khác. Chỉ khi NGƯỜI DÙNG tự đổi (phím tắt, menu bàn phím, phím 🌐) — macOS tự đổi
 // theo app/tài liệu thì im lặng, không thì mỗi lần chuyển cửa sổ lại kêu.
 //
-// "Tự đổi" nhận qua dấu vết gesture của StickyInputSource (chord phím-kèm-modifier ≤1s,
-// click dải menu bar ≤5s), nên cần quyền Trợ năng như phím tắt đổi bộ gõ.
+// Mọi lần đổi VietTelex ↔ bộ gõ khác đều kêu, trừ lần đổi tự động: app vừa chuyển (bộ nhớ
+// theo app của macOS), VietTelex tự chọn lại, ô mật khẩu. Có dấu vết gesture của
+// StickyInputSource (cần quyền Trợ năng) thì kêu cả khi vừa chuyển app.
 // Âm tự tổng hợp (không cần file): cùng nốt với Windows/Linux (switch_sound.cpp).
 
 import AppKit
@@ -14,13 +15,20 @@ enum SwitchSound {
     static let leadMs = 30       // lặng đầu: thiết bị âm thanh có thể cắt mất phần mở đầu
     static let noteMs = 90
     static let gapMs = 20        // nghỉ giữa hai nốt để nghe ra hai nốt
-    static let lowHz = 523.25    // C5
-    static let highHz = 1046.50  // C6: cách một quãng tám, không lẫn được
+    static let lowHz = 261.63    // C4
+    static let highHz = 392.00   // G4: trầm, êm, cách nhau một quãng năm
 
     // MARK: - Phần thuần (có test)
 
-    static func shouldPlay(enabled: Bool, wasVietTelex: Bool, isVietTelex: Bool, userGesture: Bool) -> Bool {
-        enabled && userGesture && wasVietTelex != isVietTelex
+    /// Phát khi VietTelex ↔ bộ gõ khác, TRỪ các lần đổi tự động: VietTelex tự chọn lại
+    /// (`programmatic`), macOS đổi theo app vừa chuyển (`appChangedRecently`) hoặc ô mật khẩu
+    /// (`secure`). Có dấu vết gesture của người dùng thì luôn phát. Bản đầu CHỈ phát khi có
+    /// gesture ⇒ lúc kêu lúc không (giữ ⌃Space chọn trong bảng, phím tắt không qua tap…).
+    static func shouldPlay(enabled: Bool, wasVietTelex: Bool, isVietTelex: Bool, userGesture: Bool,
+                           appChangedRecently: Bool = false, programmatic: Bool = false,
+                           secure: Bool = false) -> Bool {
+        guard enabled, wasVietTelex != isVietTelex, !programmatic else { return false }
+        return userGesture || (!appChangedRecently && !secure)
     }
 
     /// File WAV hoàn chỉnh (PCM 16-bit mono) trong bộ nhớ.
@@ -36,14 +44,12 @@ enum SwitchSound {
         d.append(contentsOf: Array("fmt ".utf8)); u32(16); u16(1); u16(1)
         u32(UInt32(sampleRate)); u32(UInt32(sampleRate * 2)); u16(2); u16(16)
         d.append(contentsOf: Array("data".utf8)); u32(dataBytes)
-        let fade = perNote / 5   // không "tạch" ở hai đầu nốt
         for _ in 0..<lead { u16(0) }
         for (n, hz) in notes.enumerated() {
             for i in 0..<perNote {
-                var env = 1.0
-                if i < fade { env = Double(i) / Double(fade) }
-                else if i >= perNote - fade { env = Double(perNote - 1 - i) / Double(fade) }
-                let v = sin(2 * Double.pi * hz * Double(i) / Double(sampleRate)) * env * 0.28
+                // Cửa sổ Hann trên cả nốt: phồng lên rồi tắt dần, không có tiếng gõ.
+                let env = 0.5 - 0.5 * cos(2 * Double.pi * Double(i) / Double(perNote - 1))
+                let v = sin(2 * Double.pi * hz * Double(i) / Double(sampleRate)) * env * 0.20
                 u16(UInt16(bitPattern: Int16((v * 32767).rounded())))
             }
             if n == 0 { for _ in 0..<gap { u16(0) } }
@@ -57,7 +63,13 @@ enum SwitchSound {
     private static var sounds: [Bool: NSSound] = [:]
     /// Một lần đổi có thể bắn NHIỀU notification liền nhau (macOS đi qua trạng thái trung
     /// gian): gom lại, chỉ phát MỘT tiếng cho trạng thái cuối so với trước cả loạt.
-    static let settleMs = 60
+    /// 150 ms như StickyInputSource: notification đổi app có thể tới SAU notification TIS.
+    static let settleMs = 150
+    static let programmaticWindowNs: UInt64 = 700_000_000
+    private static var lastProgrammaticNs: UInt64 = 0
+
+    /// VietTelex sắp TỰ chọn lại bộ gõ (giành lại, hết ô mật khẩu): lần đổi đó im lặng.
+    static func noteProgrammaticSwitch() { lastProgrammaticNs = DispatchTime.now().uptimeNanoseconds }
     private static var pending: DispatchWorkItem?
     private static var burstStart = false
     private static var burstGesture = false
@@ -74,8 +86,13 @@ enum SwitchSound {
         let item = DispatchWorkItem {
             pending = nil
             let now = wasVietTelex ?? isVietTelex
+            let t = DispatchTime.now().uptimeNanoseconds
             guard shouldPlay(enabled: AppState.shared.switchSound, wasVietTelex: burstStart,
-                             isVietTelex: now, userGesture: burstGesture) else { return }
+                             isVietTelex: now, userGesture: burstGesture,
+                             appChangedRecently: StickyInputSource.shared.appChangedRecently(nowNs: t),
+                             programmatic: lastProgrammaticNs != 0 && t &- lastProgrammaticNs <= programmaticWindowNs,
+                             secure: SecureInputMonitor.shared.activeHolder != nil || SecureFieldDetector.isSecure)
+            else { return }
             play(vietnamese: now)
         }
         pending = item

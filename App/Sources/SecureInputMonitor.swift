@@ -277,6 +277,7 @@ final class SecureInputMonitor {
             // lại bằng tay (field report 14/08). Chỉ chọn lại khi TRƯỚC lúc chặn
             // VietTelex đang được chọn — không bao giờ cướp selection user tự đổi.
             if selectedBeforeBlock, !TelexInputController.isVietTelexSelected() {
+                SwitchSound.noteProgrammaticSwitch()
                 let ok = Self.reselectVietTelex()
                 Signposts.log.notice("secure-input OFF — reselect VietTelex: \(ok ? "ok" : "FAILED", privacy: .public)")
                 DebugLog.log("secure-input reselect: \(ok ? "ok" : "FAILED")")

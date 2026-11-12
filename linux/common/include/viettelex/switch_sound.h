@@ -14,8 +14,8 @@ constexpr int kSwitchSoundRate = 22050;
 constexpr int kSwitchSoundLeadMs = 30;   // silence first: the audio device may clip the start
 constexpr int kSwitchSoundNoteMs = 90;
 constexpr int kSwitchSoundGapMs = 20;    // between the two notes, so they are heard as two
-constexpr double kSwitchSoundLowHz = 523.25;    // C5
-constexpr double kSwitchSoundHighHz = 1046.50;  // C6: an octave apart, unmistakable
+constexpr double kSwitchSoundLowHz = 261.63;   // C4
+constexpr double kSwitchSoundHighHz = 392.00;  // G4: low and soft, a fifth apart
 
 // A complete 16-bit mono PCM WAV file.
 std::vector<uint8_t> switchSoundWav(bool vietnamese);

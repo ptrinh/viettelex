@@ -93,6 +93,12 @@ final class StickyInputSource {
         return Self.isUserGesture(nowNs: nowNs, lastChordNs: chord, lastMenuBarClickNs: menu)
     }
 
+    /// App frontmost vừa đổi (≤1.5s)? Dùng cho âm báo: đổi bộ gõ theo app thì im lặng.
+    func appChangedRecently(nowNs: UInt64) -> Bool {
+        let t = lock.withLock { lastAppChangeNs }
+        return t != 0 && nowNs &- t <= Self.appChangeWindowNs
+    }
+
     static func isUserGesture(nowNs: UInt64, lastChordNs: UInt64, lastMenuBarClickNs: UInt64) -> Bool {
         (lastChordNs != 0 && nowNs &- lastChordNs <= gestureWindowNs)
             || (lastMenuBarClickNs != 0 && nowNs &- lastMenuBarClickNs <= menuClickWindowNs)
@@ -152,6 +158,7 @@ final class StickyInputSource {
             return true
         }
         guard allowed else { return }
+        SwitchSound.noteProgrammaticSwitch()
         let ok = SecureInputMonitor.reselectVietTelex()
         DebugLog.log("sticky-source reclaim: \(ok ? "ok" : "FAILED")")
         Signposts.log.notice("sticky-source reclaim: \(ok ? "ok" : "FAILED", privacy: .public)")

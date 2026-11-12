@@ -15,9 +15,23 @@ final class SwitchSoundTests: XCTestCase {
         XCTAssertTrue(play(true, false, true, true))
         XCTAssertTrue(play(true, true, false, true))
         XCTAssertFalse(play(false, false, true, true))   // tắt
-        XCTAssertFalse(play(true, false, true, false))   // macOS tự đổi theo app/tài liệu
+        // Không thấy gesture (giữ ⌃Space chọn trong bảng, chưa cấp Trợ năng) vẫn phải kêu.
+        XCTAssertTrue(play(true, false, true, false))
         XCTAssertFalse(play(true, false, false, true))   // ABC → bộ gõ khác: không liên quan
         XCTAssertFalse(play(true, true, true, true))
+    }
+
+    func testAutomaticSwitchesStaySilent() {
+        func play(gesture: Bool = false, app: Bool = false, prog: Bool = false, secure: Bool = false) -> Bool {
+            SwitchSound.shouldPlay(enabled: true, wasVietTelex: true, isVietTelex: false, userGesture: gesture,
+                                   appChangedRecently: app, programmatic: prog, secure: secure)
+        }
+        XCTAssertFalse(play(app: true))                  // macOS đổi theo app vừa chuyển
+        XCTAssertTrue(play(gesture: true, app: true))    // vừa chuyển app nhưng người dùng tự đổi
+        XCTAssertFalse(play(prog: true))                 // VietTelex tự chọn lại
+        XCTAssertFalse(play(gesture: true, prog: true))
+        XCTAssertFalse(play(secure: true))               // ô mật khẩu đá sang ABC
+        XCTAssertTrue(play(gesture: true, secure: true))
     }
 
     func testWavIsValidShortAndRisingForVietnamese() {
