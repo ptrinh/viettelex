@@ -31,10 +31,11 @@ object CuratedPairs {
 
     /** "a b": chỉ cho vuốt / gợi ý đang gõ ([next]), không cho Thêm dấu. */
     val nextOnly: Set<String> = hashSetOf(
-        "check var", "chú rể", "cô dâu", "dâu chú",
-        "hay fake", "mò cu", "ngu vl", "out trình",
-        "real hay", "sờ cu", "vãi lồn", "xịn sò",
-        "đu trend", "đám cưới",
+        "check var", "chí minh", "chú rể", "cô dâu",
+        "dâu chú", "hay fake", "hàn quốc", "hồ chí",
+        "mò cu", "ngu vl", "nhật bản", "out trình",
+        "real hay", "sờ cu", "trung quốc", "vãi lồn",
+        "xịn sò", "đu trend", "đà nẵng", "đám cưới",
     )
 
     private val tripleHeads: Set<String> = triples.mapTo(HashSet()) { it.split(' ').let { p -> p[0] + " " + p[1] } }

@@ -123,3 +123,11 @@ cố gắng
 ~ real hay fake
 ~ đu trend
 ~ check var
+
+# 9. Địa danh (Phil 12/11/2026) — vuốt "đà nẵng" ra "đa năng", "hồ chí minh" ra "họ chỉ mình"; chỉ
+#    vuốt / gợi ý đang gõ dở (~), viết hoa do DisplayCase.chains.
+~ đà nẵng
+~ hồ chí minh
+~ hàn quốc
+~ trung quốc
+~ nhật bản

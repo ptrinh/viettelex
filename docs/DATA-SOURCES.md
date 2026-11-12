@@ -595,6 +595,26 @@ Còn sai trên tập giữ lại: chưa → của ×4 (nét thẳng), chọn →
 golf, felt→left). Có ngữ cảnh (vuốt tuần tự): chưa cuối câu hỏi ("…đài loan chưa") và "không cho"
 → "không có" vẫn thua LM — việc của trọng số LM, chưa đụng.
 
+#### 575 nét thật (iPhone, xuất 12/11/2026) — kiểm lại, từ một chữ theo phím Telex, tên riêng
+
+Kho 575 nét = 500 nét cũ (28/09) + 75 nét mới (28/09 chiều, 19/10, 11/11). 75 nét mới chưa từng dùng để
+chỉnh: top-1 0,853 / top-3 0,960 (Việt 0,851, n = 67) — khớp tập giữ lại cũ; cả 575: 0,788 / 0,946
+(chỉnh 393: 0,791; giữ lại 182: 0,780). Lệch tay có hệ thống rất nhỏ (điểm đầu +0,07 / −0,05 phím, phím
+giữa −0,04 / −0,07) ⇒ không thêm bù lệch. Lỗi còn lại vẫn là cặp gần trùng nét (chọn/con, cho/có,
+chưa/của, trả/ta) — cần ngữ cảnh — và lỗi dấu của từ rời. Không đổi hằng số decoder.
+
+**Từ một chữ vuốt theo phím Telex** (`SwipeVocab.telexEntries`, hai nền tảng): ở, ạ, à, ừ, ý… chỉ có một
+phím nên không vuốt được; thêm dạng theo dãy phím Telex — nguyên âm [+ w] + phím dấu ("aj" → ạ, "af" → à,
+"owr" → ở, "ys" → ý) và nét tắt họ móc không phím dấu ("ow" → ở ờ ơ ợ ớ, "uw" → ừ ư ứ ự ử, xếp theo tần
+suất vnlexicon). Bỏ đường trùng từ tiếng Anh thông dụng hơn (as, is, us, of, or, if, os — test so với
+enlexicon). Đo trước/sau: nét thật, từ rời giả, câu giữ lại y hệt; câu Anh thuần test −1 từ / 3 159;
+câu trộn y hệt. Thêm "uhm" vào bảng chat.
+
+**Tên riêng khi vuốt**: `DisplayCase` thêm tên nước / thành phố / hãng viết kiểu Anh có trong enlexicon
+(Saigon, Hanoi, Vietnam, Japan, Microsoft…), "Huế", chuỗi Hàn Quốc / Trung Quốc / Nhật Bản / Thái Lan /
+Đài Loan + tỉnh; cặp chọn tay chỉ-vuốt "đà nẵng", "hồ chí minh"… (trước: "đa năng", "họ chỉ mình").
+Còn sót: "new York" (từ Anh đứng trước không được hoa ngược), "hong kong" (không có trong từ điển).
+
 ### Liên tục ngôn ngữ — đang gõ tiếng Anh thì từ kế là tiếng Anh (28/09/2026, `SwipeLangContext.prior(kinds)`)
 
 Ngữ cảnh = ngôn ngữ ≤ 3 từ trước con trỏ (từ đang soạn + vòng 3 từ đã chốt, gõ hay vuốt; **không

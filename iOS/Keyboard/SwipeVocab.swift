@@ -20,6 +20,8 @@ enum SwipeVocab {
         let word: String
         let freq: Int
         var sensitive = false
+        /// Đường vuốt khác dạng không dấu của từ (nét kiểu Telex: "ow" → ở). nil = fold(word).
+        var path: String? = nil
     }
 
     /// Chat / viết tắt — luôn có (không nằm trong SensitiveWords.set).
@@ -32,6 +34,7 @@ enum SwipeVocab {
         .init(word: "cmt", freq: 90), .init(word: "stt", freq: 70), .init(word: "kb", freq: 70),
         .init(word: "uk", freq: 90), .init(word: "haha", freq: 120), .init(word: "hihi", freq: 110),
         .init(word: "hehe", freq: 100), .init(word: "huhu", freq: 90), .init(word: "kaka", freq: 60),
+        .init(word: "uhm", freq: 110),   // Phil 12/11/2026
     ]
 
     /// Thô tục KHÔNG nằm trong SensitiveWords.set — luôn có, nhưng vnlexicon ghi tần suất gần 0 (nắc
@@ -55,10 +58,64 @@ enum SwipeVocab {
         }.map { Entry(word: $0, freq: min(max((seed[$0] ?? 0) * 51 / 10, 0), 255), sensitive: true) }
     }
 
+    // MARK: Từ một chữ — vuốt theo phím Telex (11/2026)
+
+    /// Âm tiết MỘT chữ (ở, ạ, à, ừ, ý…) chỉ có một phím ⇒ không vuốt được. Cho vuốt đúng dãy phím
+    /// Telex của nó: nguyên âm [+ w nếu có móc] + phím dấu (s f r x j) — "aj" → ạ, "af" → à,
+    /// "owr" → ở, "uwf" → ừ, "ys" → ý. Mũ (ô, ê) gõ lặp chữ nên trên đường vuốt gộp mất: "of" là
+    /// cả ò lẫn ồ, xếp theo tần suất. Họ móc còn có nét tắt KHÔNG phím dấu: "ow" → ở ờ ơ ợ ớ,
+    /// "uw" → ừ ư ứ ự ử (mạnh nhất đứng đầu, còn lại ở phương án). Tần suất = vnlexicon.
+    /// Bỏ đường trùng từ tiếng Anh thông dụng hơn (`telexSkip`) và đường trùng dạng vnlexicon.
+    /// Song sinh Android SwipeVocab.telexEntries; thứ tự: đường, tần suất giảm, từ.
+    static let telexSkip: Set<String> = ["as", "is", "us", "of", "or", "if", "os"]
+
+    /// Đường Telex của âm tiết một chữ `w`: (đủ phím dấu, nét tắt họ móc) — nil nếu không có.
+    static func telexPaths(_ w: String) -> (full: String?, family: String?) {
+        let sc = Array(w.decomposedStringWithCanonicalMapping.unicodeScalars)
+        guard let b = sc.first, "aeiouy".unicodeScalars.contains(b) else { return (nil, nil) }
+        var horn = false, tone = ""
+        for u in sc.dropFirst() {
+            switch u.value {
+            case 0x31B, 0x306: horn = true          // móc (ơ ư), trăng (ă)
+            case 0x302: break                       // mũ: lặp chữ, gộp trên đường vuốt
+            case 0x301: tone = "s"
+            case 0x300: tone = "f"
+            case 0x309: tone = "r"
+            case 0x303: tone = "x"
+            case 0x323: tone = "j"
+            default: return (nil, nil)
+            }
+        }
+        let stem = String(Character(b)) + (horn ? "w" : "")
+        let full = stem + tone
+        return (full.count >= 2 ? full : nil, horn && !tone.isEmpty ? stem : nil)
+    }
+
+    static let telexEntries: [Entry] = {
+        let lex = SwipeLexicon.forms
+        var out: [Entry] = []
+        for v in ["a", "e", "i", "o", "u", "y"] {
+            guard let f = SwipeLexicon.index(of: v) else { continue }
+            for id in Int(lex.idStart[f])..<Int(lex.idStart[f + 1]) {
+                let w = VNSuggest.display(id)
+                let p = telexPaths(w)
+                for path in [p.full, p.family] {
+                    guard let path, !telexSkip.contains(path), SwipeLexicon.index(of: path) == nil else { continue }
+                    out.append(Entry(word: w, freq: Int(VNLexicon2Data.freq(id)), path: path))
+                }
+            }
+        }
+        return out.sorted { a, b in
+            if a.path != b.path { return a.path! < b.path! }
+            if a.freq != b.freq { return a.freq > b.freq }
+            return a.word < b.word
+        }
+    }()
+
     /// Bảng đầy đủ theo chế độ: chat + thô tục luôn có (+ tục khi tắt lọc, tần suất từ seed)
-    /// + từ của bảng Gõ tắt (`shortcutEntries`, rỗng khi tắt Gõ tắt).
+    /// + nét Telex của từ một chữ + từ của bảng Gõ tắt (`shortcutEntries`, rỗng khi tắt Gõ tắt).
     static func entries(filter: Bool, shortcuts sc: [Entry] = []) -> [Entry] {
-        let base = filter ? chat + always : chat + always + sensitiveEntries(SeedData.unigrams)
+        let base = (filter ? chat + always : chat + always + sensitiveEntries(SeedData.unigrams)) + telexEntries
         return sc.isEmpty ? base : base + sc.filter { !(filter && isSensitive($0.word.lowercased())) }
     }
 
@@ -202,8 +259,8 @@ enum SwipeVocab {
         let lex = SwipeLexicon.forms
         var words: [String: [SwipeWord]] = [:]
         for e in entries(filter: filter, shortcuts: shortcuts) {
-            let f = SwipeLexicon.fold(e.word)
-            let lf = SwipeLexicon.index(of: f) == nil ? -1 : lexiconFreq(e.word)
+            let f = e.path ?? SwipeLexicon.fold(e.word)
+            let lf = e.path != nil || SwipeLexicon.index(of: f) == nil ? -1 : lexiconFreq(e.word)
             // có sẵn trong vnlexicon: chỉ thay khi bảng cao hơn; không có: từ tục được sàn
             let fr = lf < 0 && e.sensitive ? max(e.freq, sensitiveFloor) : e.freq
             if lf >= fr { continue }

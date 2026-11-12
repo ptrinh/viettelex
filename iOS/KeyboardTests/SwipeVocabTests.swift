@@ -35,6 +35,41 @@ final class SwipeVocabTests: XCTestCase {
         XCTAssertEqual(SwipeDecoder.expand("dcm", limit: 8).map(\.word), ["đcm", "dcm"])
     }
 
+    /// Từ một chữ vuốt theo phím Telex (11/2026, Phil: "ở, ạ… rất khó vuốt; ow là ở, aj là ạ, ừ thì uw là đủ").
+    /// Song sinh Android singleLetterWordsSwipeByTelexKeys; đường + điểm khớp qua fixture swipe-vocab.tsv.
+    func testSingleLetterWordsSwipeByTelexKeys() {
+        func top(_ f: String) -> String? { SwipeDecoder.expand(f, limit: 1).first?.word }
+        XCTAssertEqual(top("ow"), "ở")
+        XCTAssertEqual(top("uw"), "ừ")
+        XCTAssertEqual(top("aj"), "ạ")
+        XCTAssertEqual(top("af"), "à")
+        XCTAssertEqual(top("ys"), "ý")
+        XCTAssertEqual(top("owr"), "ở")
+        XCTAssertEqual(top("uhm"), "uhm")
+        XCTAssertEqual(SwipeDecoder.expand("ow", limit: 8).map(\.word), ["ở", "ờ", "ơ", "ợ", "ớ"])
+        XCTAssertEqual(SwipeVocab.telexPaths("ở").full, "owr")
+        XCTAssertEqual(SwipeVocab.telexPaths("ở").family, "ow")
+        XCTAssertEqual(SwipeVocab.telexPaths("ồ").full, "of")
+        XCTAssertNil(SwipeVocab.telexPaths("a").full)
+        XCTAssertFalse(SwipeVocab.telexEntries.contains { SwipeVocab.telexSkip.contains($0.path ?? "") })
+        // đường trùng từ tiếng Anh thông dụng hơn thì bỏ: "as", "is", "of"… vẫn là tiếng Anh
+        for p in SwipeVocab.telexSkip { XCTAssertNil(SwipeVocab.current.index(of: p), p) }
+    }
+
+    /// Tên riêng viết kiểu Anh + chuỗi địa danh thêm 11/2026 (Phil: Saigon, Singapore, Paris, Google).
+    func testProperNounTableAdditions() {
+        XCTAssertEqual(DisplayCase.apply("saigon"), "Saigon")
+        XCTAssertEqual(DisplayCase.apply("hanoi"), "Hanoi")
+        XCTAssertEqual(DisplayCase.apply("vietnam"), "Vietnam")
+        XCTAssertEqual(DisplayCase.apply("huế"), "Huế")
+        XCTAssertEqual(DisplayCase.apply("whatsapp"), "WhatsApp")
+        XCTAssertEqual(DisplayCase.apply("quốc", after: "hàn"), "Quốc")
+        XCTAssertEqual(DisplayCase.apply("quốc", after: "trung"), "Quốc")
+        XCTAssertEqual(DisplayCase.apply("quốc", after: "tổ"), "quốc")
+        XCTAssertEqual(DisplayCase.apply("bình", after: "hòa"), "bình")
+        XCTAssertTrue(CuratedPairs.next(after: "đà", prev2: nil).contains("nẵng"))
+    }
+
     func testChatAbbreviationsAlwaysThere() {
         for filter in [true, false] {
             SwipeVocab.filterSensitive = filter

@@ -18,7 +18,8 @@ package com.viettelex.keyboard
  * một lần; 0 việc ở đường phím chữ.
  */
 object SwipeVocab {
-    class Entry(val word: String, val freq: Int, val sensitive: Boolean = false)
+    /** [path]: đường vuốt khác dạng không dấu của từ (nét kiểu Telex: "ow" → ở); null = fold(word). */
+    class Entry(val word: String, val freq: Int, val sensitive: Boolean = false, val path: String? = null)
 
     /** Chat / viết tắt — luôn có (không nằm trong [SensitiveWords.set]). */
     val CHAT: List<Entry> = listOf(
@@ -27,6 +28,7 @@ object SwipeVocab {
         Entry("nx", 100), Entry("bt", 110), Entry("ms", 110), Entry("vd", 80), Entry("ib", 90),
         Entry("cmt", 90), Entry("stt", 70), Entry("kb", 70), Entry("uk", 90), Entry("haha", 120),
         Entry("hihi", 110), Entry("hehe", 100), Entry("huhu", 90), Entry("kaka", 60),
+        Entry("uhm", 110),   // Phil 12/11/2026
     )
 
     /**
@@ -49,13 +51,65 @@ object SwipeVocab {
         SensitiveWords.set.sortedWith(compareBy<String>({ SwipeSuggest.fold(it) }, { if ('đ' in it) 0 else 1 }, { it }))
             .map { Entry(it, ((seed[it] ?: 0) * 51 / 10).coerceIn(0, 255), true) }
 
+    // MARK: Từ một chữ — vuốt theo phím Telex (11/2026) — song sinh iOS SwipeVocab.telexEntries
+
     /**
-     * Bảng đầy đủ theo chế độ: chat + thô tục luôn có (+ tục khi tắt lọc, tần suất từ seed) + từ của
-     * bảng Gõ tắt ([shortcuts], rỗng khi tắt Gõ tắt).
+     * Âm tiết MỘT chữ (ở, ạ, à, ừ, ý…) chỉ có một phím ⇒ không vuốt được. Cho vuốt đúng dãy phím Telex
+     * của nó: nguyên âm [+ w nếu có móc] + phím dấu (s f r x j) — "aj" → ạ, "af" → à, "owr" → ở,
+     * "uwf" → ừ, "ys" → ý. Mũ (ô, ê) gõ lặp chữ nên trên đường vuốt gộp mất: "of" là cả ò lẫn ồ, xếp
+     * theo tần suất. Họ móc còn có nét tắt KHÔNG phím dấu: "ow" → ở ờ ơ ợ ớ, "uw" → ừ ư ứ ự ử. Tần
+     * suất = vnlexicon. Bỏ đường trùng từ tiếng Anh thông dụng hơn ([TELEX_SKIP]) và đường trùng dạng
+     * vnlexicon. Thứ tự: đường, tần suất giảm, từ.
+     */
+    val TELEX_SKIP: Set<String> = setOf("as", "is", "us", "of", "or", "if", "os")
+
+    /** Đường Telex của âm tiết một chữ [w]: (đủ phím dấu, nét tắt họ móc) — null nếu không có. */
+    fun telexPaths(w: String): Pair<String?, String?> {
+        val d = java.text.Normalizer.normalize(w, java.text.Normalizer.Form.NFD)
+        if (d.isEmpty() || d[0] !in "aeiouy") return null to null
+        var horn = false
+        var tone = ""
+        for (c in d.drop(1)) when (c.code) {
+            0x31B, 0x306 -> horn = true   // móc (ơ ư), trăng (ă)
+            0x302 -> {}                   // mũ: lặp chữ, gộp trên đường vuốt
+            0x301 -> tone = "s"
+            0x300 -> tone = "f"
+            0x309 -> tone = "r"
+            0x303 -> tone = "x"
+            0x323 -> tone = "j"
+            else -> return null to null
+        }
+        val stem = d[0] + if (horn) "w" else ""
+        val full = stem + tone
+        return (if (full.length >= 2) full else null) to (if (horn && tone.isNotEmpty()) stem else null)
+    }
+
+    val telexEntries: List<Entry> by lazy {
+        val lex = SwipeLexicon.forms
+        val out = ArrayList<Entry>()
+        for (v in listOf("a", "e", "i", "o", "u", "y")) {
+            val f = SwipeLexicon.indexOf(v)
+            if (f < 0) continue
+            for (id in lex.idStart[f] until lex.idStart[f + 1]) {
+                val w = VNSuggest.display(id)
+                val (full, family) = telexPaths(w)
+                for (path in listOf(full, family)) {
+                    if (path == null || path in TELEX_SKIP || SwipeLexicon.indexOf(path) >= 0) continue
+                    out.add(Entry(w, VNSuggest.freq(id), path = path))
+                }
+            }
+        }
+        out.sortedWith(compareBy<Entry>({ it.path }, { -it.freq }, { it.word }))
+    }
+
+    /**
+     * Bảng đầy đủ theo chế độ: chat + thô tục luôn có (+ tục khi tắt lọc, tần suất từ seed) + nét
+     * Telex của từ một chữ + từ của bảng Gõ tắt ([shortcuts], rỗng khi tắt Gõ tắt).
      */
     fun entries(filter: Boolean): List<Entry> {
-        val base = if (filter) CHAT + ALWAYS
-            else CHAT + ALWAYS + sensitiveEntries(try { SeedData.unigrams } catch (e: Exception) { emptyMap() })
+        val base = (if (filter) CHAT + ALWAYS
+            else CHAT + ALWAYS + sensitiveEntries(try { SeedData.unigrams } catch (e: Exception) { emptyMap() })) +
+            telexEntries
         val sc = shortcuts
         return if (sc.isEmpty()) base else base + sc.filter { !(filter && isSensitive(it.word.lowercase())) }
     }
@@ -187,9 +241,9 @@ object SwipeVocab {
         val lex = SwipeLexicon.forms
         val words = LinkedHashMap<String, MutableList<SwipeWord>>()
         for (e in entries(filter)) {
-            val f = SwipeSuggest.fold(e.word)
+            val f = e.path ?: SwipeSuggest.fold(e.word)
             val i = SwipeLexicon.indexOf(f)
-            val lf = if (i >= 0) lexiconFreq(e.word) else -1
+            val lf = if (e.path == null && i >= 0) lexiconFreq(e.word) else -1
             // có sẵn trong vnlexicon: chỉ thay khi bảng cao hơn; không có: từ tục được sàn
             val fr = if (lf < 0 && e.sensitive) maxOf(e.freq, SENSITIVE_FLOOR) else e.freq
             if (lf >= fr) continue

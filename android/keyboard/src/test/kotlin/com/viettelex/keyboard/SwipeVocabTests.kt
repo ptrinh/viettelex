@@ -56,6 +56,51 @@ class SwipeVocabTests {
         assertEquals(listOf("đcm", "dcm"), SwipeDecoder.expand("dcm", 8).map { it.word })
     }
 
+    /** Từ một chữ vuốt theo phím Telex (11/2026, Phil: "ở, ạ… rất khó vuốt; ow là ở, aj là ạ, ừ thì uw là đủ"). */
+    @Test fun singleLetterWordsSwipeByTelexKeys() {
+        fun top(f: String) = SwipeDecoder.expand(f, 1).firstOrNull()?.word
+        assertEquals("ở", top("ow"))
+        assertEquals("ừ", top("uw"))
+        assertEquals("ạ", top("aj"))
+        assertEquals("à", top("af"))
+        assertEquals("ý", top("ys"))
+        assertEquals("ở", top("owr"))
+        assertEquals("ừ", top("uwf"))
+        assertEquals(listOf("ở", "ờ", "ơ", "ợ", "ớ"), SwipeDecoder.expand("ow", 8).map { it.word })
+        assertEquals("ồ" to "of", SwipeVocab.telexPaths("ồ").first?.let { "ồ" to it })
+        assertEquals("owr" to "ow", SwipeVocab.telexPaths("ở"))
+        assertEquals(null to null, SwipeVocab.telexPaths("a"))
+        // đường trùng từ tiếng Anh thông dụng hơn âm tiết Việt mạnh nhất của nó thì bỏ — và chỉ những đường đó
+        val en = SwipeEnglish.lexicon
+        val best = HashMap<String, Int>()
+        for (v in "aeiouy") {
+            val f = SwipeLexicon.indexOf(v.toString())
+            for (id in SwipeLexicon.forms.idStart[f] until SwipeLexicon.forms.idStart[f + 1]) {
+                val (full, fam) = SwipeVocab.telexPaths(VNSuggest.display(id))
+                for (p in listOfNotNull(full, fam)) best[p] = maxOf(best[p] ?: 0, VNSuggest.freq(id))
+            }
+        }
+        val clash = best.filter { (p, f) -> SwipeEnglish.indexOf(p).let { it >= 0 && en.freq(it) >= f } }.keys
+        assertEquals(SwipeVocab.TELEX_SKIP, clash)
+        assertTrue(SwipeVocab.telexEntries.none { it.path in SwipeVocab.TELEX_SKIP })
+        // một chữ không dấu vẫn không vuốt được, dạng vnlexicon không đổi
+        assertEquals(null, SwipeVocab.current.forms.folded.firstOrNull { it.length == 1 && SwipeLexicon.indexOf(it) < 0 })
+    }
+
+    /** Tên riêng khi vuốt viết hoa chuẩn (Phil 12/11/2026: Hà Nội, Saigon, Singapore, Paris, Google). */
+    @Test fun properNounsSwipeCapitalized() {
+        for ((t, want) in listOf("tôi ở hà nội" to "Tôi ở Hà Nội", "hà nội" to "Hà Nội", "đi singapore" to "Đi Singapore",
+            "ở paris" to "Ở Paris", "tìm trên google" to "Tìm trên Google", "về saigon" to "Về Saigon",
+            "ở sài gòn" to "Ở Sài Gòn", "đi đà nẵng" to "Đi Đà Nẵng", "hồ chí minh" to "Hồ Chí Minh",
+            "đi hanoi" to "Đi Hanoi", "ở vietnam" to "Ở Vietnam", "đi huế" to "Đi Huế", "đi hàn quốc" to "Đi Hàn Quốc",
+            "sang trung quốc" to "Sang Trung Quốc", "tôi yêu việt nam" to "Tôi yêu Việt Nam", "mua iphone" to "Mua iPhone"))
+            assertEquals(t, want, session(t, true).first)
+        // từ thường không bị hoa nhầm: "nội" / "quốc" / "bình" đứng ngoài chuỗi
+        assertEquals("nội", DisplayCase.apply("nội", "bà"))
+        assertEquals("quốc", DisplayCase.apply("quốc", "tổ"))
+        assertEquals("bình", DisplayCase.apply("bình", "hòa"))
+    }
+
     @Test fun chatAbbreviationsAlwaysThere() {
         for (filter in listOf(true, false)) {
             SwipeVocab.filterSensitive = filter
@@ -161,9 +206,11 @@ class SwipeVocabTests {
 
     // ---- fixture chung ----
 
-    private val folds = listOf("dit", "lon", "cac", "buoi", "du", "di", "cut", "dam", "diem", "vu", "dai", "cu", "so", "mo")
+    private val folds = listOf("dit", "lon", "cac", "buoi", "du", "di", "cut", "dam", "diem", "vu", "dai", "cu", "so", "mo",
+        "ow", "uw", "owr", "uwf", "aj", "af", "ar", "ys", "oj", "ej")
 
-    private val phrases = phil.map { it.first } + single.map { it.first } + guards + listOf("ko biết", "đc không", "ok", "nma", "ntn", "bt", "ms", "haha")
+    private val phrases = phil.map { it.first } + single.map { it.first } + guards + listOf("ko biết", "đc không", "ok", "nma", "ntn", "bt", "ms", "haha",
+        "uhm", "uhm được rồi", "ow", "uw", "tôi ow nhà", "vâng aj", "af thế", "ys kiến")
 
     private fun generate(): List<String> {
         val lines = ArrayList<String>()
