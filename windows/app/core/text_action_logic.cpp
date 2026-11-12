@@ -44,6 +44,7 @@ bool clipboardFallbackAllowed(const std::string& exe, bool console, const std::s
 bool isShellSurfaceClass(const std::string& c) {
     return c == "Shell_TrayWnd" || c == "Shell_SecondaryTrayWnd" || c == "NotifyIconOverflowWindow" ||
            c == "TopLevelWindowForOverflowXamlIsland" || c == "XamlExplorerHostIslandWindow" ||
+           c == "Shell_InputSwitchTopLevelWindow" /* Win+Space keyboard list (log 1.3.23: tray flipped to V) */ ||
            c == "Windows.UI.Core.CoreWindow" || c == "Progman" || c == "WorkerW" || c == "#32768" /* menus */;
 }
 

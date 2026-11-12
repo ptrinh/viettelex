@@ -25,6 +25,9 @@ OverrideState inputMethodOverride();
 unsigned defaultInputLangId();
 // Remove another layout/TIP from this user's list ("042A:{CLSID}{PROFILE}" / "042A:0000042A").
 bool removeLayoutOrTipForUser(const std::wstring& spec);
+// The same through the user's language list (PowerShell Set-WinUserLanguageList, hidden,
+// at most 20 s): for a Windows that reports the removal done and keeps the keyboard.
+bool removeFromUserLanguageList(const std::string& spec);
 // This process runs as LocalSystem (an MSI custom action of a Store / Intune / msiexec /qn
 // install): its HKCU belongs to no person.
 bool runningAsSystem();

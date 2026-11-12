@@ -962,6 +962,9 @@ TEST(text_action_clipboard_policy) {
     CHECK(clipboardFormatKind(14) == ClipFormatKind::EnhMetafile);
     CHECK(clipboardFormatKind(0x250) == ClipFormatKind::Skip);     // CF_PRIVATEFIRST range
     CHECK(isShellSurfaceClass("Shell_TrayWnd") && isShellSurfaceClass("NotifyIconOverflowWindow"));
+    // Log 1.3.23: opening the Win+Space keyboard list made the tray icon show explorer's
+    // state (V) instead of the app's (E).
+    CHECK(isShellSurfaceClass("Shell_InputSwitchTopLevelWindow"));
     CHECK(!isShellSurfaceClass("Notepad") && !isShellSurfaceClass("Chrome_WidgetWin_1"));
 }
 

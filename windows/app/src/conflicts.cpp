@@ -220,6 +220,30 @@ bool removeBuiltInVietnameseKeyboards(const std::vector<FoundConflict>& list) {
         appLog("app", std::string("remove Windows Vietnamese keyboard ") + spec + (removed ? ": done" : ": failed"));
         ok = ok && removed;
     }
+    // Log 1.3.23 (Windows 11 25H2): "done" above, yet the keyboard was still in the list —
+    // the language list put it back. Look again, and take what is left out of that list.
+    if (!specs.empty()) {
+        std::vector<FoundConflict> left;
+        findMicrosoftKeyboards(left);
+        std::vector<ViProfile> leftProfiles;
+        for (const FoundConflict& c : left) leftProfiles.push_back(c.profile);
+        const std::vector<std::string> again = builtInKeyboardRemovals(leftProfiles, reg::kClsid);
+        if (!again.empty()) {
+            ok = true;
+            for (const std::string& spec : again) {
+                const bool removed = removeFromUserLanguageList(spec);
+                appLog("app", std::string("still listed, removing from the language list ") + spec +
+                                  (removed ? ": done" : ": failed"));
+                ok = ok && removed;
+            }
+            std::vector<FoundConflict> after;
+            findMicrosoftKeyboards(after);
+            if (!after.empty()) {
+                appLog("app", "Windows Vietnamese keyboard still listed after both removals");
+                ok = false;
+            }
+        }
+    }
     // What the user wanted: VietTelex is what Windows types Vietnamese with, from now on.
     const bool made = setDefaultKeyboardForUser();
     const bool selected = selectVietTelexForSession();

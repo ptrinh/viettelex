@@ -94,6 +94,13 @@ ResolveRow welcomeResolveRow(const std::vector<ConflictKind>& found);
 // Third-party input methods are never in here (they are processes, not profiles).
 std::vector<std::string> builtInKeyboardRemovals(const std::vector<ViProfile>& found, const std::string& ourClsid);
 
+// Log 1.3.23 (Windows 11 25H2): InstallLayoutOrTip(ILOT_UNINSTALL) said "done" and the
+// keyboard stayed — the user's language list still named it and Windows put it back. The
+// PowerShell command that takes `spec` ("042A:0000042A", "042A:{CLSID}{PROFILE}") out of
+// that list (Get-/Set-WinUserLanguageList, the supported way). "" for a spec with any
+// character outside hex digits, ':', '{', '}', '-' (nothing else may reach a command line).
+std::string languageListRemovalCommand(const std::string& spec);
+
 // ---- §5 Thoát: back to the keyboard used before VietTelex, else English -------------------
 // `hkls` = GetKeyboardLayoutList, `saved` = HKL stored when VietTelex was selected (0 =
 // none). The saved one if still in the list and not Vietnamese; else US English (0x0409);

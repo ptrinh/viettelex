@@ -97,6 +97,21 @@ TEST(feel_new_user_gets_tray_existing_keeps_choice) {
     CHECK(n == d);
 }
 
+// ---------------------------------------------------------------- built-in keyboard removal
+
+TEST(feel_language_list_removal_command_takes_only_a_plain_spec) {
+    const std::string c = languageListRemovalCommand("042A:0000042A");
+    CHECK(c.find("Get-WinUserLanguageList") != std::string::npos);
+    CHECK(c.find("-ieq '042A:0000042A'") != std::string::npos);
+    CHECK(c.find("Set-WinUserLanguageList $l -Force") != std::string::npos);
+    CHECK(c.find('"') == std::string::npos);  // goes inside a quoted -Command argument
+    CHECK(!languageListRemovalCommand("042A:{C2CB2CF0-AF47-413E-9780-8BC3A3C16068}{5FB02EC5-0A77-4684-B4FA-DEF8A2195628}").empty());
+    CHECK(languageListRemovalCommand("").empty());
+    CHECK(languageListRemovalCommand("042A:0000042A'; Remove-Item x; '").empty());
+    CHECK(languageListRemovalCommand("042A:0000042A\"").empty());
+    CHECK(languageListRemovalCommand("042A 0000042A").empty());
+}
+
 // ---------------------------------------------------------------- switch sound
 
 TEST(feel_switch_sound_is_off_by_default_and_never_in_a_game) {
