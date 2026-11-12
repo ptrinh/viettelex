@@ -124,37 +124,6 @@ bool addKeyboardForUser() { return callInstall(tipSpec(), 0); }
 bool removeKeyboardForUser() { return callInstall(tipSpec(), ILOT_UNINSTALL_); }
 bool removeLayoutOrTipForUser(const std::wstring& spec) { return !spec.empty() && callInstall(spec, ILOT_UNINSTALL_); }
 
-bool removeFromUserLanguageList(const std::string& spec) {
-    auto wide = [](const std::string& t) { return std::wstring(t.begin(), t.end()); };  // ASCII specs
-    HKEY root;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Control Panel\\International\\User Profile", 0,
-                      KEY_ENUMERATE_SUB_KEYS, &root) != ERROR_SUCCESS)
-        return false;
-    bool removed = false;
-    wchar_t sub[128];
-    for (DWORD i = 0;; ++i) {
-        DWORD subLen = 128;
-        if (RegEnumKeyExW(root, i, sub, &subLen, nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS) break;
-        HKEY lang;
-        if (RegOpenKeyExW(root, sub, 0, KEY_QUERY_VALUE | KEY_SET_VALUE, &lang) != ERROR_SUCCESS) continue;
-        std::vector<std::string> names;
-        wchar_t name[256];
-        for (DWORD v = 0;; ++v) {
-            DWORD nameLen = 256;
-            if (RegEnumValueW(lang, v, name, &nameLen, nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS) break;
-            std::string n;
-            for (DWORD c = 0; c < nameLen; ++c) n.push_back(name[c] < 0x80 ? static_cast<char>(name[c]) : '?');
-            names.push_back(n);
-        }
-        for (const std::string& n : vtx::languageListValuesToRemove(names, spec))
-            if (RegDeleteValueW(lang, wide(n).c_str()) == ERROR_SUCCESS) removed = true;
-        RegCloseKey(lang);
-    }
-    RegCloseKey(root);
-    if (removed) callInstall(wide(spec), ILOT_UNINSTALL_);  // and out of this session
-    return removed;
-}
-
 bool runningAsSystem() {
     HANDLE tok = nullptr;
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &tok)) return false;

@@ -94,13 +94,18 @@ ResolveRow welcomeResolveRow(const std::vector<ConflictKind>& found);
 // Third-party input methods are never in here (they are processes, not profiles).
 std::vector<std::string> builtInKeyboardRemovals(const std::vector<ViProfile>& found, const std::string& ourClsid);
 
-// Log 1.3.23 (Windows 11 25H2): InstallLayoutOrTip(ILOT_UNINSTALL) said "done" and the
-// keyboard stayed — the user's language list (HKCU\Control Panel\International\User
-// Profile\<language>, one value per input method) still named it and Windows put it back.
-// Which values of one language's key to delete for `spec` ("042A:0000042A"): the ones that
-// name it (case-insensitive), and only when another input method stays in that language —
-// a language is never left without a keyboard. `names` = the key's value names.
-std::vector<std::string> languageListValuesToRemove(const std::vector<std::string>& names, const std::string& spec);
+// After "Gỡ" Windows' built-in Vietnamese keyboard (InstallLayoutOrTip ILOT_UNINSTALL), looked at
+// again. Report 12/11/2026 (1.3.24): the built-in keyboard stayed, and removing it by hand in
+// Windows Settings took VietTelex out of the list too — VietTelex then typed nothing until the
+// user switched back to it. 1.3.25 stops editing the language list in the registry (1.3.24) and
+// only uses Windows' own call. `readd`: VietTelex (registered) is no longer in the list ⇒ add it
+// back, make it the default and select it. `ok`: the removal really took (shown to the user).
+struct BuiltInRemovalOutcome {
+    bool readd = false;
+    bool ok = false;
+};
+BuiltInRemovalOutcome afterBuiltInRemoval(bool removalsDone, bool stillListed, bool vietTelexInList,
+                                          bool tipRegistered);
 
 // ---- §5 Thoát: back to the keyboard used before VietTelex, else English -------------------
 // `hkls` = GetKeyboardLayoutList, `saved` = HKL stored when VietTelex was selected (0 =

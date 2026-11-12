@@ -73,22 +73,12 @@ std::vector<std::string> builtInKeyboardRemovals(const std::vector<ViProfile>& f
     return out;
 }
 
-std::vector<std::string> languageListValuesToRemove(const std::vector<std::string>& names, const std::string& spec) {
-    auto lower = [](std::string s) {
-        for (char& c : s)
-            if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
-        return s;
-    };
-    const std::string want = lower(spec);
-    std::vector<std::string> out;
-    size_t others = 0;
-    for (const std::string& n : names) {
-        if (n.find(':') == std::string::npos) continue;  // "CachedLanguageName"…: not an input method
-        if (!want.empty() && lower(n) == want) out.push_back(n);
-        else ++others;
-    }
-    if (others == 0) out.clear();
-    return out;
+BuiltInRemovalOutcome afterBuiltInRemoval(bool removalsDone, bool stillListed, bool vietTelexInList,
+                                          bool tipRegistered) {
+    BuiltInRemovalOutcome o;
+    o.readd = tipRegistered && !vietTelexInList;
+    o.ok = removalsDone && !stillListed;
+    return o;
 }
 
 uintptr_t pickExitLayout(const uintptr_t* hkls, size_t count, uintptr_t saved) {
