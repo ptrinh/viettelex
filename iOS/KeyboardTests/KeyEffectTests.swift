@@ -2229,10 +2229,10 @@ final class KeyEffectDescriptionTests: XCTestCase {
         XCTAssertEqual(KeyGlow.alpha(-0.01), 0)
         XCTAssertEqual(KeyGlow.alpha(0), 1)
         XCTAssertEqual(KeyGlow.alpha(KeyGlow.hold), 1)
-        XCTAssertEqual(KeyGlow.alpha(0.235), 0.25, accuracy: 1e-9)
+        XCTAssertEqual(KeyGlow.alpha(0.36), 0.25, accuracy: 1e-9)
         XCTAssertEqual(KeyGlow.alpha(KeyGlow.duration), 0)
         XCTAssertGreaterThanOrEqual(KeyGlow.duration, 0.35)
-        XCTAssertLessThanOrEqual(KeyGlow.duration, 0.5)
+        XCTAssertLessThanOrEqual(KeyGlow.duration, 0.7)
         var prev = 1.0
         for k in 0...100 {
             let a = KeyGlow.alpha(KeyGlow.duration * Double(k) / 100)
@@ -2240,8 +2240,8 @@ final class KeyEffectDescriptionTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(a, 0)
             prev = a
         }
-        XCTAssertEqual(KeyGlow.glyphColor(accent: 0x007AFF), 0x73B6FF)
-        XCTAssertEqual(KeyGlow.glyphColor(accent: 0x000000), 0x737373)
+        XCTAssertEqual(KeyGlow.glyphColor(accent: 0x007AFF), 0x99CAFF)
+        XCTAssertEqual(KeyGlow.glyphColor(accent: 0x000000), 0x999999)
         XCTAssertEqual(KeyGlow.glyphColor(accent: 0xFFFFFF), 0xFFFFFF)
         XCTAssertEqual(KeyGlow.corner(w: 34, h: 42), 6)
         XCTAssertEqual(KeyGlow.corner(w: 8, h: 42), 4)

@@ -297,15 +297,15 @@ enum GlowSprite {
 ///   ô cũ nhất bị bắn lại.
 /// - Độ sáng: giữ 1 trong `hold` rồi tắt kiểu ease-out (1 − u)² tới `duration`.
 enum KeyGlow {
-    static let duration = 0.42
-    static let hold = 0.05
+    static let duration = 0.6
+    static let hold = 0.12
     static let pool = SwipeTrailFx.keyGlowCap
     /// Độ đục nền phím ửng màu nhấn lúc sáng nhất.
-    static let capAlpha = 0.22
+    static let capAlpha = 0.5
     /// Bán kính quầng quanh chữ (pt / dp).
-    static let halo = 6.0
+    static let halo = 9.0
     /// Chữ sáng = màu nhấn pha `whiteMix` phần trắng (đèn nền nhìn rực hơn màu nhấn).
-    static let whiteMix = 0.45
+    static let whiteMix = 0.6
     /// Số mẫu khung hình của đường mờ (iOS keyframes; Android tính thẳng mỗi khung).
     static let steps = 8
 

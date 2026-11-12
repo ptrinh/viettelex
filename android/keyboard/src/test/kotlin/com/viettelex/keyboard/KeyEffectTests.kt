@@ -195,18 +195,18 @@ class KeyEffectTests {
         assertEquals(0.0, KeyGlow.alpha(-0.01), 0.0)
         assertEquals(1.0, KeyGlow.alpha(0.0), 0.0)
         assertEquals(1.0, KeyGlow.alpha(KeyGlow.HOLD), 0.0)
-        assertEquals(0.25, KeyGlow.alpha(0.235), 1e-9)
+        assertEquals(0.25, KeyGlow.alpha(0.36), 1e-9)
         assertEquals(0.0, KeyGlow.alpha(KeyGlow.DURATION), 0.0)
-        assertTrue(KeyGlow.DURATION in 0.35..0.5)
+        assertTrue(KeyGlow.DURATION in 0.35..0.7)
         var prev = 1.0
         for (k in 0..100) {
             val a = KeyGlow.alpha(KeyGlow.DURATION * k / 100)
             assertTrue("chỉ tắt dần", a <= prev + 1e-12 && a >= 0.0)
             prev = a
         }
-        assertEquals(0x73B6FF, KeyGlow.glyphColor(0x007AFF))
-        assertEquals(0x73B6FF, KeyGlow.glyphColor(0xFF007AFF.toInt()))   // byte alpha bỏ qua
-        assertEquals(0x737373, KeyGlow.glyphColor(0x000000))
+        assertEquals(0x99CAFF, KeyGlow.glyphColor(0x007AFF))
+        assertEquals(0x99CAFF, KeyGlow.glyphColor(0xFF007AFF.toInt()))   // byte alpha bỏ qua
+        assertEquals(0x999999, KeyGlow.glyphColor(0x000000))
         assertEquals(0xFFFFFF, KeyGlow.glyphColor(0xFFFFFF))
         assertEquals(6.0, KeyGlow.corner(34.0, 42.0), 0.0)
         assertEquals(4.0, KeyGlow.corner(8.0, 42.0), 0.0)

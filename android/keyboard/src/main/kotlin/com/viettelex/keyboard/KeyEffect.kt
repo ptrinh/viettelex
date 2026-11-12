@@ -239,15 +239,15 @@ enum class KeyEffect(val id: String, val viTitle: String) {
  * "Phím sáng theo đường", [SwipeTrailFx.KEY_GLOW_CAP]); độ sáng giữ 1 trong [HOLD] rồi tắt ease-out (1 − u)² tới [DURATION].
  */
 object KeyGlow {
-    const val DURATION = 0.42
-    const val HOLD = 0.05
+    const val DURATION = 0.6
+    const val HOLD = 0.12
     const val POOL = SwipeTrailFx.KEY_GLOW_CAP
     /** Độ đục nền phím ửng màu nhấn lúc sáng nhất. */
-    const val CAP_ALPHA = 0.22
+    const val CAP_ALPHA = 0.5
     /** Bán kính quầng quanh chữ (dp). */
-    const val HALO = 6.0
+    const val HALO = 9.0
     /** Chữ sáng = màu nhấn pha [WHITE_MIX] phần trắng. */
-    const val WHITE_MIX = 0.45
+    const val WHITE_MIX = 0.6
     /** Số mẫu khung hình (iOS keyframes; Android tính thẳng mỗi khung). */
     const val STEPS = 8
 
