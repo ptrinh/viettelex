@@ -259,7 +259,7 @@ final class PsychedelicThemeTests: XCTestCase {
         XCTAssertEqual(t.title, L("Ảo giác")); XCTAssertEqual(L10n.en["Ảo giác"], "Psychedelic")
         let spec = try XCTUnwrap(t.spec)
         XCTAssertEqual(spec.nameVi, "Ảo giác"); XCTAssertEqual(spec.nameEn, "Psychedelic")
-        XCTAssertEqual(spec.effect, "kaleido"); XCTAssertEqual(spec.sound, "dream"); XCTAssertEqual(spec.swipe, "rainbow")
+        XCTAssertEqual(spec.effect, "kaleido"); XCTAssertEqual(spec.sound, "dream"); XCTAssertEqual(spec.swipe, "kaleidoscope")
         for dark in [false, true] {
             let p = t.palette(systemDark: dark)
             XCTAssertTrue(p.hueFlow); XCTAssertFalse(p.rainbowBorder); XCTAssertFalse(p.auroraBorder)

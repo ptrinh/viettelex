@@ -32,7 +32,7 @@ struct SwipeTrailPickerView: View {
             } header: {
                 Text(L("Chạm một ô để chọn và xem thử."))
             } footer: {
-                Text(L("Nét vẽ theo ngón tay khi gõ vuốt. Tắt: không vẽ gì. Lửa, Điện, Bút lông, Cầu vồng, Neon, Bụi sao, Pháo hoa cuối nét và Theo giao diện thuộc VietTelex Plus. Theo giao diện: dùng nét vuốt của giao diện đang chọn (Đơn giản nếu giao diện không có)."))
+                Text(L("Nét vẽ theo ngón tay khi gõ vuốt. Tắt: không vẽ gì. Tắt và Đơn giản miễn phí, mọi kiểu khác (kể cả Theo giao diện) thuộc VietTelex Plus. Theo giao diện: dùng nét vuốt của giao diện đang chọn (Đơn giản nếu giao diện không có)."))
                     + Text(" ") + Text(L("Vẽ trên lớp riêng, không làm chậm nhận diện nét vuốt; tự về Đơn giản khi bật Chế độ nguồn điện thấp."))
             }
         }

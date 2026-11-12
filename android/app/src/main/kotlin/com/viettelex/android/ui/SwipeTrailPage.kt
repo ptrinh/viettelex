@@ -64,7 +64,7 @@ internal fun SwipeTrailPage(onOpenPlus: () -> Unit, onBack: () -> Unit) {
         }
     }
     VTSection(header = tr("Chạm một ô để chọn và xem thử."),
-        footer = tr("Nét vẽ theo ngón tay khi gõ vuốt. Tắt: không vẽ gì. Lửa, Điện, Bút lông, Cầu vồng, Neon, Bụi sao, Pháo hoa cuối nét và Theo giao diện thuộc VietTelex Plus. Theo giao diện: dùng nét vuốt của giao diện đang chọn (Đơn giản nếu giao diện không có).") +
+        footer = tr("Nét vẽ theo ngón tay khi gõ vuốt. Tắt: không vẽ gì. Tắt và Đơn giản miễn phí, mọi kiểu khác (kể cả Theo giao diện) thuộc VietTelex Plus. Theo giao diện: dùng nét vuốt của giao diện đang chọn (Đơn giản nếu giao diện không có).") +
             " " + tr("Vẽ trên lớp riêng, không làm chậm nhận diện nét vuốt; tự về Đơn giản khi bật Trình tiết kiệm pin.")) {
         SwipeTrailStyle.entries.chunked(2).forEach { row ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {

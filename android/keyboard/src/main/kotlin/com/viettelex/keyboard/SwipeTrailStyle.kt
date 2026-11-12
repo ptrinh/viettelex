@@ -26,6 +26,9 @@ enum class SwipeTrailStyle(val id: String, val viTitle: String) {
     STARDUST("stardust", "Bụi sao"), // l10n-key
     FIREWORK("firework", "Pháo hoa cuối nét"), // l10n-key
     PLASMA("plasma", "Plasma"), // l10n-key
+    KALEIDOSCOPE("kaleidoscope", "Ảo ảnh"), // l10n-key
+    MELT("melt", "Tan chảy"), // l10n-key
+    CHROMA("chroma", "Vệt lặp"), // l10n-key
     THEME("theme", "Theo giao diện"); // l10n-key
 
     val title: String get() = tr(viTitle)
@@ -38,6 +41,7 @@ enum class SwipeTrailStyle(val id: String, val viTitle: String) {
         FIRE -> 3
         STARDUST -> 4
         PLASMA -> 5
+        MELT -> 4
         else -> 0
     }
     /** Có pool hạt (dọc đường hoặc chùm pháo hoa lúc nhấc tay). */
@@ -65,6 +69,19 @@ enum class SwipeTrailStyle(val id: String, val viTitle: String) {
             // = hiệu ứng phím Plasma: quầng tím, thân tím nhạt, lõi gần trắng (= iOS)
             PLASMA -> listOf(SwipeTrailStroke(base * 2.4, 0x59B44CFF), SwipeTrailStroke(base * 1.1, 0xBFC77DFF.toInt()),
                 SwipeTrailStroke(base * 0.4, 0xFFF3E0FF.toInt()))
+            // Nhánh xoay (mảnh, mờ — nét thật vẫn dễ đọc) dưới nét thật tô bánh xe màu, lõi trắng trên cùng (= iOS).
+            KALEIDOSCOPE -> listOf(SwipeTrailStroke(base * 0.6, 0x73FFFFFF, SwipeTrailStroke.Kind.MIRROR),
+                SwipeTrailStroke(base * 1.3, 0xFFFFFFFF.toInt(), SwipeTrailStroke.Kind.CONIC),
+                SwipeTrailStroke(base * 0.35, 0xD9FFFFFF.toInt()))
+            // 3 đoạn cũ → mới ([SwipeTrailFx.MELT_SEGMENTS]): đoạn cũ mờ hơn. Màu + bề rộng đổi theo thời gian.
+            MELT -> listOf(0.45, 0.75, 1.0).map {
+                SwipeTrailStroke(base * 1.5, alpha(SwipeTrailFx.HUE_WHEEL[0], it), SwipeTrailStroke.Kind.MELT)
+            }
+            // 3 bóng đỏ / lục / lam lệch nhau ([SwipeTrailFx.chromaShift]) dưới nét chính màu vệt theme.
+            CHROMA -> listOf(SwipeTrailStroke(base * 1.1, 0x99FF2D55.toInt(), SwipeTrailStroke.Kind.GHOST),
+                SwipeTrailStroke(base * 1.1, 0x9930D158.toInt(), SwipeTrailStroke.Kind.GHOST),
+                SwipeTrailStroke(base * 1.1, 0x990A84FF.toInt(), SwipeTrailStroke.Kind.GHOST),
+                SwipeTrailStroke(base * 0.6, trail))
         }
     }
 
@@ -74,6 +91,7 @@ enum class SwipeTrailStyle(val id: String, val viTitle: String) {
         STARDUST -> intArrayOf(0xFFC93C, accent and 0xFFFFFF, 0xFFE7A0)
         FIREWORK -> intArrayOf(accent and 0xFFFFFF, 0xFFC93C, 0xFF5E7E, 0x4FC3F7)
         PLASMA -> intArrayOf(0xB44CFF, 0xE0B0FF, 0xF3E0FF)
+        MELT -> intArrayOf(SwipeTrailFx.HUE_WHEEL[0], SwipeTrailFx.HUE_WHEEL[2], SwipeTrailFx.HUE_WHEEL[4])
         else -> IntArray(0)
     }
 
@@ -96,7 +114,11 @@ data class SwipeTrailStroke(
     val argb: Int,
     val kind: Kind = Kind.STROKE,
 ) {
-    enum class Kind { STROKE, FILL, GRADIENT }
+    /**
+     * CONIC = nét tô bánh xe màu (Ảo ảnh), MIRROR = nhánh xoay quanh tâm vùng phím (Ảo ảnh), MELT = một đoạn nét
+     * Tan chảy (thứ tự = đoạn trong MELT_SEGMENTS), GHOST = bóng lệch màu (Vệt lặp, thứ tự = CHROMA_ANGLES). = iOS.
+     */
+    enum class Kind { STROKE, FILL, GRADIENT, CONIC, MIRROR, MELT, GHOST }
 }
 
 /** Cổng Plus: đi cùng quyền theme cao cấp (như Hiệu ứng khi bấm phím). */
@@ -137,6 +159,45 @@ object SwipeTrailFx {
     val RAINBOW = intArrayOf(0xFF3B30, 0xFF9500, 0xFFCC00, 0x34C759, 0x00C7BE, 0x007AFF, 0xAF52DE,
         0xFF3B30, 0xFF9500, 0xFFCC00, 0x34C759, 0x00C7BE, 0x007AFF, 0xAF52DE)
 
+    /** Bánh xe màu (RGB) — Ảo ảnh (gradient quét quanh tâm) + Tan chảy (đổi màu theo thời gian). Mốc cuối = đầu. */
+    val HUE_WHEEL = intArrayOf(0xFF4D6D, 0xFFB84D, 0xE8FF4D, 0x4DFF88, 0x4DD8FF, 0x6B5BFF, 0xE04DFF, 0xFF4D6D)
+    /** Ảo ảnh: số nhánh đối xứng xoay (gồm nét thật) quanh TÂM VÙNG PHÍM; một vòng xoay bánh xe màu (giây). */
+    const val KALEIDO_BRANCHES = 6
+    const val KALEIDO_HUE_PERIOD = 4.0
+    /** Tan chảy: vòng màu (giây), chu kỳ + biên độ "thở", đuôi chảy xuống tối đa (dp), mốc 3 đoạn theo chiều dài. */
+    const val MELT_HUE_PERIOD = 6.0
+    const val MELT_BREATH_PERIOD = 1.2
+    const val MELT_BREATH_AMP = 0.3
+    const val MELT_DRIP = 7.0
+    val MELT_SEGMENTS = doubleArrayOf(0.0, 0.35, 0.7, 1.0)
+    /** Vệt lặp: lệch lúc vuốt / lúc tan hẳn (dp), thời gian trôi + mờ sau nhấc tay (giây), hướng từng bóng (độ). */
+    const val CHROMA_OFFSET = 2.5
+    const val CHROMA_DRIFT = 8.0
+    const val CHROMA_FADE = 0.45
+    val CHROMA_ANGLES = doubleArrayOf(-90.0, 30.0, 150.0)
+
+    /** Màu bánh xe ở tỉ lệ f (vòng tròn: lấy phần lẻ) — nội suy tuyến tính giữa các mốc (= keyframes CA iOS). */
+    fun cycleColor(f: Double): Int {
+        val n = HUE_WHEEL.size - 1
+        var u = f - kotlin.math.floor(f)
+        if (u < 0) u += 1
+        val x = u * n
+        val k = min(n - 1, x.toInt())
+        return mix(HUE_WHEEL[k], HUE_WHEEL[k + 1], x - k)
+    }
+    /** Hệ số bề rộng Tan chảy ở pha (số chu kỳ thở đã qua): 1 ± MELT_BREATH_AMP, hình sin. */
+    fun meltBreath(phase: Double): Double = 1 + MELT_BREATH_AMP * sin(2 * PI * phase)
+    /** Độ chảy xuống (dp) của điểm có tuổi u = tuổi / đuôi (0 = mới nhất, 1 = sắp hết): bậc hai. */
+    fun meltSag(u: Double): Double { val x = min(1.0, max(0.0, u)); return MELT_DRIP * x * x }
+    /**
+     * Độ lệch bóng [i] (dp) ở tiến độ trôi [e] (0 = đang vuốt, 1 = tan hẳn; đã qua easeOut) — = iOS chromaShift,
+     * tách x / y để vẽ mỗi khung không cấp phát.
+     */
+    fun chromaShiftX(i: Int, e: Double): Double = cos(chromaAngle(i)) * chromaDist(e)
+    fun chromaShiftY(i: Int, e: Double): Double = sin(chromaAngle(i)) * chromaDist(e)
+    private fun chromaDist(e: Double) = CHROMA_OFFSET + (CHROMA_DRIFT - CHROMA_OFFSET) * min(1.0, max(0.0, e))
+    private fun chromaAngle(i: Int) = CHROMA_ANGLES[i % CHROMA_ANGLES.size] * PI / 180
+
     /** Nhiễu tia điện cho điểm [index] với [seed] — −1…1, tất định (LCG 32-bit như iOS, Int tràn số y hệt). */
     fun jitter(seed: Int, index: Int): Double {
         var s = (seed * 31 + index) * -1640531535 + 1      // 2654435761 dạng Int32
@@ -170,6 +231,7 @@ object SwipeTrailFx {
         SwipeTrailStyle.STARDUST -> 6
         SwipeTrailStyle.FIREWORK -> FIREWORK_COUNT
         SwipeTrailStyle.PLASMA -> 6
+        SwipeTrailStyle.MELT -> 6
         else -> 0
     }
 
@@ -190,6 +252,8 @@ object SwipeTrailFx {
                 val up = if (v % 2 == 0) -1.0 else 1.0
                 KeyEffectTrajectory(t * 10, up * (6 + (v % 3) * 3.0), 1.0, 0.2, 0.0, 0.32 + (v % 3) * 0.05)
             }
+            // giọt nhỏ khỏi nét, rơi xuống rồi tan (= iOS)
+            SwipeTrailStyle.MELT -> KeyEffectTrajectory(t * 2, 10 + (v % 3) * 4.0, 1.0, 0.3, 0.0, 0.6 + (v % 3) * 0.08)
             else -> KeyEffectTrajectory(0.0, 0.0, 1.0, 1.0, 0.0, 0.0)
         }
     }
@@ -249,8 +313,17 @@ class SwipeTrailState(val style: SwipeTrailStyle, private val density: Float) {
     /** Hệ số mờ của nét (1 khi đang vuốt, giảm khi mờ dần). */
     var strokeAlpha = 1f
         private set
+    /** Tiến độ mờ sau nhấc tay theo [fadeMs] (0 khi đang vuốt) — bóng Vệt lặp trôi + mờ theo số này. */
+    var fadeFrac = 0f
+        private set
+    /** Mờ hẳn sau nhấc tay (ms): Vệt lặp để bóng tan chậm hơn nét chính; kiểu khác = [FADE_MS]. */
+    val fadeMs: Long = if (style == SwipeTrailStyle.CHROMA) (SwipeTrailFx.CHROMA_FADE * 1000).toLong() else FADE_MS
+    /** Mốc thời gian của cú vuốt (điểm đầu) — màu / thở theo thời gian tính từ đây (iOS: animation gắn lúc begin). */
+    private var startMs = -1L
     private val hw = FloatArray(CAP)
     private val tt = LongArray(CAP)
+    /** Tan chảy: chiều dài cộng dồn (px) tới điểm k của hình học khung — để chia đoạn theo chiều dài như iOS strokeStart. */
+    private val cum = FloatArray(CAP)
 
     // Hạt
     val particleCount: Int = if (style.usesParticles) SwipeTrailFx.PARTICLE_CAP else 0
@@ -276,10 +349,17 @@ class SwipeTrailState(val style: SwipeTrailStyle, private val density: Float) {
         }
     }
 
-    fun begin() { size = 0; head = 0; active = true; fadeStart = 0L; strokeAlpha = 1f; spawner.reset(); lastX = Float.NaN }
+    fun begin() {
+        size = 0; head = 0; active = true; fadeStart = 0L; strokeAlpha = 1f; fadeFrac = 0f; spawner.reset(); lastX = Float.NaN
+        startMs = -1L
+    }
+
+    /** Giây đã qua từ đầu cú vuốt (0 nếu chưa có điểm). */
+    fun elapsed(nowMs: Long): Double = if (startMs < 0) 0.0 else max(0L, nowMs - startMs) / 1000.0
 
     fun add(x: Float, y: Float, tMs: Long) {
         if (!active) return
+        if (startMs < 0) startMs = tMs
         xs[head] = x; ys[head] = y; ts[head] = tMs
         head = (head + 1) % CAP
         if (size < CAP) size++
@@ -316,11 +396,13 @@ class SwipeTrailState(val style: SwipeTrailStyle, private val density: Float) {
         outN = 0
         if (size < 2) return false
         if (!active) {
-            val f = (nowMs - fadeStart).toFloat() / FADE_MS
-            if (f >= 1f) { size = 0; return false }
-            strokeAlpha = 1f - f
-        } else strokeAlpha = 1f
-        val cutoff = (if (active) nowMs else fadeStart) - TAIL_MS
+            val gone = nowMs - fadeStart
+            if (gone >= fadeMs) { size = 0; return false }
+            strokeAlpha = max(0f, 1f - gone.toFloat() / FADE_MS)
+            fadeFrac = gone.toFloat() / fadeMs
+        } else { strokeAlpha = 1f; fadeFrac = 0f }
+        val ref = if (active) nowMs else fadeStart
+        val cutoff = ref - TAIL_MS
         var n = 0
         val first = (head - size + CAP) % CAP
         for (k in 0 until size) {
@@ -333,10 +415,37 @@ class SwipeTrailState(val style: SwipeTrailStyle, private val density: Float) {
         when (style) {
             SwipeTrailStyle.ELECTRIC, SwipeTrailStyle.PLASMA -> jag(n)
             SwipeTrailStyle.BRUSH -> { brush(n); return true }
+            SwipeTrailStyle.MELT -> melt(n, ref)
             else -> {}
         }
         outN = n
         return true
+    }
+
+    /** Tan chảy: điểm càng cũ càng chảy xuống ([SwipeTrailFx.meltSag]); rồi chiều dài cộng dồn để chia đoạn. */
+    private fun melt(n: Int, ref: Long) {
+        for (k in 0 until n) outY[k] += (SwipeTrailFx.meltSag((ref - tt[k]).toDouble() / TAIL_MS) * density).toFloat()
+        cum[0] = 0f
+        for (k in 1 until n) {
+            val dx = outX[k] - outX[k - 1]; val dy = outY[k] - outY[k - 1]
+            cum[k] = cum[k - 1] + sqrt(dx * dx + dy * dy)
+        }
+    }
+
+    /**
+     * Tan chảy: vị trí (chỉ số thực, 0…outN−1) ở tỉ lệ chiều dài [frac] của nét khung hiện tại — View dựng đoạn
+     * [MELT_SEGMENTS][i]…[i+1] từ hai mốc này (= iOS strokeStart / strokeEnd).
+     */
+    fun cut(frac: Double): Float {
+        val n = outN
+        if (n < 2) return 0f
+        val total = cum[n - 1]
+        if (total <= 0f) return (frac * (n - 1)).toFloat()
+        val goal = (min(1.0, max(0.0, frac)) * total).toFloat()
+        var k = 1
+        while (k < n - 1 && cum[k] < goal) k++
+        val seg = cum[k] - cum[k - 1]
+        return if (seg <= 0f) k.toFloat() else (k - 1) + ((goal - cum[k - 1]) / seg).coerceIn(0f, 1f)
     }
 
     private fun jag(n: Int) {
@@ -398,7 +507,7 @@ class SwipeTrailState(val style: SwipeTrailStyle, private val density: Float) {
     /** Còn gì phải vẽ khung sau (đang vuốt / đang mờ / còn hạt)? false ⇒ View ngừng hẹn khung (0 animation). */
     fun isAnimating(nowMs: Long): Boolean {
         if (active && size > 0) return true
-        if (!active && size > 1 && nowMs - fadeStart < FADE_MS) return true
+        if (!active && size > 1 && nowMs - fadeStart < fadeMs) return true
         for (i in 0 until particleCount) if (alive[i]) {
             if (nowMs - pt0[i] < trDur[i % vCount]) return true
             alive[i] = false

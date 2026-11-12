@@ -66,14 +66,14 @@ final class SwipeTrailStyleTests: XCTestCase {
 
     func testIdsMatchAndroidAndDefaultIsSimple() {
         XCTAssertEqual(SwipeTrailStyle.allCases.map(\.rawValue),
-                       ["none", "simple", "fire", "electric", "brush", "rainbow", "neon", "stardust", "firework", "plasma", "theme"])
+                       ["none", "simple", "fire", "electric", "brush", "rainbow", "neon", "stardust", "firework", "plasma", "kaleidoscope", "melt", "chroma", "theme"])
         XCTAssertEqual(SwipeTrailStyle.key, "swipeTrail")
         XCTAssertEqual(SwipeTrailStyle.defaultValue, .simple)
         XCTAssertEqual(SwipeTrailStyle.parse(nil), .simple)
         XCTAssertEqual(SwipeTrailStyle.parse("glitter"), .simple, "id lạ ⇒ Đơn giản")
         XCTAssertEqual(SwipeTrailStyle.parse(7), .simple)
         XCTAssertEqual(SwipeTrailStyle.parse("none"), .none)
-        XCTAssertEqual(SwipeTrailStyle.themeIds, ["none", "simple", "fire", "electric", "brush", "rainbow", "neon", "stardust", "firework", "plasma"])
+        XCTAssertEqual(SwipeTrailStyle.themeIds, ["none", "simple", "fire", "electric", "brush", "rainbow", "neon", "stardust", "firework", "plasma", "kaleidoscope", "melt", "chroma"])
         XCTAssertEqual(ThemeExtraIds.swipes, Set(SwipeTrailStyle.themeIds))
         let d = UserDefaults(suiteName: suite)!
         d.removePersistentDomain(forName: suite)
@@ -85,7 +85,7 @@ final class SwipeTrailStyleTests: XCTestCase {
 
     func testBackupSpecWhitelistsIds() {
         let spec = BackupSettings.all.first { $0.key == SwipeTrailStyle.key }
-        XCTAssertEqual(spec?.kind, .string("simple", ["none", "simple", "fire", "electric", "brush", "rainbow", "neon", "stardust", "firework", "plasma", "theme"]))
+        XCTAssertEqual(spec?.kind, .string("simple", ["none", "simple", "fire", "electric", "brush", "rainbow", "neon", "stardust", "firework", "plasma", "kaleidoscope", "melt", "chroma", "theme"]))
     }
 
     func testTitlesBilingual() {
@@ -146,7 +146,7 @@ final class SwipeTrailStyleTests: XCTestCase {
     func testBuiltinThemesSwipeMapping() {
         let want: [String: String] = ["tet": "stardust", "tetMai": "stardust", "xmas": "stardust", "xmasSnow": "stardust",
                                       "rgb": "rainbow", "neon": "neon", "space": "stardust", "typewriter": "brush",
-                                      "halloween": "electric", "pixel": "neon", "ai": "neon", "nightclub": "neon", "trippy": "rainbow", "drift": "stardust", "rainyNight": "simple", "gym": "neon",
+                                      "halloween": "electric", "pixel": "neon", "ai": "neon", "nightclub": "neon", "trippy": "kaleidoscope", "drift": "stardust", "rainyNight": "simple", "gym": "neon",
                                       "zodiac": "stardust", "pride": "rainbow"]
         XCTAssertFalse(BuiltinThemes.specs.isEmpty)
         for (id, spec) in BuiltinThemes.specs {
@@ -190,7 +190,8 @@ final class SwipeTrailStyleTests: XCTestCase {
 
     func testStrokeConfigPerStyle() {
         let n: [SwipeTrailStyle: Int] = [.none: 0, .theme: 0, .simple: 1, .firework: 1, .fire: 3, .electric: 3, .neon: 3,
-                                         .rainbow: 1, .brush: 1, .stardust: 1, .plasma: 3]
+                                         .rainbow: 1, .brush: 1, .stardust: 1, .plasma: 3,
+                                         .kaleidoscope: 3, .melt: 3, .chroma: 4]
         for s in SwipeTrailStyle.allCases {
             let k = s.strokes(base: 6, trail: 0x99FF_FFFF, accent: 0x0A84FF, dark: false)
             XCTAssertEqual(k.count, n[s], s.rawValue)
@@ -208,7 +209,7 @@ final class SwipeTrailStyleTests: XCTestCase {
         XCTAssertEqual(SwipeTrailStyle.fire.spawnEvery, 3)
         XCTAssertEqual(SwipeTrailStyle.stardust.spawnEvery, 4)
         XCTAssertEqual(SwipeTrailStyle.plasma.spawnEvery, 5)
-        for s in SwipeTrailStyle.allCases where ![.fire, .stardust, .firework, .plasma].contains(s) {
+        for s in SwipeTrailStyle.allCases where ![.fire, .stardust, .firework, .plasma, .melt].contains(s) {
             XCTAssertFalse(s.usesParticles, s.rawValue)
         }
     }
@@ -303,7 +304,7 @@ final class SwipeTrailStyleTests: XCTestCase {
         let s2 = SwipeTrailFx.trajectory(.stardust, 2)
         XCTAssertEqual(s2.rotation, -0.16, accuracy: 1e-9)
         XCTAssertEqual(s2.duration, 1.1, accuracy: 1e-9)
-        for s in [SwipeTrailStyle.fire, .stardust, .firework, .plasma] {
+        for s in [SwipeTrailStyle.fire, .stardust, .firework, .plasma, .melt] {
             for v in 0..<SwipeTrailFx.variants(s) {
                 XCTAssertLessThanOrEqual(SwipeTrailFx.trajectory(s, v).duration, SwipeTrailFx.maxParticleLife, s.rawValue)
             }
@@ -317,7 +318,7 @@ final class SwipeTrailStyleTests: XCTestCase {
     // MARK: trần hạt / không rò / nghỉ = 0 animation
 
     @MainActor func testParticlesCappedNoLeakOver200SwipesAndIdleHasNoAnimations() {
-        for s in [SwipeTrailStyle.fire, .stardust, .firework, .electric, .plasma] {
+        for s in [SwipeTrailStyle.fire, .stardust, .firework, .electric, .plasma, .kaleidoscope, .melt, .chroma] {
             let r = SwipeTrailRenderer()
             r.configure(style: s, trail: .white, accent: RGBA(hex: 0x0A84FF), dark: true)
             let layers0 = r.debugSublayerCount
@@ -337,7 +338,7 @@ final class SwipeTrailStyleTests: XCTestCase {
             XCTAssertEqual(r.debugSublayerCount, layers0, "\(s.rawValue): không thêm layer qua 200 cú vuốt")
             XCTAssertEqual(r.debugParticles.count, s.usesParticles ? SwipeTrailFx.particleCap : 0)
             if s.usesParticles { XCTAssertGreaterThan(r.debugVisibleParticles, 0, s.rawValue) }
-            if s == .electric || s == .plasma { XCTAssertGreaterThan(r.debugAnimationCount, 0, "nhấp nháy khi đang/ vừa vuốt") }
+            if [SwipeTrailStyle.electric, .plasma, .kaleidoscope, .melt, .chroma].contains(s) { XCTAssertGreaterThan(r.debugAnimationCount, 0, "nhấp nháy khi đang/ vừa vuốt") }
             r.settleNow()
             XCTAssertEqual(r.debugAnimationCount, 0, "\(s.rawValue): nghỉ ⇒ 0 animation")
             XCTAssertEqual(r.debugVisibleParticles, 0)
@@ -372,6 +373,156 @@ final class SwipeTrailStyleTests: XCTestCase {
         other.configure(style: .simple, trail: .white, accent: .white, dark: false)
         other.commitBurst()
         XCTAssertEqual(other.debugParticles.count, 0)
+    }
+
+    // MARK: Ảo ảnh / Tan chảy / Vệt lặp (số tham chiếu chung Android)
+
+    func testNewStylesPureParity() {
+        XCTAssertEqual(SwipeTrailStyle.melt.spawnEvery, 4)
+        XCTAssertEqual(SwipeTrailFx.kaleidoBranches, 6)
+        XCTAssertEqual(SwipeTrailFx.hueWheel.first, SwipeTrailFx.hueWheel.last, "bánh xe màu khép vòng")
+        XCTAssertEqual(SwipeTrailFx.cycleColor(0), 0xFF4D6D)
+        XCTAssertEqual(SwipeTrailFx.cycleColor(1), 0xFF4D6D)
+        XCTAssertEqual(SwipeTrailFx.cycleColor(0.5), SwipeTrailFx.mix(0x4DFF88, 0x4DD8FF, 0.5))
+        XCTAssertEqual(SwipeTrailFx.cycleColor(1.25), SwipeTrailFx.cycleColor(0.25))
+        XCTAssertEqual(SwipeTrailFx.cycleColor(-0.75), SwipeTrailFx.cycleColor(0.25))
+        XCTAssertEqual(SwipeTrailFx.cycleColor(0.25), 0xEEED4D, "1,75 mốc: giữa cam và vàng chanh")
+        XCTAssertEqual(SwipeTrailFx.meltBreath(0), 1, accuracy: 1e-9)
+        XCTAssertEqual(SwipeTrailFx.meltBreath(0.25), 1.3, accuracy: 1e-9)
+        XCTAssertEqual(SwipeTrailFx.meltBreath(0.75), 0.7, accuracy: 1e-9)
+        XCTAssertEqual(SwipeTrailFx.meltSag(0), 0)
+        XCTAssertEqual(SwipeTrailFx.meltSag(0.5), 1.75, accuracy: 1e-9)
+        XCTAssertEqual(SwipeTrailFx.meltSag(1), 7)
+        XCTAssertEqual(SwipeTrailFx.meltSag(3), 7, "không chảy quá meltDrip")
+        XCTAssertEqual(SwipeTrailFx.meltSag(-1), 0)
+        let g0 = SwipeTrailFx.chromaShift(0, 0)
+        XCTAssertEqual(g0.dx, 0, accuracy: 1e-9); XCTAssertEqual(g0.dy, -2.5, accuracy: 1e-9)
+        let g1 = SwipeTrailFx.chromaShift(1, 1)
+        XCTAssertEqual(g1.dx, 8 * 3.0.squareRoot() / 2, accuracy: 1e-9); XCTAssertEqual(g1.dy, 4, accuracy: 1e-9)
+        let g2 = SwipeTrailFx.chromaShift(2, 0.5)
+        XCTAssertEqual(g2.dx, -5.25 * 3.0.squareRoot() / 2, accuracy: 1e-9); XCTAssertEqual(g2.dy, 2.625, accuracy: 1e-9)
+        let m4 = SwipeTrailFx.trajectory(.melt, 4)
+        XCTAssertEqual(m4.dx, 2 * 0.6, accuracy: 1e-9); XCTAssertEqual(m4.dy, 14); XCTAssertEqual(m4.duration, 0.68, accuracy: 1e-9)
+        for v in 0..<SwipeTrailFx.variants(.melt) { XCTAssertGreaterThan(SwipeTrailFx.trajectory(.melt, v).dy, 0, "giọt rơi xuống") }
+        XCTAssertEqual(SwipeTrailStyle.kaleidoscope.strokes(base: 6, trail: 0, accent: 0, dark: false).map(\.argb),
+                       [0x73FF_FFFF, 0xFFFF_FFFF, 0xD9FF_FFFF])
+        XCTAssertEqual(SwipeTrailStyle.kaleidoscope.strokes(base: 6, trail: 0, accent: 0, dark: false).map(\.kind),
+                       [.mirror, .conic, .stroke])
+        let k = SwipeTrailStyle.kaleidoscope.strokes(base: 6, trail: 0, accent: 0, dark: false)
+        XCTAssertLessThan(k[0].width, k[1].width, "nhánh mảnh hơn nét thật")
+        XCTAssertLessThan(k[0].argb >> 24, k[1].argb >> 24, "nhánh mờ hơn nét thật")
+        XCTAssertEqual(SwipeTrailStyle.melt.strokes(base: 6, trail: 0, accent: 0, dark: false).map(\.argb),
+                       [0x73FF_4D6D, 0xBFFF_4D6D, 0xFFFF_4D6D])
+        XCTAssertEqual(SwipeTrailStyle.chroma.strokes(base: 6, trail: 0x99AB_CDEF, accent: 0, dark: false).map(\.argb),
+                       [0x99FF_2D55, 0x9930_D158, 0x990A_84FF, 0x99AB_CDEF])
+        XCTAssertEqual(SwipeTrailStyle.melt.particleColors(accent: 0), [0xFF4D6D, 0xE8FF4D, 0x4DD8FF])
+    }
+
+    private func line(_ r: SwipeTrailRenderer, _ n: Int = 20) {
+        r.begin(bounds: CGRect(x: 0, y: 0, width: 400, height: 300))
+        for i in 0..<n { r.add(CGPoint(x: 20 + Double(i) * 15, y: 150), Double(i) * 0.01); r.redraw() }
+    }
+
+    /// Ảo ảnh: 5 nhánh = CAReplicatorLayer nhân CÙNG path (không dựng 6 path), xoay 60° quanh tâm vùng phím;
+    /// màu = MỘT gradient nón xoay trên render server; settle ⇒ 0 animation.
+    @MainActor func testKaleidoscopeReplicatesOnePathAroundKeyboardCentre() throws {
+        let r = SwipeTrailRenderer()
+        r.configure(style: .kaleidoscope, trail: .white, accent: RGBA(hex: 0x0A84FF), dark: true)
+        XCTAssertEqual(r.debugLoopCount, 1, "chỉ animation xoay bánh xe màu")
+        line(r)
+        let paths = r.debugStrokeLayers.compactMap(\.path)
+        XCTAssertEqual(paths.count, 3)
+        XCTAssertTrue(paths.allSatisfy { $0 == paths[0] }, "mọi lớp (nét thật, nhánh, lõi) vẽ CÙNG một path (CA giữ bản sao bất biến)")
+        let rep = try XCTUnwrap(r.debugMirror)
+        XCTAssertEqual(rep.instanceCount, SwipeTrailFx.kaleidoBranches - 1)
+        XCTAssertEqual(rep.sublayers?.count, 1)
+        XCTAssertEqual(Double(rep.instanceTransform.m11), 0.5, accuracy: 1e-9)
+        XCTAssertEqual(Double(rep.instanceTransform.m12), 3.0.squareRoot() / 2, accuracy: 1e-9, "xoay 60°")
+        XCTAssertEqual(rep.bounds, CGRect(x: 0, y: 0, width: 400, height: 300))
+        XCTAssertEqual(rep.position, CGPoint(x: 200, y: 150), "xoay quanh tâm vùng phím")
+        let hue = try XCTUnwrap(r.debugHue)
+        XCTAssertEqual(hue.type, .conic)
+        XCTAssertEqual(hue.colors?.count, SwipeTrailFx.hueWheel.count)
+        XCTAssertEqual(hue.position, CGPoint(x: 200, y: 150))
+        XCTAssertEqual(Double(hue.bounds.width), 500, accuracy: 0.01, "cạnh = đường chéo: xoay không lộ góc")
+        XCTAssertNotNil(hue.animation(forKey: "spin"))
+        XCTAssertEqual(r.debugAnimationCount, 1)
+        XCTAssertNil(r.debugGradient)
+        r.fadeOut(reduceMotion: true)
+        XCTAssertEqual(r.debugAnimationCount, 0, "huỷ ⇒ gỡ ngay animation lặp")
+        line(r)
+        r.fadeOut(reduceMotion: false)
+        r.settleNow()
+        XCTAssertEqual(r.debugAnimationCount, 0)
+    }
+
+    /// Tan chảy: 3 đoạn theo chiều dài (cũ mờ hơn), đổi màu + thở bằng animation CA, đuôi chảy xuống ≤ meltDrip.
+    @MainActor func testMeltSegmentsSagAndRenderServerLoops() throws {
+        let r = SwipeTrailRenderer()
+        r.configure(style: .melt, trail: .white, accent: RGBA(hex: 0x0A84FF), dark: false)
+        let ls = r.debugStrokeLayers
+        XCTAssertEqual(ls.map { Double($0.strokeStart) }, [0, 0.35, 0.7])
+        XCTAssertEqual(ls.map { Double($0.strokeEnd) }, [0.35, 0.7, 1])
+        XCTAssertTrue(ls.allSatisfy { $0.lineCap == .butt }, "đầu bằng: không cục sáng ở chỗ nối đoạn")
+        XCTAssertEqual(ls.map { $0.opacity }, [1, 1, 1])
+        XCTAssertEqual(r.debugLoopCount, 6, "mỗi đoạn: đổi màu + thở")
+        line(r, 25)   // 0,24 s < đuôi 0,3 s: đủ 25 điểm
+        for l in ls {
+            XCTAssertNotNil(l.animation(forKey: "breath"))
+            XCTAssertNotNil(l.animation(forKey: "tint"))
+        }
+        let box = try XCTUnwrap(ls.first?.path).boundingBoxOfPath
+        XCTAssertEqual(Double(box.minY), 150, accuracy: 0.01, "điểm mới nhất không chảy")
+        XCTAssertEqual(Double(box.maxY), 150 + SwipeTrailFx.meltSag(0.24 / SwipeTrailRenderer.tail), accuracy: 0.01, "điểm cũ nhất chảy xuống nhiều nhất")
+        XCTAssertLessThanOrEqual(Double(box.maxY) - 150, SwipeTrailFx.meltDrip + 0.01)
+        let breath = try XCTUnwrap(ls[2].animation(forKey: "breath") as? CAKeyframeAnimation)
+        let w = Double(ls[2].lineWidth)
+        XCTAssertEqual((breath.values as? [Double])?.max() ?? 0, w * 1.3, accuracy: 1e-6)
+        XCTAssertEqual((breath.values as? [Double])?.min() ?? 0, w * 0.7, accuracy: 1e-6)
+        XCTAssertEqual(breath.duration, SwipeTrailFx.meltBreathPeriod)
+        let tint = try XCTUnwrap(ls[0].animation(forKey: "tint") as? CAKeyframeAnimation)
+        XCTAssertEqual(tint.values?.count, SwipeTrailFx.hueWheel.count)
+        XCTAssertEqual(tint.duration, SwipeTrailFx.meltHuePeriod)
+        r.fadeOut(reduceMotion: false)
+        r.settleNow()
+        XCTAssertEqual(r.debugAnimationCount, 0)
+    }
+
+    /// Vệt lặp: 3 bóng R/G/B dưới nét chính, lệch chromaOffset lúc vuốt; nhấc tay ⇒ trôi tới chromaDrift + mờ
+    /// (chậm hơn nét chính); cú vuốt sau bóng về chỗ cũ; settle ⇒ 0 animation.
+    @MainActor func testChromaGhostsDriftApartAfterLift() throws {
+        let r = SwipeTrailRenderer()
+        let before = SwipeTrailRenderer()
+        before.configure(style: .simple, trail: .white, accent: .white, dark: false)
+        r.configure(style: .chroma, trail: .white, accent: RGBA(hex: 0x0A84FF), dark: true)
+        XCTAssertEqual(r.debugGhosts.count, 3)
+        XCTAssertEqual(r.debugSublayerCount, before.debugSublayerCount + 1 + 3, "nhóm bóng + 3 bóng (lõi thay nét Đơn giản)")
+        let ghostRoot = try XCTUnwrap(r.debugGhosts.first?.superlayer)
+        XCTAssertTrue(r.layer.sublayers?.first === ghostRoot, "bóng nằm dưới nét chính")
+        line(r)
+        let gp = r.debugStrokeLayers.compactMap(\.path)
+        XCTAssertEqual(gp.count, 4)
+        XCTAssertTrue(gp.allSatisfy { $0 == gp[0] }, "bóng + nét chính vẽ CÙNG một path")
+        for (i, g) in r.debugGhosts.enumerated() {
+            let d = SwipeTrailFx.chromaShift(i, 0)
+            XCTAssertEqual(Double(g.transform.m41), d.dx, accuracy: 1e-9); XCTAssertEqual(Double(g.transform.m42), d.dy, accuracy: 1e-9)
+        }
+        XCTAssertEqual(r.debugAnimationCount, 0, "đang vuốt: bóng đứng yên, không animation")
+        r.fadeOut(reduceMotion: false)
+        XCTAssertNotNil(ghostRoot.animation(forKey: "fade"))
+        XCTAssertEqual(ghostRoot.animation(forKey: "fade")?.duration, SwipeTrailFx.chromaFade)
+        for (i, g) in r.debugGhosts.enumerated() {
+            XCTAssertNotNil(g.animation(forKey: "drift"))
+            XCTAssertEqual(Double(g.transform.m41), SwipeTrailFx.chromaShift(i, 1).dx, accuracy: 1e-9)
+        }
+        r.settleNow()
+        XCTAssertEqual(r.debugAnimationCount, 0)
+        line(r)
+        XCTAssertEqual(ghostRoot.opacity, 1)
+        XCTAssertEqual(Double(r.debugGhosts[1].transform.m42), SwipeTrailFx.chromaShift(1, 0).dy, accuracy: 1e-9)
+        // Đổi sang kiểu khác ⇒ gỡ nhóm bóng.
+        r.configure(style: .simple, trail: .white, accent: .white, dark: false)
+        XCTAssertEqual(r.debugSublayerCount, before.debugSublayerCount)
     }
 
     // MARK: bàn phím thật
@@ -496,7 +647,8 @@ final class SwipeTrailStyleTests: XCTestCase {
             let s = a.sorted(); return s.isEmpty ? 0 : s[min(s.count - 1, Int(Double(s.count) * q))]
         }
         _ = run(.simple, swipes: 20)    // làm nóng
-        let styles: [SwipeTrailStyle] = [.fire, .electric, .brush, .rainbow, .neon, .stardust, .firework, .plasma]
+        let styles: [SwipeTrailStyle] = [.fire, .electric, .brush, .rainbow, .neon, .stardust, .firework, .plasma,
+                                          .kaleidoscope, .melt, .chroma]
         var report: [String] = []
         for s in styles {
             var deltas: [Double] = [], base: [Double] = [], on: [Double] = []
