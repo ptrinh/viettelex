@@ -260,6 +260,16 @@ final class KeyboardViewController: UIInputViewController {
     static var debugKeyboardInstalls = 0
     /// Test: gửi thẳng một phím vào handle() (dấu câu, ⌫…) như KeyboardView gửi.
     func debugHandle(_ key: KeyboardView.Key) { handle(key) }
+    /// Test: một cú vuốt đúng đường thật — chạm phím chữ đầu (chèn lúc touchDown), rồi vuốt `path`.
+    func debugSwipe(first: Character, path: SwipePath) {
+        handle(.letter(first))
+        swipeBegan()
+        swipeEnded(path, .lower)
+    }
+    /// Test: bố cục vuốt hiện tại của bàn phím (nil nếu chưa dựng / tắt vuốt).
+    var debugSwipeLayout: SwipeLayout? { keyboard.swipeLayout() }
+    /// Test: bấm 123 rồi về chữ, như người dùng (đổi plane thật của KeyboardView).
+    func debugCycleThroughNumbers() { keyboard.debugCycleThroughNumbers() }
     /// Test: chạm một ô thanh gợi ý với payload này.
     func debugAcceptSuggestion(_ item: String) { acceptSuggestion(item) }
     /// Test: clipboard giả (thay UIPasteboard.general) + Toàn quyền giả.
