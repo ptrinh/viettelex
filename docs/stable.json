@@ -76,8 +76,8 @@
     "notes": "Tuỳ chọn mới: phát tiếng khi đổi Việt/Anh (tiếng gõ gỗ trầm; thấp rồi cao là tiếng Việt)."
   },
   "android": {
-    "version": "1.6.6",
-    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.6.6/VietTelex-android-1.6.6.apk",
+    "version": "1.6.7",
+    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.6.7/VietTelex-android-1.6.7.apk",
     "play": "https://play.google.com/store/apps/details?id=com.viettelex.android"
   }
 }
