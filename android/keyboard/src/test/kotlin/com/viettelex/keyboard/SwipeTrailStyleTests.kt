@@ -111,10 +111,10 @@ class SwipeTrailStyleTests {
     // --- theme JSON "swipe"
 
     @Test fun builtinThemesSwipeMapping() {
-        val want = mapOf("tet" to "stardust", "tetMai" to "stardust", "xmas" to "stardust", "xmasSnow" to "stardust",
-            "rgb" to "rainbow", "neon" to "neon", "space" to "stardust", "typewriter" to "brush", "sen" to "brush", "halloween" to "electric",
-            "pixel" to "neon", "ai" to "neon", "nightclub" to "neon", "trippy" to "kaleidoscope", "drift" to "stardust", "rainyNight" to "simple", "gym" to "neon",
-            "zodiac" to "stardust", "pride" to "rainbow")
+        val want = mapOf("tet" to "calligraphy", "tetMai" to "petals", "xmas" to "stardust", "xmasSnow" to "stardust",
+            "rgb" to "rainbow", "neon" to "neon", "space" to "stardust", "typewriter" to "brush", "sen" to "petals", "halloween" to "electric",
+            "pixel" to "neon", "ai" to "matrix", "nightclub" to "neon", "trippy" to "kaleidoscope", "drift" to "stardust", "rainyNight" to "firefly", "gym" to "neon",
+            "zodiac" to "stardust", "pride" to "rainbow", "piano" to "keys", "guitar" to "keys", "valentine" to "petals", "greenFloral" to "petals", "trungthu" to "firefly")
         assertTrue(BuiltinThemes.specs.isNotEmpty())
         for ((id, spec) in BuiltinThemes.specs) {
             assertEquals(id, want[id], spec.swipe)

@@ -144,10 +144,10 @@ final class SwipeTrailStyleTests: XCTestCase {
     // MARK: theme JSON "swipe"
 
     func testBuiltinThemesSwipeMapping() {
-        let want: [String: String] = ["tet": "stardust", "tetMai": "stardust", "xmas": "stardust", "xmasSnow": "stardust",
-                                      "rgb": "rainbow", "neon": "neon", "space": "stardust", "typewriter": "brush", "sen": "brush",
-                                      "halloween": "electric", "pixel": "neon", "ai": "neon", "nightclub": "neon", "trippy": "kaleidoscope", "drift": "stardust", "rainyNight": "simple", "gym": "neon",
-                                      "zodiac": "stardust", "pride": "rainbow"]
+        let want: [String: String] = ["tet": "calligraphy", "tetMai": "petals", "xmas": "stardust", "xmasSnow": "stardust",
+                                      "rgb": "rainbow", "neon": "neon", "space": "stardust", "typewriter": "brush", "sen": "petals",
+                                      "halloween": "electric", "pixel": "neon", "ai": "matrix", "nightclub": "neon", "trippy": "kaleidoscope", "drift": "stardust", "rainyNight": "firefly", "gym": "neon",
+                                      "zodiac": "stardust", "pride": "rainbow", "piano": "keys", "guitar": "keys", "valentine": "petals", "greenFloral": "petals", "trungthu": "firefly"]
         XCTAssertFalse(BuiltinThemes.specs.isEmpty)
         for (id, spec) in BuiltinThemes.specs {
             XCTAssertEqual(spec.swipe, want[id], id)

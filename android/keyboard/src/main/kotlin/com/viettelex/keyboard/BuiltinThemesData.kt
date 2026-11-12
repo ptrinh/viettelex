@@ -46,7 +46,7 @@ internal object BuiltinThemesData {
       "dark": "same"
     },
     {
-      "v": 1, "id": "greenFloral", "name": {"vi": "Hoa xanh", "en": "Green Blossom"},
+      "v": 1, "id": "greenFloral", "swipe": "petals", "name": {"vi": "Hoa xanh", "en": "Green Blossom"},
       "light": {"bg": "#EEF6EF", "key": "#FFFFFF", "special": "#DCEEDF", "ink": "#256B42", "accent": "#2E8B57",
                 "border": "#4CAF6E", "deco": {"motif": "flowers", "color": "#596DBE8A"}},
       "dark": {"bg": "#0F1D15", "key": "#16291E", "special": "#21392A", "ink": "#9EE0B6", "accent": "#2E8B57",
@@ -71,13 +71,13 @@ internal object BuiltinThemesData {
       "dark": {"bg": "#2B1520", "key": "#472335", "special": "#5E2F46", "ink": "#FCDDE8", "accent": "#D94680"}
     },
     {
-      "v": 1, "id": "tet", "name": {"vi": "Tết", "en": "Lunar New Year"}, "tags": ["interactive"], "sound": "phao", "effect": "keyword", "swipe": "stardust",
+      "v": 1, "id": "tet", "name": {"vi": "Tết", "en": "Lunar New Year"}, "tags": ["interactive"], "sound": "phao", "effect": "keyword", "swipe": "calligraphy",
       "light": {"bg": "#8E1010", "key": "#B71C1C", "special": "#7A0D0D", "ink": "#FFD54F", "accent": "#F9A825",
                 "accentInk": "#7F0000", "fn": "#9C1414", "fnInk": "#FFCA28", "deco": {"motif": "mai", "color": "#33FFD54F"}},
       "dark": "same"
     },
     {
-      "v": 1, "id": "tetMai", "name": {"vi": "Tết mai vàng", "en": "Golden Apricot Tết"}, "tags": ["interactive"], "sound": "phao", "effect": "keyword", "swipe": "stardust",
+      "v": 1, "id": "tetMai", "name": {"vi": "Tết mai vàng", "en": "Golden Apricot Tết"}, "tags": ["interactive"], "sound": "phao", "effect": "keyword", "swipe": "petals",
       "light": {"bg": "#FFF3D6", "key": "#FFFDF6", "special": "#F3D9A4", "ink": "#7A1414", "accent": "#C62828",
                 "fn": "#F6E2B3", "fnInk": "#B71C1C", "deco": {"motif": "mai", "color": "#CCE5A000"}},
       "dark": {"bg": "#2B1608", "key": "#47260F", "special": "#5E3418", "ink": "#FFE6A6", "accent": "#C62828",
@@ -97,13 +97,13 @@ internal object BuiltinThemesData {
                "fn": "#15263D", "fnInk": "#FFD54F", "deco": {"motif": "star", "color": "#66FFD54F"}}
     },
     {
-      "v": 1, "id": "piano", "name": {"vi": "Piano", "en": "Piano"}, "tags": ["interactive"], "sound": "piano",
+      "v": 1, "id": "piano", "swipe": "keys", "name": {"vi": "Piano", "en": "Piano"}, "tags": ["interactive"], "sound": "piano",
       "light": {"bg": "#000000", "key": "#FAFAF7", "special": "#85827B", "ink": "#111111", "accent": "#A4161A",
                 "fn": "#111111", "fnInk": "#FFFFFF", "border": "#33FFFFFF", "deco": {"motif": "notes", "color": "#66D4AF37"}},
       "dark": "same"
     },
     {
-      "v": 1, "id": "sen", "name": {"vi": "Sen Việt", "en": "Vietnamese Lotus"}, "sound": "dantranh", "effect": "petal", "swipe": "brush", "swipeSound": "brush",
+      "v": 1, "id": "sen", "name": {"vi": "Sen Việt", "en": "Vietnamese Lotus"}, "sound": "dantranh", "effect": "petal", "swipe": "petals", "swipeSound": "brush",
       "light": {"bg": "#FCE4EC", "key": "#FFFFFF", "special": "#F8BBD0", "ink": "#14421A", "accent": "#EC6A9C",
                 "accentInk": "#33091C", "fn": "#2E7D32", "fnInk": "#FFFFFF", "deco": {"motif": "lotus", "color": "#66EC6A9C"}},
       "dark": {"bg": "#0D1A11", "key": "#1E3324", "special": "#2E4A35", "ink": "#FCE4EC", "accent": "#EC6A9C",
@@ -134,14 +134,14 @@ internal object BuiltinThemesData {
       "dark": "same"
     },
     {
-      "v": 1, "id": "trungthu", "name": {"vi": "Trung Thu", "en": "Mid-Autumn"}, "sound": "trong", "effect": "lantern",
+      "v": 1, "id": "trungthu", "swipe": "firefly", "name": {"vi": "Trung Thu", "en": "Mid-Autumn"}, "sound": "trong", "effect": "lantern",
       "light": {"bg": "#0B1636", "key": "#1A2A57", "special": "#13214A", "ink": "#FFF1D0", "accent": "#F59E2B",
                 "accentInk": "#2B1300", "fn": "#142352", "fnInk": "#FFC857",
                 "deco": {"motif": "lantern", "alt": "moon", "color": "#73FFB347"}},
       "dark": "same"
     },
     {
-      "v": 1, "id": "valentine", "name": {"vi": "Valentine", "en": "Valentine"}, "sound": "pop", "effect": "heart",
+      "v": 1, "id": "valentine", "swipe": "petals", "name": {"vi": "Valentine", "en": "Valentine"}, "sound": "pop", "effect": "heart",
       "light": {"bg": "#FFE3E8", "key": "#FFFFFF", "special": "#FFC2CF", "ink": "#9B1035", "accent": "#D81B4A",
                 "fn": "#FFD3DC", "fnInk": "#B0123D", "deco": {"motif": "hearts", "color": "#4DE8436A"}},
       "dark": {"bg": "#2A0610", "key": "#4E0D20", "special": "#6B1430", "ink": "#FFE9EE", "accent": "#D81B4A",
@@ -155,7 +155,7 @@ internal object BuiltinThemesData {
       "dark": "same"
     },
     {
-      "v": 1, "id": "guitar", "name": {"vi": "Ghi-ta", "en": "Guitar"}, "tags": ["interactive"], "sound": "guitar", "effect": "string",
+      "v": 1, "id": "guitar", "swipe": "keys", "name": {"vi": "Ghi-ta", "en": "Guitar"}, "tags": ["interactive"], "sound": "guitar", "effect": "string",
       "light": {"bg": "#DDA35C", "key": "#4A2A1C", "special": "#6B4030", "ink": "#F6EBD5", "accent": "#E8A93A",
                 "accentInk": "#2A1606", "fn": "#351D13", "fnInk": "#F2C46D",
                 "deco": {"motif": "strings", "alt": "inlay", "color": "#D9FBF1DC"}, "spaceDeco": "soundhole"},
@@ -210,7 +210,7 @@ internal object BuiltinThemesData {
       ]
     },
     {
-      "v": 1, "id": "ai", "name": {"vi": "AI", "en": "AI"}, "tags": ["interactive"], "sound": "ai", "effect": "tokens", "swipe": "neon",
+      "v": 1, "id": "ai", "name": {"vi": "AI", "en": "AI"}, "tags": ["interactive"], "sound": "ai", "effect": "tokens", "swipe": "matrix",
       "buddy": {"character": "ai", "size": 5},
       "light": {"bg": "#070A18", "key": "#1B2140", "special": "#2A2452", "ink": "#F5F3FF", "accent": "#8B5CF6",
                 "fn": "#141A33", "fnInk": "#A5F3FC", "balloon": "#232A52", "trail": "#CC22D3EE",
@@ -257,7 +257,7 @@ internal object BuiltinThemesData {
       "dark": "same"
     },
     {
-      "v": 1, "id": "rainyNight", "name": {"vi": "Mưa đêm", "en": "Rainy Night"}, "sound": "rain", "effect": "rain", "swipe": "simple",
+      "v": 1, "id": "rainyNight", "name": {"vi": "Mưa đêm", "en": "Rainy Night"}, "sound": "rain", "effect": "rain", "swipe": "firefly",
       "light": {"bg": "#161E2B", "key": "#B32C3A50", "special": "#CC223042", "ink": "#F3EAD9", "accent": "#E9A84E",
                 "accentInk": "#2A1A06", "fn": "#CC1E2A3A", "fnInk": "#FFD08A", "border": "#40D6E4F5",
                 "balloon": "#2B394E", "trail": "#B3FFE2B8", "deco": {"motif": "bokeh", "color": "#38FFD59A"}},
