@@ -7952,6 +7952,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Mắt AI cũng cần tâm phím (nhìn theo); Ảo giác: gợn sóng màu từ phím.
         guard keyEffects != nil || aiEye != nil || spotlight != nil || hueFill != nil else { return }
         fxRect = convert(v.bounds, from: v)
+        // Phím sáng: chữ + phông đang hiện trên phím (kiểu khác ⇒ chỉ một phép so sánh).
+        if let o = keyEffects, o.effect == .keyglow {
+            let b = v as? KeyButton
+            o.markGlowGlyph(b?.currentTitle, font: b?.titleFont)
+        }
     }
     /// Overlay hiệu ứng dùng CHUNG hệ toạ độ với KeyboardView: khung = bounds, gốc bounds = gốc bounds
     /// của view (#151 dời gốc lên phần host cấp dư). Khung phím (fxRect, khe hàng) tính theo toạ độ view

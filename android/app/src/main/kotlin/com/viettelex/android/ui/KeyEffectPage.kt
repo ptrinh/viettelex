@@ -216,7 +216,8 @@ internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, c
         if (e == KeyEffect.FISHFEED) { burst(x - 24 * d, y - 20 * d, w, h); flush(); burst(x + 24 * d, y - 24 * d, w, h); flush() }
         // Sút!: "Enter" sút bóng vào lưới + cụm cổ vũ (như vừa gõ "vô địch" + cách).
         if (e == KeyEffect.GOAL) queueCheer()
-        burst(x, y, w, h, isReturn = e == KeyEffect.GOAL)
+        keyGlowStyle(textPaint.textSize, textPaint.typeface)   // Phím sáng: chữ "V" của phím mẫu rực lên
+        burst(x, y, w, h, isReturn = e == KeyEffect.GOAL, glyph = "V")
         flush()
         if (KeyEffectPreviewScript.beat(e, tap)) kickBeat()
         // Mưa: như đã gõ một lúc (mưa thưa bớt, đèn ấm sáng lên) + vài giọt rơi quanh ô — = iOS.

@@ -35,6 +35,7 @@ import com.viettelex.keyboard.ToneFx
 import com.viettelex.keyboard.GlowSprite
 import com.viettelex.keyboard.InkBloom
 import com.viettelex.keyboard.KeyEffect
+import com.viettelex.keyboard.KeyGlow
 import com.viettelex.keyboard.KeyEffectParticles
 import com.viettelex.keyboard.LightningBolt
 import com.viettelex.keyboard.LightningShards
@@ -105,6 +106,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     private val pendH = FloatArray(MAX_PENDING)
     /** Khung chờ thứ i là phím Enter (Sút!: Enter sút bóng, phím khác nhú cỏ). */
     private val pendR = BooleanArray(MAX_PENDING)
+    /** Chữ trên phím của khung chờ thứ i (chỉ Phím sáng ghi; null = phím không chữ). */
+    private val pendG = arrayOfNulls<String>(MAX_PENDING)
     private var pendN = 0
     private var posted = false
     private val flushRun = Runnable { flush() }
@@ -112,6 +115,18 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     // Nháy sáng
     private val flash = FlashPulse()
     private var flashStart = Long.MIN_VALUE / 2
+    // Phím sáng ([KeyGlow], = iOS): pool KeyGlow.POOL ô — khung, bo góc, chữ; Paint cấp sẵn (quầng = shadowLayer trên chữ,
+    // vẽ ở RenderThread), không cấp phát mỗi khung. Kiểu khác ⇒ mảng đứng yên, không vẽ gì.
+    private val kgStart = LongArray(KeyGlow.POOL) { Long.MIN_VALUE / 2 }
+    private val kgRect = Array(KeyGlow.POOL) { RectF() }
+    private val kgCorner = FloatArray(KeyGlow.POOL)
+    private val kgGlyph = arrayOfNulls<String>(KeyGlow.POOL)
+    private var kgCursor = 0
+    private var kgOff = 0f
+    private var kgStyled = false
+    private val kgCap = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val kgHalo = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+    private val kgInk = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     // Lửa combo
     private val combo = ComboMeter()
     // Tia sét — pool 3 cú đánh, Path cấp sẵn
@@ -489,6 +504,14 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             else -> { useFill = true; useStroke = false; fillAlpha = 255 }
         }
         blob = if (e == KeyEffect.INK) renderBlob(opaque) else null
+        if (e == KeyEffect.KEYGLOW) {
+            kgCap.color = opaque
+            val ink = KeyGlow.glyphColor(accent) or (0xFF shl 24)
+            kgHalo.color = ink; kgInk.color = ink
+            kgHalo.setShadowLayer((KeyGlow.HALO * 1.6 * density).toFloat(), 0f, 0f, opaque)
+            kgInk.setShadowLayer((KeyGlow.HALO * 0.6 * density).toFloat(), 0f, 0f, opaque)
+            if (!kgStyled) keyGlowStyle(DEFAULT_GLYPH_SP * density, null)
+        }
         glows = if (e.usesGlow) Array(e.fixedColors.size) { renderGlow(e, e.fixedColors[it]) } else emptyArray()
         if (changed) fishWorld = null
         if (changed) { shardCache.clear(); combo.reset(); shakeMeter.reset(); plasma.reset(); prewarm(e); buildFx3Paths(e) }
@@ -522,6 +545,16 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     /** "Token AI": chữ vừa ra — lần vẽ kế loé tại phím rồi vỡ thành token bay vào thanh gợi ý. */
     fun queueToken(s: String) { if (sim.effect == KeyEffect.TOKENS) pendingToken = s }
 
+    /** "Phím sáng": cỡ chữ (px) + kiểu chữ của nhãn phím — chữ sáng đè đúng nhãn. Kiểu khác ⇒ return ngay. */
+    fun keyGlowStyle(textSizePx: Float, typeface: android.graphics.Typeface?) {
+        if (sim.effect != KeyEffect.KEYGLOW) return
+        if (kgStyled && kgHalo.textSize == textSizePx && kgHalo.typeface === typeface) return
+        kgStyled = true
+        kgHalo.textSize = textSizePx; kgInk.textSize = textSizePx
+        kgHalo.typeface = typeface; kgInk.typeface = typeface
+        kgOff = -(kgInk.ascent() + kgInk.descent()) / 2
+    }
+
     /**
      * "Token AI": thanh gợi ý vừa hiện [words] trong khung ([l], [t], [r], [b]) px theo toạ độ view này. Chỉ đổi THẬT
      * ([ShimmerGate]) mới quét vệt sáng ~0,3 s; kiểu khác ⇒ return ngay.
@@ -551,17 +584,20 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     }
 
     /** Một phím vừa chèn chữ, tâm phím ([x], [y]), cỡ [w]×[h] (px) theo toạ độ view này. */
-    fun burst(x: Float, y: Float, w: Float = 0f, h: Float = 0f, isReturn: Boolean = false) {
+    fun burst(x: Float, y: Float, w: Float = 0f, h: Float = 0f, isReturn: Boolean = false, glyph: String? = null) {
         val none = sim.effect == KeyEffect.NONE
         // Emoji / Dấu thanh / Từ khoá / Chữ bay (và "Không" chỉ có từ khoá theme): không có sự kiện ⇒ không hẹn gì.
         if ((none || sim.effect.isQueued) && pendingThemeKeyword == null && (none || !hasQueued)) return
         if (pendN == MAX_PENDING) {
             for (i in 1 until MAX_PENDING) {
                 pendX[i - 1] = pendX[i]; pendY[i - 1] = pendY[i]; pendW[i - 1] = pendW[i]; pendH[i - 1] = pendH[i]; pendR[i - 1] = pendR[i]
+                pendG[i - 1] = pendG[i]
             }
             pendN--
         }
-        pendX[pendN] = x; pendY[pendN] = y; pendW[pendN] = w; pendH[pendN] = h; pendR[pendN] = isReturn; pendN++
+        pendX[pendN] = x; pendY[pendN] = y; pendW[pendN] = w; pendH[pendN] = h; pendR[pendN] = isReturn
+        pendG[pendN] = if (sim.effect == KeyEffect.KEYGLOW) glyph else null
+        pendN++
         if (!posted) { posted = true; post(flushRun) }
     }
 
@@ -601,6 +637,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
                 if (pendingPride) firePrideFlag(pendX[pendN - 1], pendY[pendN - 1], pendH[pendN - 1], now)
                 pendingPride = false
             }
+            KeyEffect.KEYGLOW -> for (i in 0 until pendN) fireKeyGlow(pendX[i], pendY[i], pendW[i], pendH[i], pendG[i], now)
             KeyEffect.GOAL -> {
                 for (i in 0 until pendN) {
                     if (pendR[i]) fireShot(pendX[i], pendY[i], now)
@@ -615,6 +652,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             }
         }
         pendN = 0
+        pendG.fill(null)
         postInvalidateOnAnimation()
     }
 
@@ -653,6 +691,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.CONSTELLATION -> fireConstellation(x, y, now)
             KeyEffect.RAINBOWBURST -> fireRainbow(x, y, now)
             KeyEffect.FLASH -> if (flash.trigger(now)) flashStart = now
+            KeyEffect.KEYGLOW -> fireKeyGlow(x, y, w, h, null, now)
             KeyEffect.LIGHTNING -> fireLightning(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
             KeyEffect.MATRIX -> pokeMatrix(now)
             KeyEffect.INK, KeyEffect.WAVE -> fireSlot(x, y, now, null)
@@ -664,6 +703,42 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             else -> sim.spawn(x, y, now)
         }
     }
+
+    // ---- Phím sáng ([KeyGlow] — hàm thuần chung iOS; ở đây px = dp × density)
+
+    private fun fireKeyGlow(x: Float, y: Float, w: Float, h: Float, glyph: String?, now: Long) {
+        val s = kgCursor; kgCursor = (s + 1) % KeyGlow.POOL
+        val hw = (if (w > 0f) w else DEFAULT_W * density) / 2; val hh = (if (h > 0f) h else DEFAULT_H * density) / 2
+        kgRect[s].set(x - hw, y - hh, x + hw, y + hh)
+        kgCorner[s] = (KeyGlow.corner((2 * hw / density).toDouble(), (2 * hh / density).toDouble()) * density).toFloat()
+        kgGlyph[s] = glyph
+        kgStart[s] = now
+    }
+
+    private fun drawKeyGlow(canvas: Canvas, now: Long): Boolean {
+        var any = false
+        for (s in 0 until KeyGlow.POOL) {
+            val dt = (now - kgStart[s]) / 1000.0
+            if (dt < 0 || dt >= KeyGlow.DURATION) continue
+            any = true
+            val a = KeyGlow.alpha(dt)
+            if (a <= 0.0) continue
+            val r = kgRect[s]
+            kgCap.alpha = (a * KeyGlow.CAP_ALPHA * 255).toInt().coerceIn(0, 255)
+            canvas.drawRoundRect(r, kgCorner[s], kgCorner[s], kgCap)
+            val g = kgGlyph[s] ?: continue
+            val ia = (a * 255).toInt().coerceIn(0, 255)
+            kgHalo.alpha = ia; kgInk.alpha = ia
+            val cy = r.centerY() + kgOff
+            canvas.drawText(g, r.centerX(), cy, kgHalo)
+            canvas.drawText(g, r.centerX(), cy, kgInk)
+        }
+        return any
+    }
+
+    /** Test: số ô Phím sáng còn sáng lúc [now] + chữ của ô [i]. */
+    internal fun keyGlowsAlive(now: Long): Int = kgStart.count { (now - it) / 1000.0 in 0.0..<KeyGlow.DURATION }
+    internal fun keyGlowGlyph(i: Int): String? = kgGlyph[i]
 
     private fun fireSlot(x: Float, y: Float, now: Long, b: Bitmap?) {
         val cap = when (sim.effect) { KeyEffect.INK -> InkBloom.SLOTS; KeyEffect.WAVE -> WaveRings.SLOTS; else -> 3 }
@@ -733,6 +808,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         slotStart.fill(Long.MIN_VALUE / 2)
         strStart.fill(Long.MIN_VALUE / 2)
         flashStart = Long.MIN_VALUE / 2
+        kgStart.fill(Long.MIN_VALUE / 2); kgGlyph.fill(null); pendG.fill(null)
         pendingEmoji = null
         pendingTone = null; pendingKeyword = null; pendingLetter = null; pendingToken = null
         pendingThemeKeyword = null; thStart.fill(Long.MIN_VALUE / 2); tkStart.fill(Long.MIN_VALUE / 2)
@@ -1734,6 +1810,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         return kw or when (e) {
             KeyEffect.THEME -> drawTheme(canvas, now)
             KeyEffect.FLASH -> drawFlash(canvas, now)
+            KeyEffect.KEYGLOW -> drawKeyGlow(canvas, now)
             KeyEffect.LIGHTNING -> drawLightning(canvas, now)
             KeyEffect.MATRIX -> drawMatrix(canvas, now)
             KeyEffect.INK -> drawInk(canvas, now)
@@ -2915,6 +2992,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         const val SLOTS = 4
         const val EMOJI_MS = 1100L
         const val DEFAULT_W = 34f
+        /** Phím sáng: cỡ chữ (sp ≈ dp) khi IME chưa cấp kiểu chữ nhãn. */
+        const val DEFAULT_GLYPH_SP = 22f
         /** Rung dây: thời lượng (ms) = StringPluck.DURATION. */
         val STRING_MS = Math.round(StringPluck.DURATION * 1000)
         const val DEFAULT_H = 42f

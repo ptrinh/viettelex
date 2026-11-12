@@ -35,7 +35,7 @@ final class KeyEffectTests: XCTestCase {
 
     func testIdsMatchAndroidAndDefaultIsNone() {
         // Cùng id với android/keyboard/.../KeyEffect.kt (sao lưu chéo nền tảng).
-        XCTAssertEqual(KeyEffect.allCases.map(\.rawValue), ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps", "constellation", "rainbowburst", "goal", "fishfeed", "ice", "theme"])
+        XCTAssertEqual(KeyEffect.allCases.map(\.rawValue), ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps", "constellation", "rainbowburst", "goal", "fishfeed", "ice", "theme", "keyglow"])
         XCTAssertEqual(KeyEffect.key, "keyEffect")
         XCTAssertEqual(KeyEffect.defaultValue, .none)
         XCTAssertEqual(KeyEffect.parse(nil), .none)
@@ -57,7 +57,7 @@ final class KeyEffectTests: XCTestCase {
 
     func testBackupSpecWhitelistsIds() {
         let spec = BackupSettings.all.first { $0.key == KeyEffect.key }
-        XCTAssertEqual(spec?.kind, .string("none", ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps", "constellation", "rainbowburst", "goal", "fishfeed", "ice", "theme"]))
+        XCTAssertEqual(spec?.kind, .string("none", ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps", "constellation", "rainbowburst", "goal", "fishfeed", "ice", "theme", "keyglow"]))
     }
 
     func testTitlesBilingual() {
@@ -258,6 +258,9 @@ final class KeyEffectTests: XCTestCase {
                 let topLayers = o.layer.sublayers?.count ?? 0
                 switch e {
                 case .flash: XCTAssertEqual(topLayers, 1, "một lớp nháy duy nhất")
+                case .keyglow:
+                    XCTAssertEqual(o.debugKeyGlowRoots.count, KeyGlow.pool, "pool ô sáng dùng lại")
+                    XCTAssertEqual(topLayers, KeyGlow.pool, "≤ 12 ô, không mọc thêm layer")
                 case .lightning: XCTAssertEqual(topLayers, 3, "≤ 3 cú đánh dùng lại")
                 case .matrix: XCTAssertEqual(topLayers, 1, "một gốc Matrix")
                 case .string: XCTAssertEqual(topLayers, StringPluck.pool, "pool đoạn dây dùng lại")
@@ -2209,5 +2212,73 @@ final class KeyEffectDescriptionTests: XCTestCase {
             XCTAssertFalse(L10n.en.keys.contains { $0.hasPrefix(old) }, old)
         }
         XCTAssertTrue(src.contains("KeyEffect.description(for: current)"))
+    }
+
+    // MARK: Phím sáng
+
+    /// Id lưu + đường mờ + màu chữ + bo góc — số chung với Android (keyboard/KeyEffectTests.keyGlowModelParity).
+    func testKeyGlowModelParity() {
+        XCTAssertEqual(KeyEffect.parse("keyglow"), .keyglow, "id lưu đọc lại đúng")
+        XCTAssertEqual(KeyEffect.keyglow.rawValue, "keyglow")
+        XCTAssertEqual(KeyEffect.allCases.last, .keyglow, "kiểu mới chỉ thêm CUỐI")
+        XCTAssertTrue(KeyEffect.keyglow.isPlus)
+        XCTAssertFalse(KeyEffect.keyglow.isQueued)
+        XCTAssertEqual(KeyEffect.keyglow.band, .aboveKeys)
+        XCTAssertNotNil(L10n.en["Phím sáng"])
+        XCTAssertEqual(KeyGlow.pool, 12)
+        XCTAssertEqual(KeyGlow.alpha(-0.01), 0)
+        XCTAssertEqual(KeyGlow.alpha(0), 1)
+        XCTAssertEqual(KeyGlow.alpha(KeyGlow.hold), 1)
+        XCTAssertEqual(KeyGlow.alpha(0.235), 0.25, accuracy: 1e-9)
+        XCTAssertEqual(KeyGlow.alpha(KeyGlow.duration), 0)
+        XCTAssertGreaterThanOrEqual(KeyGlow.duration, 0.35)
+        XCTAssertLessThanOrEqual(KeyGlow.duration, 0.5)
+        var prev = 1.0
+        for k in 0...100 {
+            let a = KeyGlow.alpha(KeyGlow.duration * Double(k) / 100)
+            XCTAssertLessThanOrEqual(a, prev + 1e-12, "chỉ tắt dần, không loé lại")
+            XCTAssertGreaterThanOrEqual(a, 0)
+            prev = a
+        }
+        XCTAssertEqual(KeyGlow.glyphColor(accent: 0x007AFF), 0x73B6FF)
+        XCTAssertEqual(KeyGlow.glyphColor(accent: 0x000000), 0x737373)
+        XCTAssertEqual(KeyGlow.glyphColor(accent: 0xFFFFFF), 0xFFFFFF)
+        XCTAssertEqual(KeyGlow.corner(w: 34, h: 42), 6)
+        XCTAssertEqual(KeyGlow.corner(w: 8, h: 42), 4)
+        XCTAssertEqual(KeyGlow.corner(w: 0, h: 0), 0)
+    }
+
+    /// Bấm ⇒ ô đúng khung phím + ảnh chữ sáng; phím không chữ ⇒ chỉ nền ửng; ảnh chữ dựng một lần; pool ≤ 12;
+    /// animation gắn một lần (1 → 0); kiểu khác bỏ qua chữ.
+    @MainActor func testKeyGlowLightsTappedKeyAndStaysCapped() throws {
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 260))
+        let o = try XCTUnwrap(KeyEffectOverlay.install(.keyglow, color: .systemBlue, in: host, existing: nil))
+        let key = CGRect(x: 40, y: 60, width: 34, height: 42)
+        let font = UIFont.systemFont(ofSize: 22)
+        o.markGlowGlyph("a", font: font)
+        o.emit(key: key); o.flush()
+        let root = try XCTUnwrap(o.debugKeyGlowRoots.first)
+        XCTAssertEqual(root.position, CGPoint(x: key.midX, y: key.midY))
+        XCTAssertEqual(root.bounds.size, key.size)
+        XCTAssertFalse(root.isHidden)
+        let anim = try XCTUnwrap(root.animation(forKey: "fx") as? CAKeyframeAnimation)
+        XCTAssertEqual(anim.values?.first as? Double, 1)
+        XCTAssertEqual(anim.values?.last as? Double, 0)
+        XCTAssertEqual(anim.duration, KeyGlow.duration)
+        let glyph = o.debugKeyGlowGlyphs[0]
+        XCTAssertFalse(glyph.isHidden)
+        XCTAssertNotNil(glyph.contents)
+        XCTAssertGreaterThan(glyph.bounds.width, CGFloat(2 * KeyGlow.halo), "ảnh chữ có chừa quầng")
+        o.emit(key: key.offsetBy(dx: 50, dy: 0)); o.flush()   // phím cách: không chữ
+        XCTAssertTrue(o.debugKeyGlowGlyphs[1].isHidden)
+        for _ in 0..<40 { o.markGlowGlyph("a", font: font); o.emit(key: key); o.flush() }
+        XCTAssertEqual(o.debugKeyGlowImageCount, 1, "cùng chữ ⇒ dùng lại ảnh")
+        XCTAssertEqual(o.debugKeyGlowRoots.count, KeyGlow.pool)
+        XCTAssertEqual(o.layer.sublayers?.count, KeyGlow.pool)
+        XCTAssertNotNil(root.animation(forKey: "fx"), "animation gắn một lần, không bị gỡ")
+        let other = try XCTUnwrap(KeyEffectOverlay.install(.heart, color: .red, in: UIView(frame: host.bounds), existing: nil))
+        other.markGlowGlyph("a", font: font)
+        other.emit(key: key); other.flush()
+        XCTAssertTrue(other.debugKeyGlowRoots.isEmpty, "kiểu khác: 0 ô sáng")
     }
 }
