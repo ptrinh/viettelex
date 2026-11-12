@@ -125,26 +125,34 @@ bool removeKeyboardForUser() { return callInstall(tipSpec(), ILOT_UNINSTALL_); }
 bool removeLayoutOrTipForUser(const std::wstring& spec) { return !spec.empty() && callInstall(spec, ILOT_UNINSTALL_); }
 
 bool removeFromUserLanguageList(const std::string& spec) {
-    const std::string ps = vtx::languageListRemovalCommand(spec);
-    if (ps.empty()) return false;
-    wchar_t sys[MAX_PATH];
-    const UINT n = GetSystemDirectoryW(sys, MAX_PATH);
-    if (n == 0 || n >= MAX_PATH) return false;
-    // Full path: never a powershell.exe found through PATH or the current folder.
-    const std::wstring exe = std::wstring(sys, n) + L"\\WindowsPowerShell\\v1.0\\powershell.exe";
-    std::wstring cmd = L"\"" + exe + L"\" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"";
-    for (char c : ps) cmd.push_back(static_cast<wchar_t>(c));
-    cmd += L"\"";
-    STARTUPINFOW si = {};
-    si.cb = sizeof si;
-    PROCESS_INFORMATION pi = {};
-    if (!CreateProcessW(exe.c_str(), &cmd[0], nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
+    auto wide = [](const std::string& t) { return std::wstring(t.begin(), t.end()); };  // ASCII specs
+    HKEY root;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Control Panel\\International\\User Profile", 0,
+                      KEY_ENUMERATE_SUB_KEYS, &root) != ERROR_SUCCESS)
         return false;
-    DWORD code = 1;
-    const bool done = WaitForSingleObject(pi.hProcess, 20000) == WAIT_OBJECT_0 && GetExitCodeProcess(pi.hProcess, &code);
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
-    return done && code == 0;
+    bool removed = false;
+    wchar_t sub[128];
+    for (DWORD i = 0;; ++i) {
+        DWORD subLen = 128;
+        if (RegEnumKeyExW(root, i, sub, &subLen, nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS) break;
+        HKEY lang;
+        if (RegOpenKeyExW(root, sub, 0, KEY_QUERY_VALUE | KEY_SET_VALUE, &lang) != ERROR_SUCCESS) continue;
+        std::vector<std::string> names;
+        wchar_t name[256];
+        for (DWORD v = 0;; ++v) {
+            DWORD nameLen = 256;
+            if (RegEnumValueW(lang, v, name, &nameLen, nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS) break;
+            std::string n;
+            for (DWORD c = 0; c < nameLen; ++c) n.push_back(name[c] < 0x80 ? static_cast<char>(name[c]) : '?');
+            names.push_back(n);
+        }
+        for (const std::string& n : vtx::languageListValuesToRemove(names, spec))
+            if (RegDeleteValueW(lang, wide(n).c_str()) == ERROR_SUCCESS) removed = true;
+        RegCloseKey(lang);
+    }
+    RegCloseKey(root);
+    if (removed) callInstall(wide(spec), ILOT_UNINSTALL_);  // and out of this session
+    return removed;
 }
 
 bool runningAsSystem() {

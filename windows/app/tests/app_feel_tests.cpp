@@ -99,17 +99,16 @@ TEST(feel_new_user_gets_tray_existing_keeps_choice) {
 
 // ---------------------------------------------------------------- built-in keyboard removal
 
-TEST(feel_language_list_removal_command_takes_only_a_plain_spec) {
-    const std::string c = languageListRemovalCommand("042A:0000042A");
-    CHECK(c.find("Get-WinUserLanguageList") != std::string::npos);
-    CHECK(c.find("-ieq '042A:0000042A'") != std::string::npos);
-    CHECK(c.find("Set-WinUserLanguageList $l -Force") != std::string::npos);
-    CHECK(c.find('"') == std::string::npos);  // goes inside a quoted -Command argument
-    CHECK(!languageListRemovalCommand("042A:{C2CB2CF0-AF47-413E-9780-8BC3A3C16068}{5FB02EC5-0A77-4684-B4FA-DEF8A2195628}").empty());
-    CHECK(languageListRemovalCommand("").empty());
-    CHECK(languageListRemovalCommand("042A:0000042A'; Remove-Item x; '").empty());
-    CHECK(languageListRemovalCommand("042A:0000042A\"").empty());
-    CHECK(languageListRemovalCommand("042A 0000042A").empty());
+TEST(feel_language_list_removal_only_takes_the_named_keyboard) {
+    const std::string ours = "042A:{C2CB2CF0-AF47-413E-9780-8BC3A3C16068}{5FB02EC5-0A77-4684-B4FA-DEF8A2195628}";
+    std::vector<std::string> names = {"CachedLanguageName", "042A:0000042A", ours};
+    std::vector<std::string> r = languageListValuesToRemove(names, "042a:0000042a");  // any case
+    CHECK(r.size() == 1 && r[0] == "042A:0000042A");
+    // The only keyboard of the language stays: Windows would add one back anyway.
+    CHECK(languageListValuesToRemove({"CachedLanguageName", "042A:0000042A"}, "042A:0000042A").empty());
+    CHECK(languageListValuesToRemove(names, "0409:00000409").empty());
+    CHECK(languageListValuesToRemove(names, "").empty());
+    CHECK(languageListValuesToRemove({}, "042A:0000042A").empty());
 }
 
 // ---------------------------------------------------------------- switch sound

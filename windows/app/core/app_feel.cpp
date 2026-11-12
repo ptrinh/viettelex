@@ -73,16 +73,22 @@ std::vector<std::string> builtInKeyboardRemovals(const std::vector<ViProfile>& f
     return out;
 }
 
-std::string languageListRemovalCommand(const std::string& spec) {
-    if (spec.empty() || spec.size() > 120) return "";
-    for (char c : spec) {
-        const bool hex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
-        if (!hex && c != ':' && c != '{' && c != '}' && c != '-') return "";
+std::vector<std::string> languageListValuesToRemove(const std::vector<std::string>& names, const std::string& spec) {
+    auto lower = [](std::string s) {
+        for (char& c : s)
+            if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+        return s;
+    };
+    const std::string want = lower(spec);
+    std::vector<std::string> out;
+    size_t others = 0;
+    for (const std::string& n : names) {
+        if (n.find(':') == std::string::npos) continue;  // "CachedLanguageName"…: not an input method
+        if (!want.empty() && lower(n) == want) out.push_back(n);
+        else ++others;
     }
-    return "$l = Get-WinUserLanguageList; $c = $false; "
-           "foreach ($x in $l) { foreach ($t in @($x.InputMethodTips)) { if ($t -ieq '" + spec +
-           "') { [void]$x.InputMethodTips.Remove($t); $c = $true } } }; "
-           "if ($c) { Set-WinUserLanguageList $l -Force }";
+    if (others == 0) out.clear();
+    return out;
 }
 
 uintptr_t pickExitLayout(const uintptr_t* hkls, size_t count, uintptr_t saved) {
