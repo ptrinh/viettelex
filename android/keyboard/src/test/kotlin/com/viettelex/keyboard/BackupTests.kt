@@ -159,7 +159,7 @@ class BackupTests {
         assertEquals("muted", p.settings!![Keys.SUGGESTION_INK])   // màu chữ gợi ý: mặc định Xám
         assertEquals("1h", p.settings!![Keys.CLIPBOARD_TTL])   // giữ lịch sử clipboard: mặc định 1 giờ
         assertEquals("comma", p.settings!![Keys.SPACE_SIDE_KEY])   // phím cạnh dấu cách: mặc định ","
-        assertEquals("auto", p.settings!![Keys.SYMBOL_RETURN])   // về bàn chữ sau ký hiệu: mặc định Tự động
+        assertEquals("off", p.settings!![Keys.SYMBOL_RETURN])   // về bàn chữ sau ký hiệu: mặc định Tắt (từ 1.6.4)
         assertEquals(false, p.settings!![Keys.KEYBOARD_DISMISS_BUTTON])   // nút ẩn bàn phím: mặc định tắt
         assertEquals("bottom", p.settings!![Keys.EMOJI_KEY_PLACEMENT])   // nút emoji: mặc định hàng dưới
         assertEquals("medium", p.settings!![Keys.KEY_LABEL_SIZE])   // cỡ chữ trên phím: mặc định Vừa
