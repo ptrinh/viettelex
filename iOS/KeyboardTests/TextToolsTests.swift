@@ -1,4 +1,4 @@
-// TextToolsTests — công cụ văn bản (HOA/thường/Hoa Đầu Từ/Hoa đầu câu/Xoá dấu) theo fixture
+// TextToolsTests — công cụ văn bản (HOA/thường/Hoa đầu từ/Hoa đầu câu/Xoá dấu) theo fixture
 // chung Fixtures/text-tools.txt (cùng bộ ca với android TextToolsTests.kt) + luồng thay chữ
 // trên proxy giả (vùng chọn / đoạn trước con trỏ / fail-safe / hoàn tác).
 import XCTest
@@ -233,5 +233,68 @@ final class TextToolsTests: XCTestCase {
             XCTAssertEqual(rig.vc.debugKeyboard.textToolsEnabled, on, "textToolsEnabled=\(on)")
             rig.close()
         }
+    }
+
+    // MARK: nút "Thêm dấu" (thẻ Công cụ) + lưới ☰ (tester 11/2026)
+
+    func testAddTonesButtonBeforeCursorKeepsTonedPrefix() {
+        let p = SelProxy("Mở đầu\nHôm nay toi di hoc ")
+        guard case .applied(let u) = TextToolRunner.addTones(proxy: p, selectedText: nil, personal: nil) else {
+            return XCTFail("phải áp")
+        }
+        XCTAssertEqual(p.text, "Mở đầu\nHôm nay tôi đi học ")
+        XCTAssertTrue(TextToolRunner.undo(u, proxy: p))
+        XCTAssertEqual(p.text, "Mở đầu\nHôm nay toi di hoc ")
+    }
+
+    func testAddTonesButtonSelectionOnly() {
+        let p = SelProxy("A: ", selected: "khong co gi")
+        p.after = " — ok"
+        guard case .applied = TextToolRunner.addTones(proxy: p, selectedText: p.selected, personal: nil) else {
+            return XCTFail("phải áp")
+        }
+        XCTAssertEqual(p.text, "A: không có gì — ok")
+        XCTAssertEqual(p.deletes, 0)
+        XCTAssertEqual(TextToolRunner.addTones(proxy: SelProxy("hello world"), selectedText: nil, personal: nil), .unchanged)
+        XCTAssertEqual(TextToolRunner.addTones(proxy: SelProxy("tôi đi học"), selectedText: nil, personal: nil), .noSource)
+        XCTAssertEqual(TextToolRunner.addTones(proxy: SelProxy("\n"), selectedText: nil, personal: nil), .noSource)
+    }
+
+    /// Thứ tự ô công cụ = Android EditPanel.toolCells; tên thống nhất "Hoa đầu từ" / "Hoa đầu câu".
+    func testToolItemsOrderAndNames() {
+        let items = KeyboardView.toolItems(addTones: true, translateLabel: "Dịch ↔ EN")
+        XCTAssertEqual(items.map(\.display),
+                       TextTool.allCases.map(\.label) + [L("Thêm dấu"), "Dịch ↔ EN"])
+        XCTAssertEqual(items.map(\.id).dropLast(2), TextTool.allCases.map(\.rawValue)[...])
+        XCTAssertEqual(items[TextTool.allCases.count].id, KeyboardView.addTonesID)
+        XCTAssertEqual(KeyboardView.toolItems(addTones: false, translateLabel: nil).count, TextTool.allCases.count)
+        XCTAssertEqual(TextTool.title.label, L("Hoa đầu từ"))
+        XCTAssertEqual(TextTool.sentence.label, L("Hoa đầu câu"))
+    }
+
+    /// Lưới: cột bằng nhau, khe ngang = khe dọc, phủ đúng bề ngang; công cụ giãn hàng cuối.
+    func testTemplateGridAlignedEqualGaps() {
+        let l: CGFloat = 6, r: CGFloat = 384, gap: CGFloat = 6, h: CGFloat = 34
+        for n in 1...23 { for cols in 3...5 { for stretch in [false, true] {
+            let cells = KeyboardView.templateGrid(count: n, cols: cols, left: l, right: r, top: 10,
+                                                  cellH: h, gap: gap, stretchLast: stretch)
+            XCTAssertEqual(cells.count, n)
+            let rows = Dictionary(grouping: cells, by: \.minY).sorted { $0.key < $1.key }
+            for i in rows.indices.dropFirst() {
+                XCTAssertEqual(rows[i].key - rows[i - 1].key, h + gap, accuracy: 0.01)
+            }
+            let colW = (r - l - gap * CGFloat(cols - 1)) / CGFloat(cols)
+            for (_, row) in rows {
+                XCTAssertLessThanOrEqual(row.count, cols)
+                XCTAssertEqual(row[0].minX, l, accuracy: 0.01)
+                for i in row.indices.dropFirst() { XCTAssertEqual(row[i].minX - row[i - 1].maxX, gap, accuracy: 0.01) }
+                XCTAssertTrue(row.allSatisfy { abs($0.height - h) < 0.01 })
+                if row.count == cols || stretch { XCTAssertEqual(row.last!.maxX, r, accuracy: 0.01) }
+                if row.count == cols || !stretch { XCTAssertTrue(row.allSatisfy { abs($0.width - colW) < 0.01 }) }
+            }
+        } } }
+        XCTAssertEqual(KeyboardView.snippetCols(width: 393), 5)
+        XCTAssertEqual(KeyboardView.snippetCols(width: 375), 5)
+        XCTAssertEqual(KeyboardView.toolCols(width: 393), 3)
     }
 }

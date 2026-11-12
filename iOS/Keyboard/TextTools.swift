@@ -16,7 +16,7 @@ enum TextTool: String, CaseIterable {
         switch self {
         case .upper: return "HOA"
         case .lower: return L("thường")
-        case .title: return L("Hoa Đầu Từ")
+        case .title: return L("Hoa đầu từ")
         case .sentence: return L("Hoa đầu câu")
         case .stripDiacritics: return L("Xoá dấu")
         }

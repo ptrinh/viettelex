@@ -96,7 +96,7 @@ struct KeyboardSettings {
     /// "Hiện kết quả phép tính": gõ "12*3=" → chip "36" ở slot đầu — mặc định BẬT; chỉ đọc
     /// context ngay sau phím "=", tắt ⇒ không làm gì.
     var mathResults = true
-    /// Công cụ văn bản (Plus — chip "⚒️ Công cụ" đầu lưới mẫu câu) — mặc định BẬT;
+    /// Công cụ văn bản (Plus — thẻ "Công cụ" của bảng ☰) — mặc định BẬT;
     /// người dùng tắt được ở màn Plus / Gõ tắt & mẫu câu. Tắt ⇒ không chip, không làm gì.
     /// Giống Android Keys.TEXT_TOOLS_ENABLED.
     var textToolsEnabled = true

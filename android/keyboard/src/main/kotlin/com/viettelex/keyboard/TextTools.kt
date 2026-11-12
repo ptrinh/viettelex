@@ -13,7 +13,7 @@ import java.util.Locale
 enum class TextTool(val viLabel: String) {
     UPPER("HOA"),
     LOWER("thường"),
-    TITLE("Hoa Đầu Từ"),
+    TITLE("Hoa đầu từ"),
     SENTENCE("Hoa đầu câu"),
     STRIP_DIACRITICS("Xoá dấu");
 
@@ -171,8 +171,34 @@ object TextToolRunner {
         val before = proxy.contextBeforeInput()
         val src = TextTools.source(proxy.selectedText(), before, before != null && before.length >= contextCap)
             ?: return Outcome.NoSource
-        val result = TextTools.apply(tool, src.text)
-        if (TextTools.nfc(src.text) == result) return Outcome.Unchanged
+        return replace(proxy, src, TextTools.apply(tool, src.text))
+    }
+
+    /**
+     * Nút "Thêm dấu" (thẻ Công cụ / bảng sửa văn bản, Plus SENTENCE_DIACRITICS): vùng chọn nếu có
+     * chữ, không thì đoạn không dấu cuối trước con trỏ ([AddTones.segment] — như chip tự hiện).
+     * Chạy [AddTones.restore] trên máy (không mạng); độ dài giữ nguyên, chữ đã có dấu giữ nguyên.
+     */
+    fun addTones(proxy: TextProxy, personal: AddTones.Personal?, contextCap: Int = Int.MAX_VALUE): Outcome {
+        val src = addTonesSource(proxy.selectedText(), proxy.contextBeforeInput(), contextCap) ?: return Outcome.NoSource
+        return replace(proxy, src, AddTones.restore(src.text, personal).text)
+    }
+
+    /** Nguồn cho "Thêm dấu": vùng chọn có chữ, không thì [AddTones.segment] (context bị cắt đầu ⇒ bỏ mẩu từ dở). */
+    fun addTonesSource(selected: String?, before: String?, contextCap: Int = Int.MAX_VALUE): TextTools.Source? {
+        if (selected != null && selected.any { it.isLetter() }) return TextTools.Source(selected, true)
+        var b = before ?: return null
+        if (b.length >= contextCap) {
+            val sp = b.indexOfFirst { it.isWhitespace() }
+            if (sp < 0) return null
+            b = b.substring(sp + 1)
+        }
+        val seg = AddTones.segment(b)
+        return if (seg.any { it.isLetter() }) TextTools.Source(seg, false) else null
+    }
+
+    private fun replace(proxy: TextProxy, src: TextTools.Source, result: String): Outcome {
+        if (TextTools.nfc(src.text) == TextTools.nfc(result)) return Outcome.Unchanged
         if (src.isSelection) {
             proxy.insertText(result)            // commitText thay vùng chọn
         } else {

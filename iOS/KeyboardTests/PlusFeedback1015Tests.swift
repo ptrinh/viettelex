@@ -215,7 +215,7 @@ final class PlusFeedback1015Tests: XCTestCase {
         XCTAssertFalse(rig.vc.debugClipboardButtonVisible)
     }
 
-    /// ☰ → ⚒️ Công cụ: hiện ngay (đồng bộ, không chờ gì), không đọc ô nhập, nhanh.
+    /// ☰ → thẻ Công cụ: hiện ngay (đồng bộ, không chờ gì), không đọc ô nhập, nhanh.
     @MainActor func testToolsGridOpensImmediately() {
         let saved = UserDefaultsProvider.shared
         let savedPaywall = PlusGate.paywallEnabled
@@ -236,8 +236,11 @@ final class PlusFeedback1015Tests: XCTestCase {
             kb.debugTapLeftZone()                         // ☰ → lưới mẫu câu
             kb.layoutIfNeeded()
             XCTAssertTrue(kb.debugInTemplates)
-            XCTAssertEqual(kb.debugTemplateExtras.first, L("⚒️ Công cụ"))
-            XCTAssertTrue(kb.debugSelectTemplateChip(0))   // ⚒️ Công cụ
+            XCTAssertTrue(kb.debugTemplateSegmented, "thanh chọn [Mẫu câu | Công cụ]")
+            kb.debugSelectTemplateSegment(0)              // về Mẫu câu (tab nhớ lựa chọn cuối)
+            kb.layoutIfNeeded()
+            XCTAssertTrue(kb.debugTemplateExtras.isEmpty, "tab Mẫu câu: không còn chip công cụ trong lưới")
+            kb.debugSelectTemplateSegment(1)              // Công cụ
             kb.layoutIfNeeded()
             times.append((CACurrentMediaTime() - t0) * 1000)
             XCTAssertTrue(kb.debugTemplateExtras.contains(TextTool.allCases[0].label),
@@ -249,6 +252,6 @@ final class PlusFeedback1015Tests: XCTestCase {
         }
         let p50 = KeyboardBenchTests.pct(times, 0.5)
         print(String(format: "TOOLSOPEN p50=%.1f ms max=%.1f ms", p50, times.max() ?? 0))
-        XCTAssertLessThan(p50, 120, "☰ → ⚒️ Công cụ (ms, Debug simulator)")
+        XCTAssertLessThan(p50, 120, "☰ → Công cụ (ms, Debug simulator)")
     }
 }

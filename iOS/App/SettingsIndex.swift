@@ -276,7 +276,7 @@ enum SettingCaption {
     static let shortcuts = LK("Gõ chữ tắt rồi dấu cách để bung: ko → không. ⌫ ngay sau để trả lại.")
     static let systemTextReplacement = LK("Bung cả mục Thay thế văn bản của iOS; trùng chữ tắt thì bảng VietTelex thắng.")
     static let templates = LK("Nút ☰ chèn câu soạn sẵn (tab Mẫu Câu). Tắt: ẩn tab Mẫu Câu.")
-    static let textTools = LK("Chip ⚒️ Công cụ trong lưới mẫu câu: đổi HOA/thường, bỏ dấu, dịch…")
+    static let textTools = LK("Thẻ Công cụ trong bảng ☰: đổi HOA/thường, thêm/xoá dấu, dịch…")
     static let translate = LK("Chọn ngôn ngữ dịch + tải gói dịch cho chip “Dịch ↔ …” trong Công cụ.")
     // Phím & cử chỉ
     static let numberRow = LK("Thêm hàng 1 … 0 trên hàng chữ (bàn phím cao thêm gần một hàng).")

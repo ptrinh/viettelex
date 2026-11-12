@@ -48,7 +48,7 @@ internal object SettingCaption {
     // Gõ tắt & mẫu câu
     const val shortcuts = "Gõ chữ tắt rồi dấu cách để bung: ko → không. ⌫ ngay sau để trả lại." // l10n-key
     const val templates = "Nút ☰ chèn câu soạn sẵn (tab Mẫu Câu). Tắt: ẩn tab Mẫu Câu." // l10n-key
-    const val textTools = "Chip ⚒️ Công cụ trong lưới mẫu câu: đổi HOA/thường, bỏ dấu, dịch…" // l10n-key
+    const val textTools = "Thẻ Công cụ trong bảng ☰ và bảng sửa văn bản: đổi HOA/thường, thêm/xoá dấu, dịch…" // l10n-key
     // Phím & cử chỉ
     const val numberRow = "Thêm hàng 1 … 0 trên hàng chữ (bàn phím cao thêm gần một hàng)." // l10n-key
     const val numberRowFullHeight = "Phím số to bằng phím chữ (bàn phím cao thêm đúng một hàng)." // l10n-key

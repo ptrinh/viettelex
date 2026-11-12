@@ -211,6 +211,7 @@ final class KeyboardViewController: UIInputViewController {
         keyboard.onOpenTemplates = { [weak self] in self?.openTemplatesInApp() }
         keyboard.onTextTool = { [weak self] in self?.applyTextTool($0) }
         keyboard.onTranslate = { [weak self] in self?.applyTranslate() }
+        keyboard.onAddTones = { [weak self] in self?.applyAddTonesTool() }
         keyboard.onOneHandChange = { side in
             // Bàn phím tự lưu (không Full Access thì không ghi được App Group).
             UserDefaults.standard.set(side.rawValue, forKey: OneHand.key)
@@ -3484,6 +3485,35 @@ extension KeyboardViewController {
         switch outcome {
         case .applied(let u): textToolUndo = u
         case .failsafe: TouchLog.write("failsafe: text tool \(tool.rawValue) context mismatch/NFD → skip")
+        case .unchanged, .noSource: break
+        }
+        updateAutoShift(); updateSuggestions()
+    }
+
+    /// Nút "Thêm dấu" trong thẻ Công cụ (☰): thêm dấu cho vùng chọn / đoạn không dấu cuối trước
+    /// con trỏ. Gate: nhóm công cụ văn bản (Plus + công tắc) + Plus .sentenceDiacritics; KHÔNG cần
+    /// công tắc chip tự hiện (addTonesChip chỉ để tránh chạy AddTones mỗi dấu cách). Trên máy,
+    /// không mạng. Hoàn tác như công cụ văn bản ("↩︎ Hoàn tác" / ⌫ ngay sau).
+    fileprivate func applyAddTonesTool() {
+        guard keyboard.textToolsEnabled, PlusGate.isUnlocked(.sentenceDiacritics) else { return }
+        suggestionSnap = nil
+        applyingEdit = true
+        defer { applyingEdit = false }
+        bridge.reset()
+        lastWord = nil; lastWord2 = nil
+        restoreUndo = nil; undoOfferActive = false
+        wordSwipeRestore = nil
+        textToolUndo = nil
+        addTonesCache = nil
+        var selected: String?
+        if #available(iOS 16.0, *) { selected = textProxy.selectedText }
+        let lm = langModel
+        let fs = filterSensitive
+        let personal = AddTones.Personal(count: { lm.count(of: $0) },
+                                         pair: { fs && SensitiveWords.isPair($0, $1) ? 0 : lm.bigramCount($0, $1) })
+        switch TextToolRunner.addTones(proxy: Proxy(p: textProxy), selectedText: selected, personal: personal) {
+        case .applied(let u): textToolUndo = u
+        case .failsafe: TouchLog.write("failsafe: add tones button context mismatch/NFD → skip")
         case .unchanged, .noSource: break
         }
         updateAutoShift(); updateSuggestions()

@@ -1488,9 +1488,17 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         else { return false }
         return chips.debugSelect(index)
     }
-    /// Test hook: nhãn các chip đặc biệt đầu lưới (⚒️ Công cụ / danh sách công cụ).
+    /// Test hook: nhãn các ô công cụ (tab Công cụ; rỗng ở tab Mẫu câu).
     var debugTemplateExtras: [String] {
         rowsContainer.arrangedSubviews.lazy.compactMap { $0 as? TemplateChipsView }.first?.debugExtras ?? []
+    }
+    /// Test hook: bảng ☰ có thanh chọn [Mẫu câu | Công cụ].
+    var debugTemplateSegmented: Bool {
+        rowsContainer.arrangedSubviews.lazy.compactMap { $0 as? TemplateChipsView }.first?.debugSegmented ?? false
+    }
+    /// Test hook: chọn đoạn thứ `i` của thanh chọn (0 = Mẫu câu, 1 = Công cụ).
+    func debugSelectTemplateSegment(_ i: Int) {
+        rowsContainer.arrangedSubviews.lazy.compactMap { $0 as? TemplateChipsView }.first?.debugSelectSegment(i)
     }
     #endif
     private var templatesEnabled = true
@@ -1500,8 +1508,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Bubble ⚙️ cuối lưới → controller mở tab Mẫu Câu của app.
     var onOpenTemplates: (() -> Void)?
 
-    // MARK: công cụ văn bản (Plus) — lối vào: chip đầu lưới mẫu câu (burger): chạm
-    // "⚒️ Công cụ" → lưới đổi sang danh sách thao tác (áp lên phần đang chọn /
+    // MARK: công cụ văn bản (Plus) — lối vào: thanh chọn [Mẫu câu | Công cụ] đầu bảng ☰:
+    // "Công cụ" → lưới danh sách thao tác (áp lên phần đang chọn /
     // câu trước con trỏ), chạm thao tác → về bàn phím chữ.
 
     /// KeyboardSettings.textToolsActive() (Plus + công tắc "Công cụ văn bản") — controller
@@ -1525,9 +1533,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
     var onTranslate: (() -> Void)?
     private static let translateID = "\u{E000}translate"
+    /// Ô "Thêm dấu" (AddTones, Plus .sentenceDiacritics) trong danh sách công cụ.
+    static let addTonesID = "\u{E000}addTones"
+    var onAddTones: (() -> Void)?
+    /// Tab đang chọn của thanh [Mẫu câu | Công cụ] — nhớ lựa chọn cuối (không đặt lại khi đóng ☰).
     private var textToolsMode = false
-    private static let textToolsEntryID = "\u{E000}tools"
-    private static let textToolsBackID = "\u{E000}back"
 
     /// Dựng lại plane mẫu câu (không cache) đang hiện dù chữ ký không đổi —
     /// rebuild() bỏ qua khi builtPlane == plane (lật danh sách công cụ, bật/tắt Plus).
@@ -1539,7 +1549,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private func toggleTemplates() {
         guard templatesEnabled || textToolsEnabled else { return }
         Self.clickModifier()
-        textToolsMode = !templatesEnabled   // chỉ-công-cụ: mở thẳng danh sách công cụ
+        if !templatesEnabled { textToolsMode = true }   // chỉ-công-cụ: mở thẳng danh sách công cụ
         plane = templatesActive ? .letters : .templates
         lastSuggestionSig = nil
         rebuild()
@@ -3361,42 +3371,45 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
     }
 
-    /// Plane mẫu câu (burger menu): BUBBLE chips dàn dòng như tag cloud
-    /// (user 2026-07-24 — đỡ tốn chỗ hơn mỗi câu một hàng), cuộn dọc, câu dài
-    /// truncate "…", có label thì bubble chỉ hiện label. Hàng đáy giữ
-    /// [ABC][space][return] để quay lại như plane số.
+    /// Plane mẫu câu / công cụ (☰): LƯỚI cột đều, khe đều (tester 11/2026 — trước là bubble
+    /// rộng hẹp dàn dòng kiểu tag cloud, hàng không thẳng), cuộn dọc, nhãn dài cắt "…", có
+    /// label thì ô chỉ hiện label. Cả Mẫu câu lẫn Công cụ bật ⇒ đầu bảng là thanh chọn
+    /// [Mẫu câu | Công cụ] + ⚙️ (thay chip "⚒️ Công cụ" / "‹ Mẫu câu" — trông trùng với ☰);
+    /// tab nhớ lựa chọn cuối. Hàng đáy giữ [ABC][space][return] để quay lại như plane số.
+    /// Song sinh Android TemplatesMenu / TemplatesPane.
     private func buildTemplates() {
         rowsContainer.distribution = .fill
-        // Mẫu câu tắt (☰ = .tools): chỉ danh sách công cụ, không nút "‹ Mẫu câu" / ⚙️.
+        // Mẫu câu tắt (☰ = .tools): chỉ danh sách công cụ, không thanh chọn / ⚙️.
         let toolsOnly = !templatesEnabled
-        let tools = textToolsEnabled && (textToolsMode || toolsOnly)
         if !textToolsEnabled { textToolsMode = false }
-        let extras: [(display: String, id: String)] = tools
-            ? (toolsOnly ? [] : [(L("\u{2039} Mẫu câu"), Self.textToolsBackID)])
-                + TextTool.allCases.map { ($0.label, $0.rawValue) }
-                + (translateChipLabel.map { [($0, Self.translateID)] } ?? [])
-            : (textToolsEnabled ? [(L("⚒️ Công cụ"), Self.textToolsEntryID)] : [])
+        let tools = textToolsEnabled && (textToolsMode || toolsOnly)
+        let segmented = templatesEnabled && textToolsEnabled
+        let extras = tools
+            ? Self.toolItems(addTones: PlusGate.isUnlocked(.sentenceDiacritics), translateLabel: translateChipLabel)
+            : []
         let chips = TemplateChipsView(items: tools || toolsOnly ? [] : userTemplates, extras: extras,
-                                      showGear: !tools, dark: dark,
+                                      segments: segmented ? [L("Mẫu câu"), L("Công cụ")] : nil,
+                                      selectedSegment: tools ? 1 : 0,
+                                      showGear: templatesEnabled, dark: dark,
                                       plainFill: plainFill,
                                       ink: palette.barInk.ui,
+                                      onSegment: { [weak self] i in
+            guard let self, self.textToolsMode != (i == 1) else { return }
+            Self.clickModifier()
+            self.textToolsMode = i == 1
+            self.rebuildUncachedPlane()
+        },
                                       onExtra: { [weak self] id in
             guard let self else { return }
-            switch id {
-            case Self.textToolsEntryID, Self.textToolsBackID:
-                Self.clickModifier()
-                self.textToolsMode = id == Self.textToolsEntryID
-                self.rebuildUncachedPlane()
-            default:
-                let tool = TextTool(rawValue: id)
-                guard tool != nil || id == Self.translateID else { return }
-                Self.clickModifier()
-                self.textToolsMode = false
-                self.plane = .letters
-                self.rebuild()
-                self.styleBurger()
-                if let tool { self.onTextTool?(tool) } else { self.onTranslate?() }
-            }
+            let tool = TextTool(rawValue: id)
+            guard tool != nil || id == Self.translateID || id == Self.addTonesID else { return }
+            Self.clickModifier()
+            self.plane = .letters
+            self.rebuild()
+            self.styleBurger()
+            if let tool { self.onTextTool?(tool) }
+            else if id == Self.addTonesID { self.onAddTones?() }
+            else { self.onTranslate?() }
         },
                                       onTap: { [weak self] text in
             guard let self else { return }
@@ -3419,39 +3432,80 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         bottom.heightAnchor.constraint(equalToConstant: rowUnitHeight() - bottomTrim).isActive = true
     }
 
-    /// Lưới bubble mẫu câu — flow layout tự dàn dòng, self-sizing chips.
+    // MARK: lưới mẫu câu / công cụ — hàm THUẦN (TemplateGridTests), song sinh Android TemplatesMenu
+
+    /// Ô công cụ theo thứ tự (cùng Android EditPanel.toolCells): TextTool…, Thêm dấu, Dịch.
+    static func toolItems(addTones: Bool, translateLabel: String?) -> [(display: String, id: String)] {
+        TextTool.allCases.map { ($0.label, $0.rawValue) }
+            + (addTones ? [(L("Thêm dấu"), addTonesID)] : [])
+            + (translateLabel.map { [($0, translateID)] } ?? [])
+    }
+
+    /// Số cột lưới mẫu câu theo bề ngang (pt): điện thoại 5, rộng hơn thêm cột, 4…8.
+    static func snippetCols(width: CGFloat) -> Int { min(8, max(4, Int(width / 72))) }
+    /// Số cột lưới công cụ: điện thoại 3, iPad / ngang 4.
+    static func toolCols(width: CGFloat) -> Int { width >= 560 ? 4 : 3 }
+
+    /// Lưới `count` ô, `cols` cột bằng nhau phủ đúng left…right, khe ngang = khe dọc = `gap`.
+    /// Hàng cuối thiếu ô: `stretchLast` ⇒ giãn đều phủ kín hàng (công cụ — không chỗ trống),
+    /// không thì giữ đúng cột, canh trái (danh sách mẫu câu).
+    static func templateGrid(count: Int, cols: Int, left: CGFloat, right: CGFloat, top: CGFloat,
+                             cellH: CGFloat, gap: CGFloat, stretchLast: Bool) -> [CGRect] {
+        guard count > 0, cols > 0 else { return [] }
+        var out: [CGRect] = []
+        out.reserveCapacity(count)
+        let colW = (right - left - gap * CGFloat(cols - 1)) / CGFloat(cols)
+        var r = 0, done = 0
+        while done < count {
+            let k = min(cols, count - done)
+            let w = k < cols && stretchLast ? (right - left - gap * CGFloat(k - 1)) / CGFloat(k) : colW
+            let t = top + CGFloat(r) * (cellH + gap)
+            for i in 0..<k { out.append(CGRect(x: left + CGFloat(i) * (w + gap), y: t, width: w, height: cellH)) }
+            done += k; r += 1
+        }
+        return out
+    }
+
+    /// Lưới mẫu câu / công cụ: thanh chọn tuỳ chọn ở đầu + UICollectionView xếp theo templateGrid.
     private final class TemplateChipsView: UIView, UICollectionViewDataSource, UICollectionViewDelegate {
         private let items: [(label: String, text: String)]
-        /// Chip đặc biệt đứng ĐẦU lưới (công cụ văn bản) — chạm gửi id qua onExtra.
+        /// Ô công cụ (tab Công cụ) — chạm gửi id qua onExtra; rỗng ở tab Mẫu câu.
         private let extras: [(display: String, id: String)]
-        private let showGear: Bool
+        /// ⚙️ là ô cuối lưới (không có thanh chọn); có thanh chọn thì ⚙️ nằm bên phải thanh.
+        private let gearCell: Bool
         private let onExtra: (String) -> Void
         private let dark: Bool
         private let fill: UIColor
         private let ink: UIColor
         private let onTap: (String) -> Void
         private let onGear: () -> Void
+        private let onSegment: (Int) -> Void
+        private var segment: UISegmentedControl?
+        static let cellH: CGFloat = 34
+        static let gap: CGFloat = 6
 
         init(items: [(label: String, text: String)],
-             extras: [(display: String, id: String)] = [], showGear: Bool = true,
+             extras: [(display: String, id: String)] = [],
+             segments: [String]? = nil, selectedSegment: Int = 0,
+             showGear: Bool = true,
              dark: Bool, plainFill: UIColor, ink: UIColor,
+             onSegment: @escaping (Int) -> Void = { _ in },
              onExtra: @escaping (String) -> Void = { _ in },
              onTap: @escaping (String) -> Void, onGear: @escaping () -> Void) {
             self.items = items
             self.extras = extras
-            self.showGear = showGear
+            self.gearCell = showGear && segments == nil && extras.isEmpty
             self.onExtra = onExtra
             self.dark = dark
             self.fill = plainFill
             self.ink = ink
             self.onTap = onTap
             self.onGear = onGear
+            self.onSegment = onSegment
             super.init(frame: .zero)
-            let layout = UICollectionViewFlowLayout()
-            layout.estimatedItemSize = UICollectionViewFlowLayout.automaticSize
-            layout.minimumInteritemSpacing = 6
-            layout.minimumLineSpacing = 8
-            layout.sectionInset = UIEdgeInsets(top: 8, left: 6, bottom: 8, right: 6)
+            let tools = !extras.isEmpty
+            let layout = GridLayout(stretchLast: tools,
+                                    cols: tools ? KeyboardView.toolCols(width:) : KeyboardView.snippetCols(width:))
             let cv = UICollectionView(frame: .zero, collectionViewLayout: layout)
             cv.backgroundColor = .clear
             cv.disableKeyboardEdgeEffects()
@@ -3461,8 +3515,49 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             cv.register(ChipCell.self, forCellWithReuseIdentifier: "chip")
             cv.translatesAutoresizingMaskIntoConstraints = false
             addSubview(cv)
+            var cvTop = topAnchor
+            if let segments {
+                // Đầu bảng: [Mẫu câu | Công cụ] giãn hết, ⚙️ bên phải — cùng cao ô lưới, lề 6, khe 6.
+                let seg = UISegmentedControl(items: segments)
+                seg.selectedSegmentIndex = selectedSegment
+                seg.selectedSegmentTintColor = plainFill
+                seg.backgroundColor = plainFill.withAlphaComponent(0.45)
+                seg.setTitleTextAttributes([.foregroundColor: ink, .font: UIFont.systemFont(ofSize: 14, weight: .medium)], for: .normal)
+                seg.setTitleTextAttributes([.foregroundColor: ink, .font: UIFont.systemFont(ofSize: 14, weight: .semibold)], for: .selected)
+                seg.addTarget(self, action: #selector(segmentChanged(_:)), for: .valueChanged)
+                seg.translatesAutoresizingMaskIntoConstraints = false
+                addSubview(seg)
+                segment = seg
+                var cons = [
+                    seg.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+                    seg.leftAnchor.constraint(equalTo: leftAnchor, constant: 6),
+                    seg.heightAnchor.constraint(equalToConstant: Self.cellH),
+                ]
+                if showGear {
+                    let g = UIButton(type: .system)
+                    g.setTitle("⚙️", for: .normal)
+                    g.titleLabel?.font = .systemFont(ofSize: 16)
+                    g.backgroundColor = plainFill
+                    g.layer.cornerRadius = 8
+                    g.accessibilityLabel = L("Quản lý mẫu câu")
+                    g.addTarget(self, action: #selector(gearTapped), for: .touchUpInside)
+                    g.translatesAutoresizingMaskIntoConstraints = false
+                    addSubview(g)
+                    cons += [
+                        g.centerYAnchor.constraint(equalTo: seg.centerYAnchor),
+                        g.heightAnchor.constraint(equalToConstant: Self.cellH),
+                        g.widthAnchor.constraint(equalToConstant: Self.cellH * 1.4),
+                        g.rightAnchor.constraint(equalTo: rightAnchor, constant: -6),
+                        seg.rightAnchor.constraint(equalTo: g.leftAnchor, constant: -Self.gap),
+                    ]
+                } else {
+                    cons.append(seg.rightAnchor.constraint(equalTo: rightAnchor, constant: -6))
+                }
+                NSLayoutConstraint.activate(cons)
+                cvTop = seg.bottomAnchor
+            }
             NSLayoutConstraint.activate([
-                cv.topAnchor.constraint(equalTo: topAnchor),
+                cv.topAnchor.constraint(equalTo: cvTop),
                 cv.bottomAnchor.constraint(equalTo: bottomAnchor),
                 cv.leftAnchor.constraint(equalTo: leftAnchor),
                 cv.rightAnchor.constraint(equalTo: rightAnchor),
@@ -3470,23 +3565,63 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
         required init?(coder: NSCoder) { fatalError() }
 
-        // +1: bubble ⚙️ luôn ở cuối — mở tab Mẫu Câu trong app.
+        @objc private func segmentChanged(_ s: UISegmentedControl) { onSegment(s.selectedSegmentIndex) }
+        @objc private func gearTapped() { onGear() }
+
+        /// Xếp ô theo KeyboardView.templateGrid (cột đều, khe đều); số cột theo bề ngang.
+        private final class GridLayout: UICollectionViewLayout {
+            let stretchLast: Bool
+            let cols: (CGFloat) -> Int
+            private var frames: [CGRect] = []
+            private var contentH: CGFloat = 0
+            init(stretchLast: Bool, cols: @escaping (CGFloat) -> Int) {
+                self.stretchLast = stretchLast; self.cols = cols
+                super.init()
+            }
+            required init?(coder: NSCoder) { fatalError() }
+            override func prepare() {
+                super.prepare()
+                guard let cv = collectionView else { return }
+                let w = cv.bounds.width
+                frames = KeyboardView.templateGrid(count: cv.numberOfItems(inSection: 0), cols: cols(w),
+                                                   left: 6, right: w - 6, top: 8, cellH: TemplateChipsView.cellH,
+                                                   gap: TemplateChipsView.gap, stretchLast: stretchLast)
+                contentH = (frames.last?.maxY ?? 0) + 8
+            }
+            override var collectionViewContentSize: CGSize {
+                CGSize(width: collectionView?.bounds.width ?? 0, height: contentH)
+            }
+            private func attrs(_ i: Int) -> UICollectionViewLayoutAttributes {
+                let a = UICollectionViewLayoutAttributes(forCellWith: IndexPath(item: i, section: 0))
+                a.frame = frames[i]
+                return a
+            }
+            override func layoutAttributesForElements(in rect: CGRect) -> [UICollectionViewLayoutAttributes]? {
+                frames.indices.filter { frames[$0].intersects(rect) }.map(attrs)
+            }
+            override func layoutAttributesForItem(at ip: IndexPath) -> UICollectionViewLayoutAttributes? {
+                ip.item < frames.count ? attrs(ip.item) : nil
+            }
+            override func shouldInvalidateLayout(forBoundsChange b: CGRect) -> Bool {
+                b.width != collectionView?.bounds.width
+            }
+        }
+
         func collectionView(_ cv: UICollectionView, numberOfItemsInSection s: Int) -> Int {
-            extras.count + items.count + (showGear ? 1 : 0)
+            extras.isEmpty ? items.count + (gearCell ? 1 : 0) : extras.count
         }
 
         func collectionView(_ cv: UICollectionView, cellForItemAt ip: IndexPath) -> UICollectionViewCell {
             let cell = cv.dequeueReusableCell(withReuseIdentifier: "chip", for: ip) as! ChipCell
-            let i = ip.item - extras.count
-            if ip.item < extras.count {
+            if !extras.isEmpty {
                 cell.set(display: extras[ip.item].display, fill: fill, ink: ink, dark: dark)
                 cell.accessibilityLabel = nil
-            } else if i == items.count {
+            } else if ip.item == items.count {
                 cell.set(display: "⚙️", fill: fill, ink: ink, dark: dark)
                 cell.accessibilityLabel = L("Quản lý mẫu câu")
             } else {
-                let item = items[i]
-                cell.set(display: item.label.isEmpty ? item.text : item.label,
+                let item = items[ip.item]
+                cell.set(display: (item.label.isEmpty ? item.text : item.label).replacingOccurrences(of: "\n", with: " "),
                          fill: fill, ink: ink, dark: dark)
                 cell.accessibilityLabel = nil
             }
@@ -3495,6 +3630,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
         #if DEBUG
         var debugExtras: [String] { extras.map(\.display) }
+        var debugSegmented: Bool { segment != nil }
+        func debugSelectSegment(_ i: Int) {
+            segment?.selectedSegmentIndex = i
+            onSegment(i)
+        }
         func debugSelect(_ index: Int) -> Bool {
             guard let cv = subviews.lazy.compactMap({ $0 as? UICollectionView }).first,
                   index < collectionView(cv, numberOfItemsInSection: 0) else { return false }
@@ -3504,29 +3644,27 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         #endif
 
         func collectionView(_ cv: UICollectionView, didSelectItemAt ip: IndexPath) {
-            let i = ip.item - extras.count
-            if ip.item < extras.count { onExtra(extras[ip.item].id) }
-            else if i == items.count { onGear() } else { onTap(items[i].text) }
+            if !extras.isEmpty { onExtra(extras[ip.item].id) }
+            else if ip.item == items.count { onGear() } else { onTap(items[ip.item].text) }
         }
 
         private final class ChipCell: UICollectionViewCell {
             private let label = UILabel()
             override init(frame: CGRect) {
                 super.init(frame: frame)
-                contentView.layer.cornerRadius = 16
+                contentView.layer.cornerRadius = 8
                 contentView.layer.shadowColor = UIColor.black.cgColor
                 contentView.layer.shadowOffset = CGSize(width: 0, height: 1)
                 contentView.layer.shadowRadius = 0
                 label.font = .systemFont(ofSize: 16)
+                label.textAlignment = .center
                 label.lineBreakMode = .byTruncatingTail   // "Chào buổi s…"
                 label.translatesAutoresizingMaskIntoConstraints = false
                 contentView.addSubview(label)
                 NSLayoutConstraint.activate([
-                    label.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 7),
-                    label.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -7),
-                    label.leftAnchor.constraint(equalTo: contentView.leftAnchor, constant: 12),
-                    label.rightAnchor.constraint(equalTo: contentView.rightAnchor, constant: -12),
-                    label.widthAnchor.constraint(lessThanOrEqualToConstant: 150),
+                    label.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+                    label.leftAnchor.constraint(equalTo: contentView.leftAnchor, constant: 6),
+                    label.rightAnchor.constraint(equalTo: contentView.rightAnchor, constant: -6),
                 ])
             }
             required init?(coder: NSCoder) { fatalError() }

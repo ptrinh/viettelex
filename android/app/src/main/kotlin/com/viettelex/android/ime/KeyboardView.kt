@@ -119,6 +119,8 @@ class KeyboardView(
         fun onTextTool(tool: TextTool)
         /** Chạm "Dịch" (dịch trên máy, Plus) — lưới công cụ hoặc hàng công cụ bảng sửa. */
         fun onTranslate() {}
+        /** Chạm "Thêm dấu" (AddTones, Plus) — lưới công cụ hoặc hàng công cụ bảng sửa. */
+        fun onAddTones() {}
         fun onPlaneChanged(plane: Plane)
         /** Recents emoji (đọc/ghi pref). */
         fun emojiRecents(): List<String>
@@ -284,7 +286,7 @@ class KeyboardView(
         templatesPaneStale = false
         val p = TemplatesMenu.pane(textToolsMode, templatesEnabled, textToolsEnabled, translateEnabled)
         templatesPane.setItems(if (p.showTemplates) templates() else emptyList())
-        templatesPane.setExtras(p.extras, gear = p.gear)
+        templatesPane.setExtras(p.tools, gear = p.gear, segmented = p.segmented, toolsTab = p.tab == TemplatesMenu.Tab.TOOLS)
     }
     var keyAreaPx = theme.dp(218f); private set
 
@@ -335,6 +337,9 @@ class KeyboardView(
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = theme.ink }
     private var letterOff = theme.centerOffset(letterPaint)
     private var controlOff = theme.centerOffset(controlPaint)
+    /** Nhãn chữ bảng sửa — [fitEditLabels]. */
+    private val editPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var editOff = 0f
     private val digitPaint = theme.text(DIGIT_SP)
     private var digitOff = theme.centerOffset(digitPaint)
     private val sidePaint = theme.text(SIDE_SP)
@@ -851,7 +856,7 @@ class KeyboardView(
         inputKind = kind
         plane = kind.padPlane ?: Plane.LETTERS
         if (plane == Plane.LETTERS && shift == Shift.ON) shift = Shift.OFF
-        textToolsMode = false
+        // Tab [Mẫu câu | Công cụ] nhớ lựa chọn cuối (cả phiên IME) — không đặt lại ở đây.
         refreshTemplatesPane()
         rebuild()
         listener?.onPlaneChanged(plane)
@@ -892,7 +897,6 @@ class KeyboardView(
             searchBar.reset()
         }
         if (p == Plane.TEMPLATES) templatesPane.resetScroll()
-        if (textToolsMode) { textToolsMode = false; refreshTemplatesPane() }
         editSelecting = false
         mole?.hideNow()                     // Đập chuột: đổi bảng phím ⇒ dẹp chuột
         rebuild()
@@ -985,6 +989,7 @@ class KeyboardView(
             try { KeyLayout.build(cfg) } finally { ImeTrace.end() }
         }
         fitLetterLabels()
+        if (plane == Plane.EDIT) fitEditLabels()
         periodSideKey = KeyLayout.sideKey(cfg) == SpaceSideKey.PERIOD
         railSpan = if (OneHand.appliesTo(plane)) OneHand.rail(width.toFloat(), oneHandNow) else null
         a11y.invalidateRoot()             // TalkBack tắt ⇒ trả về ngay (manager không bật)
@@ -1189,6 +1194,7 @@ class KeyboardView(
 
     private fun fireEdit(k: LaidKey) {
         if (k.insert == EditPanel.TRANSLATE_INSERT) { listener?.onTranslate(); return }   // ở lại bảng sửa
+        if (k.insert == EditPanel.ADD_TONES_INSERT) { listener?.onAddTones(); return }    // ở lại bảng sửa
         EditPanel.toolOf(k.insert)?.let { listener?.onTextTool(it); return }   // ở lại bảng sửa
         val a = EditAction.of(k.insert) ?: return
         when (a) {
@@ -1200,8 +1206,10 @@ class KeyboardView(
     }
 
     private fun drawEditKey(c: Canvas, k: LaidKey, alpha: Int) {
-        if (EditPanel.toolOf(k.insert) != null) {
-            drawLabel(c, k.label, k.centerX, k.centerY, controlPaint, controlOff, alpha); return
+        // Mọi ô công cụ (TextTool, Thêm dấu, Dịch) — trước đây ô "Dịch" không khớp toolOf nên
+        // không vẽ nhãn (ô trống tester thấy cuối hàng).
+        if (EditPanel.isToolCell(k.insert)) {
+            drawLabel(c, k.label, k.centerX, k.centerY, editPaint, editOff, alpha); return
         }
         val a = EditAction.of(k.insert) ?: return
         val cx = k.centerX; val cy = k.centerY
@@ -1209,7 +1217,7 @@ class KeyboardView(
         when {
             a == EditAction.DELETE -> icon(c, ImeIcons.DELETE, cx, cy, 22f, theme.ink, al)
             EditPanel.isGlyph(a) -> drawLabel(c, k.label, cx, cy, letterPaint, letterOff, al)
-            else -> drawLabel(c, k.label, cx, cy, controlPaint, controlOff, al)
+            else -> drawLabel(c, k.label, cx, cy, editPaint, editOff, al)
         }
     }
 
@@ -1572,6 +1580,25 @@ class KeyboardView(
      * Chữ cái / số / dấu câu: cỡ theo [labelSize], KẸP để chữ rộng nhất ("W") còn chừa lề trong phím
      * chữ hẹp nhất (một tay, máy hẹp, cỡ chữ hệ thống lớn) — [KeyLabelFit]. Gọi sau mỗi lần dựng layout.
      */
+    /**
+     * Nhãn chữ bảng sửa: MỘT cỡ chung cho mọi ô (cỡ phím chức năng, thu nhỏ đều khi nhãn dài
+     * nhất không vừa ô hẹp nhất — một tay / máy hẹp), không cắt chữ, không ô nào lệch cỡ.
+     */
+    private fun fitEditLabels() {
+        editPaint.set(controlPaint)
+        val pad = theme.dp(6f)
+        var scale = 1f
+        for (k in keys) {
+            if (k.kind != KeyKind.EDIT || k.label.isEmpty()) continue
+            val a = EditAction.of(k.insert)
+            if (a != null && EditPanel.isGlyph(a)) continue
+            val w = editPaint.measureText(k.label)
+            if (w > 0f) scale = minOf(scale, (k.width - 2 * pad) / w)
+        }
+        if (scale < 1f) editPaint.textSize = controlPaint.textSize * maxOf(scale, 0.6f)
+        editOff = theme.centerOffset(editPaint)
+    }
+
     private fun fitLetterLabels() {
         var kw = Float.MAX_VALUE
         var kh = Float.MAX_VALUE
@@ -2605,6 +2632,7 @@ class KeyboardView(
     internal fun paneExtra(id: String) {
         when (id) {
             TOOLS_ENTRY, TOOLS_BACK -> {
+                if (textToolsMode == (id == TOOLS_ENTRY)) return
                 textToolsMode = id == TOOLS_ENTRY
                 templatesPane.resetScroll()
                 refreshTemplatesPane()
@@ -2612,6 +2640,10 @@ class KeyboardView(
             TOOLS_TRANSLATE -> {
                 setPlane(Plane.LETTERS)
                 listener?.onTranslate()
+            }
+            TemplatesMenu.TOOLS_ADD_TONES -> {
+                setPlane(Plane.LETTERS)
+                listener?.onAddTones()
             }
             else -> {
                 val tool = TextTool.byId(id) ?: return

@@ -6,12 +6,12 @@ import com.viettelex.keyboard.tr
 
 /**
  * Bảng sửa văn bản (mở bằng icon con trỏ trên thanh gợi ý): thay chỗ phím chữ bằng lưới
- * 4×4 — mũi tên, đầu/cuối dòng, chọn / chọn từ / chọn hết, sao chép / cắt / dán, hoàn
+ * 4×4 (+ hàng công cụ cùng 4 cột khi có Plus) — mũi tên, đầu/cuối dòng, chọn / chọn từ / chọn hết, sao chép / cắt / dán, hoàn
  * tác / làm lại, xoá, ABC. Ô là [LaidKey] kind [KeyKind.EDIT] (insert = tên [EditAction])
  * nên dùng chung router, vẽ, và thu hẹp một tay của [KeyboardView].
  *
- * Android làm được TẤT CẢ qua InputConnection ([EditCommands]); iOS bản riêng ẩn các nút
- * extension không làm được (xem iOS/Keyboard/TextEditing.swift).
+ * Android làm được TẤT CẢ qua InputConnection ([EditCommands]). iOS chưa có bảng này
+ * (công cụ văn bản ở thẻ Công cụ của bảng ☰, cùng thứ tự ô với [toolCells]).
  */
 enum class EditAction {
     LEFT, RIGHT, UP, DOWN, LINE_START, LINE_END,
@@ -59,17 +59,37 @@ object EditPanel {
     /** insert của ô "Dịch" (dịch trên máy, PlusGate TRANSLATE) trên hàng công cụ. */
     const val TRANSLATE_INSERT = TOOL_PREFIX + "translate"
 
+    /**
+     * insert của ô "Thêm dấu" (AddTones, PlusGate SENTENCE_DIACRITICS) — đi cùng nhóm công cụ
+     * văn bản ([LayoutConfig.editTools]); khác chip tự hiện trên thanh gợi ý (công tắc
+     * addTonesChip): đây là nút bấm tay, không tốn gì mỗi phím.
+     */
+    const val ADD_TONES_INSERT = TOOL_PREFIX + "addTones"
+
+    /** Số cột của lưới — hàng công cụ xếp theo đúng các cột này (góp ý tester 11/2026: thẳng hàng). */
+    const val COLS = 4
+
     fun toolOf(insert: String): TextTool? =
         if (insert.startsWith(TOOL_PREFIX)) TextTool.byId(insert.substring(TOOL_PREFIX.length)) else null
 
-    /** Nhãn ngắn trên hàng công cụ (5 ô chung hàng) — khớp iOS TextEditing.toolTitle. */
-    fun toolTitle(t: TextTool): String = when (t) {
-        TextTool.UPPER -> tr("HOA")
-        TextTool.LOWER -> tr("thường")
-        TextTool.TITLE -> tr("Hoa Từ")
-        TextTool.SENTENCE -> tr("Hoa câu")
-        TextTool.STRIP_DIACRITICS -> tr("Xoá dấu")
-    }
+    /** Ô thuộc nhóm công cụ (TextTool, Thêm dấu, Dịch) — vẽ nhãn chữ, không phải [EditAction]. */
+    fun isToolCell(insert: String): Boolean = insert.startsWith(TOOL_PREFIX)
+
+    /** Nhãn trên hàng công cụ = nhãn chung [TextTool.label] (cùng chữ với thẻ Công cụ, iOS). */
+    fun toolTitle(t: TextTool): String = t.label
+
+    /** (nhãn, insert) của các ô công cụ theo thứ tự: TextTool…, Thêm dấu, rồi Dịch. */
+    fun toolCells(editTools: Boolean, translate: Boolean): List<Pair<String, String>> =
+        (if (editTools) TextTool.entries.map { toolTitle(it) to TOOL_PREFIX + it.id } +
+            listOf(tr("Thêm dấu") to ADD_TONES_INSERT) else emptyList()) +
+            (if (translate) listOf(tr("Dịch") to TRANSLATE_INSERT) else emptyList())
+
+    /**
+     * Chia [n] ô thành các hàng tối đa [cols] ô: hàng đầy [cols] ô, hàng cuối ít hơn thì các ô
+     * giãn đều phủ kín bề ngang (k chia hết [cols] ⇒ khớp đúng biên cột) — không ô trống.
+     */
+    fun rowSizes(n: Int, cols: Int): List<Int> =
+        if (n <= 0) emptyList() else List((n + cols - 1) / cols) { r -> minOf(cols, n - r * cols) }
 
     fun label(a: EditAction): String = when (a) {
         EditAction.LEFT -> "←"
@@ -99,40 +119,35 @@ object EditPanel {
 
     /**
      * Dựng lưới vào [out] trên toàn bề ngang [c] (KeyLayout lo thu hẹp một tay).
-     * [LayoutConfig.editTools] ⇒ thêm hàng thứ 5: các [TextTool] (insert TOOL_PREFIX+id).
+     * Công cụ bật ⇒ thêm các hàng công cụ dưới lưới 4×4, xếp [COLS] ô mỗi hàng ([rowSizes]):
+     * [HOA][thường][Hoa đầu từ][Hoa đầu câu] / [Xoá dấu][Thêm dấu]([Dịch]). Mọi hàng cao bằng
+     * nhau, cùng khe, cùng lề; tổng chiều cao giữ nguyên [LayoutConfig.keyAreaPx].
      */
     fun build(out: MutableList<LaidKey>, c: LayoutConfig) {
         val d = c.density
         val m = KeyLayout.ROW_MARGIN_H * d
         val mv = KeyLayout.ROW_MARGIN_V * d
         val gap = KeyLayout.KEY_SPACING * d
-        val hasTools = c.editTools || c.editTranslate
-        val rows = GRID.size + if (hasTools) 1 else 0
+        val cells = toolCells(c.editTools, c.editTranslate)
+        val toolRows = rowSizes(cells.size, COLS)
+        val rows = GRID.size + toolRows.size
         val rowH = c.keyAreaPx / rows
-        if (hasTools) {
-            // (nhãn, insert): các TextTool (nếu bật) rồi ô "Dịch" (nếu bật).
-            val cells = (if (c.editTools) TextTool.entries.map { toolTitle(it) to TOOL_PREFIX + it.id } else emptyList()) +
-                (if (c.editTranslate) listOf(tr("Dịch") to TRANSLATE_INSERT) else emptyList())
-            val w = (c.widthPx - 2 * m - gap * (cells.size - 1)) / cells.size
-            val t = GRID.size * rowH + mv
-            val b = (GRID.size + 1) * rowH - mv
-            var x = m
-            for ((l, ins) in cells) {
-                out += LaidKey(KeyKind.EDIT, l, l, ins, x, t, x + w, b)
-                x += w + gap
-            }
-        }
-        for ((r, row) in GRID.withIndex()) {
-            val n = row.size
+        fun place(r: Int, items: List<Pair<String, String>>) {
+            val n = items.size
             val w = (c.widthPx - 2 * m - gap * (n - 1)) / n
             val t = r * rowH + mv
             val b = (r + 1) * rowH - mv
             var x = m
-            for (a in row) {
-                val l = label(a)
-                out += LaidKey(KeyKind.EDIT, l, l, a.name, x, t, x + w, b)
+            for ((l, ins) in items) {
+                out += LaidKey(KeyKind.EDIT, l, l, ins, x, t, x + w, b)
                 x += w + gap
             }
+        }
+        for ((r, row) in GRID.withIndex()) place(r, row.map { label(it) to it.name })
+        var i = 0
+        for ((k, n) in toolRows.withIndex()) {
+            place(GRID.size + k, cells.subList(i, i + n))
+            i += n
         }
     }
 }

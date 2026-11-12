@@ -128,8 +128,9 @@ final class TesterFeedback128Tests: XCTestCase {
             let extras = kb.debugTemplateExtras
             XCTAssertEqual(Array(extras.prefix(TextTool.allCases.count)), TextTool.allCases.map(\.label),
                            "danh sách công cụ hiện ngay: \(extras)")
-            XCTAssertFalse(extras.contains(L("\u{2039} Mẫu câu")), "không có nút quay về mẫu câu")
-            XCTAssertFalse(extras.contains(L("⚒️ Công cụ")))
+            XCTAssertFalse(extras.contains { $0.hasPrefix("\u{2039}") }, "không có nút quay về mẫu câu")
+            XCTAssertFalse(kb.debugTemplateSegmented, "chỉ-công-cụ: không thanh chọn")
+            XCTAssertTrue(extras.contains(L("Thêm dấu")) == PlusGate.isUnlocked(.sentenceDiacritics))
             XCTAssertFalse(kb.debugTemplatesLoaded, "không đọc danh sách mẫu câu")
             var applied: [TextTool] = []
             kb.onTextTool = { applied.append($0) }
