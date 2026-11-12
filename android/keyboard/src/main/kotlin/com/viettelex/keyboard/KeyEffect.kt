@@ -1060,6 +1060,9 @@ object KeywordBursts {
         Entry("giận", KeywordKind.ANGRY), Entry("bực", KeywordKind.ANGRY),
         Entry("tết", KeywordKind.TET), Entry("năm mới", KeywordKind.TET), Entry("lì xì", KeywordKind.TET),
         Entry("lixi", KeywordKind.TET),
+        // Chúc mừng ⇒ pháo (dùng lại chùm Tết); cảm ơn ⇒ tim.
+        Entry("chúc mừng", KeywordKind.TET), Entry("congrats", KeywordKind.TET), Entry("cảm ơn", KeywordKind.LOVE),
+        Entry("thanks", KeywordKind.LOVE),
     )
     /** Tiếng cười lặp: (đơn vị, số lần tối thiểu). */
     val LAUGH_UNITS: List<Pair<String, Int>> = listOf("ha" to 2, "hi" to 2, "he" to 2, "k" to 3)
@@ -1158,6 +1161,33 @@ object KeywordBursts {
 
     /** Thời gian chùm [k] (giây) — hết thì thôi vẽ. */
     fun lifetime(k: KeywordKind): Double = particles(k).maxOf { it.delay + it.traj.duration }
+}
+
+/**
+ * "Từ khoá" cho từ GÕ VUỐT: chùm nổ ngay khi cú vuốt đặt từ lên màn hình (chỗ nhấc tay), không chờ dấu cách. Từ vuốt
+ * còn "mở" — dấu cách / cú vuốt kế chốt nó sau — nên nhớ từ đã nổ để phím ranh giới chốt ĐÚNG từ đó không nổ lần hai.
+ * Cụm 2 từ ("chúc mừng", "cảm ơn") qua hai cú vuốt liền nhau: `prev` = từ vừa chốt trước từ vuốt. = iOS SwipeKeywordCombo.
+ */
+class SwipeKeywordCombo {
+    /** Từ vuốt đang mở đã nổ (null = chưa / đã chốt). */
+    var fired: String? = null; private set
+
+    /** Cú vuốt vừa đặt [word] (từ chốt ngay trước: [prev]) ⇒ kiểu chùm cần nổ, null = không khớp. */
+    fun swiped(word: String, prev: String?): KeywordKind? {
+        val k = KeywordBursts.lookup(word, prev)
+        fired = if (k == null) null else word
+        return k
+    }
+
+    /** Phím ranh giới vừa chốt [word]: false = đúng từ vuốt đã nổ ⇒ bỏ (một lần, rồi quên). */
+    fun boundary(word: String): Boolean {
+        val ok = fired == null || fired != word
+        fired = null
+        return ok
+    }
+
+    /** Từ nào đó vừa được chốt / mất (từ vuốt không còn mở). */
+    fun reset() { fired = null }
 }
 
 /**

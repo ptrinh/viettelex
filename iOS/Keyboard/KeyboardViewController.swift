@@ -1868,6 +1868,7 @@ final class KeyboardViewController: UIInputViewController {
         if let table = fx.themeFx?.keywords, let i = table.lookup(word: word, prev: prev) { fx.queueThemeKeyword(i) }
         guard fx.effect.needsBoundaryWord else { return }
         if fx.effect == .keyword {
+            guard swipeCombo.boundary(word) else { return }   // từ vuốt đã nổ lúc vuốt: không nổ lần hai
             if let k = KeywordBursts.lookup(word: word, prev: prev) { fx.queueKeyword(k) }   // Từ khoá: pháo đỏ / lì xì…
             return
         }
@@ -1881,6 +1882,18 @@ final class KeyboardViewController: UIInputViewController {
         }
         guard let e = EmojiWords.lookup(word: word, prev: prev) else { return }
         fx.queueEmoji(e)
+    }
+
+    /// "Từ khoá" cho từ vuốt: từ vừa vuốt (đang mở) khớp bảng ⇒ chùm nổ ngay ở chỗ nhấc tay; phím ranh giới chốt đúng
+    /// từ đó sau thì không nổ lại (SwipeKeywordCombo). Kiểu khác ⇒ một phép so sánh.
+    private var swipeCombo = SwipeKeywordCombo()
+
+    private func fxSwipeKeyword(_ word: String, path: SwipePath) {
+        guard let fx = keyboard?.keyEffects, fx.effect == .keyword, path.count > 0, bridge.isSwipeWordOpen else { return }
+        guard let k = swipeCombo.swiped(word, prev: lastWord) else { return }
+        fx.queueKeyword(k)
+        let j = path.count - 1
+        fx.emit(at: CGPoint(x: CGFloat(path.xs[j]), y: CGFloat(path.ys[j]) + TouchGeometry.yOffset))
     }
 
     /// Sút! (theme Bóng đá): cụm cổ vũ vừa gõ xong ("việt nam vô địch", "vn #1", "vào", "goal"…) ⇒ pháo sáng + cờ ở lượt vẽ
@@ -1912,6 +1925,7 @@ final class KeyboardViewController: UIInputViewController {
     /// `accepted` = user bấm nhận suggestion → weight 2 (tín hiệu mạnh hơn).
     private func commitAndLearn(_ word: String, accepted: Bool = false) {
         guard !word.isEmpty else { return }
+        swipeCombo.reset()
         // Nội dung gõ tắt nhiều từ ("mọi người"): học lần lượt từng từ (bigram trong cụm).
         let parts = ShortcutLearning.words(word)
         if parts.count != 1 || parts.first != word {
@@ -3189,6 +3203,7 @@ extension KeyboardViewController {
         if let out {
             if let c = out.committed { commitAndLearn(c.word, accepted: c.accepted) }
             keyboard.swipeCommitted()          // "Pháo hoa cuối nét" (kiểu khác: 0 việc)
+            fxSwipeKeyword(out.word, path: path)   // "Từ khoá" theo từ vuốt (kiểu khác: một phép so sánh)
             swipeReviseUndo = out.revised
             if !out.scored.isEmpty, bridge.isSwipeWordOpen {
                 swipeRevisable = SwipeTyping.Revisable(word: out.word, scored: out.scored, sc: sc)
