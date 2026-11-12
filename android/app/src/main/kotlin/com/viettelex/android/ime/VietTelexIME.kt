@@ -851,6 +851,9 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         warmSmartTouch()
 
         inputShown = true
+        // Debug mode: hiện/ẩn trong CHÍNH app cài đặt (báo lỗi 13/11/2026 "bàn phím hay bị ẩn, chỉ trong
+        // app cài đặt") — phân biệt app đóng bàn phím (hide ngay sau show) với bàn phím không được gọi.
+        if (TouchLog.enabled && info.packageName == packageName) TouchLog.write("settingsApp show restarting=$restarting")
         // Nút ⌄ thu gọn đã bỏ (10/2026): bar luôn mở; khoá "suggestionBarCollapsed" cũ không còn đọc.
         session.barCollapsed = false
         // Ô cấm gợi ý chữ nhưng không nhạy cảm (StripMode.TOOLS): vẫn ☰/con trỏ/📋 + Dán (#113).
@@ -996,6 +999,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
 
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
+        if (TouchLog.enabled && currentInputEditorInfo?.packageName == packageName)
+            TouchLog.write("settingsApp hide finishingInput=$finishingInput")
         cancelTranslate()
         swipeFieldOk = false
         // FUTO Swipe / từ điển Anh / ảnh nền / emoji: GIỮ qua các lần hiện (giải lại mỗi lần hiện
@@ -1690,6 +1695,25 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     private var switcherHintVisible = false
 
     override fun onDismissKeyboard() = requestHideSelf(0)
+
+    /** 📋 bàn số: dán clipboard đã lọc theo ô ("0903 389 710" → "0903389710" ở ô số / điện thoại). */
+    override fun onPadPaste() {
+        val f = when (field.kind) {
+            InputKind.PHONE -> com.viettelex.keyboard.NumericPaste.Field.PHONE
+            InputKind.DATETIME -> com.viettelex.keyboard.NumericPaste.Field.DATETIME
+            else -> if (field.numberDecimal) com.viettelex.keyboard.NumericPaste.Field.DECIMAL
+                    else com.viettelex.keyboard.NumericPaste.Field.NUMBER
+        }
+        clearSwipeUndo()
+        if (!proxy.begin()) return
+        val got = try {
+            session.pasteFiltered(proxy) { com.viettelex.keyboard.NumericPaste.clean(it, f, field.numberSigned) }
+        } finally { proxy.end() }
+        if (TouchLog.enabled) TouchLog.write("padPaste field=$f inserted=${got.length}")
+        resetIfEditFailed()
+        applyAutoShift()
+        refreshBar()
+    }
 
     override fun onVoiceInput() {
         if (!voice.launch()) { voice.refresh(); keyboard?.setVoiceAvailable(voice.available && !field.isSecure) }

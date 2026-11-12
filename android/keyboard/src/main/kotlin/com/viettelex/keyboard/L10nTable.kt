@@ -593,6 +593,7 @@ object L10nTable {
         put("Chưa có mẫu câu nào.", "No snippets yet.")
         put("Ô nhỏ bên trái là label (không bắt buộc).", "The small box on the left is the label (optional).")
         put("Thêm mẫu câu…", "Add a snippet…")
+        put("Đã xoá mẫu câu", "Snippet deleted")
         put("Đã thêm mẫu câu (dòng %s).", "Snippet added (row %s).")
         put("Mẫu câu động (https://)", "Dynamic snippets (https://)")
         put("Mẫu có nội dung bắt đầu bằng https:// sẽ fetch dữ liệu NGAY LÚC BẤM và chèn kết quả (tối đa 1000 bytes) — ví dụ 🌐 IP chèn địa chỉ IP hiện tại. Không có mạng thì bấm sẽ chèn chính URL.", "Snippets whose text starts with https:// fetch data WHEN TAPPED and insert the result (up to 1000 bytes) — e.g. 🌐 IP inserts your current IP address. Without a connection, the URL itself is inserted.")

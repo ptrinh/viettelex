@@ -26,6 +26,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -36,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,12 +64,18 @@ import com.viettelex.keyboard.Keys
 import com.viettelex.keyboard.TemplateItem
 import com.viettelex.keyboard.Templates
 import java.text.SimpleDateFormat
+import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import com.viettelex.keyboard.tr
 import com.viettelex.keyboard.L10n
 
+
+/** Thanh báo chung của app cài đặt (RootScreen đặt SnackbarHost trên tab bar). */
+internal object AppSnackbar {
+    val host = SnackbarHostState()
+}
 
 internal fun openUrl(ctx: Context, url: String) {
     runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
@@ -319,6 +329,24 @@ fun MauCauTab() {
     var editLabel by remember { mutableStateOf("") }
     var editText by remember { mutableStateOf("") }
     fun persist(list: List<TemplateItem>) { templates = list; TemplatesStore.save(ctx, list) }
+    val scope = rememberCoroutineScope()
+    /**
+     * Vuốt xoá ⇒ thanh "Đã xoá mẫu câu · Hoàn tác" (báo lỗi 13/11/2026: vuốt nhầm là mất luôn).
+     * Hoàn tác chèn lại đúng vị trí cũ, giữ label ([Templates.restore]).
+     */
+    fun deleteWithUndo(item: TemplateItem) {
+        // Vị trí đọc LÚC xoá (state vuốt nhớ lambda từ lần dựng đầu — chỉ số lúc đó có thể đã cũ).
+        val index = templates.indexOf(item).takeIf { it >= 0 } ?: return
+        if (editing != null) editing = null
+        persist(templates - item)
+        scope.launch {
+            val host = AppSnackbar.host
+            host.currentSnackbarData?.dismiss()
+            val r = host.showSnackbar(tr("Đã xoá mẫu câu"), actionLabel = tr("Hoàn tác"),
+                withDismissAction = false, duration = SnackbarDuration.Long)
+            if (r == SnackbarResult.ActionPerformed) persist(Templates.restore(templates, index, item))
+        }
+    }
     fun importText(text: String?) {
         val items = Templates.parseImport(text)
         if (items.isEmpty()) { notice = tr("Không tìm thấy mẫu câu nào để thêm."); return }
@@ -339,9 +367,10 @@ fun MauCauTab() {
         templates.forEachIndexed { i, t ->
             key(t.label + "\u0001" + t.text) {
                 if (i > 0) RowDivider()
+                // Ngưỡng 40% bề ngang (mặc định 56 dp — lướt nhẹ cũng xoá) + Hoàn tác ngay sau đó.
                 val state = rememberSwipeToDismissBoxState(confirmValueChange = {
-                    if (it == SwipeToDismissBoxValue.EndToStart) { persist(templates - t); true } else false
-                })
+                    if (it == SwipeToDismissBoxValue.EndToStart) { deleteWithUndo(t); true } else false
+                }, positionalThreshold = { total -> total * 0.4f })
                 SwipeToDismissBox(
                     state, enableDismissFromStartToEnd = false,
                     backgroundContent = {

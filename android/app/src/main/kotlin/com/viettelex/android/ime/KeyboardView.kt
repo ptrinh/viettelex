@@ -111,6 +111,8 @@ class KeyboardView(
         /** Mục ⚙ menu giữ 😊: mở app VietTelex. */
         fun onOpenSettings()
         fun onDismissKeyboard()
+        /** 📋 bàn số (PHONE / NUMPAD): dán clipboard đã lọc theo loại ô. */
+        fun onPadPaste() {}
         fun onTemplate(item: TemplateItem)
         fun onOpenTemplates()
         /** Chạm một thao tác công cụ văn bản (Plus) trong lưới mẫu câu. */
@@ -1335,6 +1337,7 @@ class KeyboardView(
                 if (switcherHint) icon(c, ImeIcons.GLOBE, k.right - hintInset, k.top + hintInset, 10f, theme.fnInk, (contentAlpha * 0.55f).toInt())
             }
             KeyKind.CLEAR -> icon(c, ImeIcons.TRASH, cx, cy, 21f, theme.fnInk, contentAlpha)
+            KeyKind.PASTE -> icon(c, ImeIcons.CLIPBOARD, cx, cy, 20f, theme.fnInk, contentAlpha)
             KeyKind.EDIT -> drawEditKey(c, k, contentAlpha)
             KeyKind.DISMISS -> icon(c, ImeIcons.KB_DISMISS, cx, cy, 22f, theme.fnInk, contentAlpha)
             KeyKind.RETURN -> {
@@ -2037,6 +2040,7 @@ class KeyboardView(
             KeyKind.EMOJI -> setPlane(Plane.EMOJI)
             KeyKind.CLEAR -> emit(Key.ClearField)
             KeyKind.DISMISS -> listener?.onDismissKeyboard()
+            KeyKind.PASTE -> listener?.onPadPaste()
         }
     }
 

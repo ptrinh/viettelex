@@ -26,6 +26,7 @@ enum NumericKeypad {
         case globe          // chỉ khi host cần phím đổi bàn phím (máy có nút Home)
         case letters        // "ABC" → bàn chữ đầy đủ
         case text(String)   // dấu thập phân / * / #
+        case paste          // 📋 dán số vừa copy (chỉ khi có Toàn quyền — bàn phím không có thì không đọc được clipboard)
     }
 
     /// THUẦN: trait ô → kiểu bàn số, nil = không dùng bàn số lớn.
@@ -67,8 +68,9 @@ enum NumericKeypad {
         }
     }
 
-    /// Ô góc trái dưới.
-    static func corner(style: Style, needsGlobe: Bool) -> [CornerKey] {
+    /// Ô góc trái dưới. [paste]: thêm 📋 cuối ô (báo lỗi 13/11/2026: bàn số không có cách
+    /// dán số điện thoại vừa copy).
+    static func corner(style: Style, needsGlobe: Bool, paste: Bool = false) -> [CornerKey] {
         var out: [CornerKey] = needsGlobe ? [.globe] : []
         out.append(.letters)
         switch style {
@@ -76,7 +78,35 @@ enum NumericKeypad {
         case .decimal(let sep): out.append(.text(sep))
         case .phone: out += [.text("*"), .text("#")]
         }
+        if paste { out.append(.paste) }
         return out
+    }
+
+    /// 📋 Dán: làm sạch chữ trong clipboard theo kiểu bàn số TRƯỚC khi chèn (ô số hay từ chối
+    /// cả chuỗi lẫn ký tự lạ). Song sinh Android `NumericPaste.clean`.
+    /// - `.phone`: chữ số + `*` `#`; `+` chỉ khi đứng đầu ("+84 903-389-710" → "+84903389710").
+    /// - `.digits`: chỉ chữ số ("0903 389 710" → "0903389710", "1.000.000" → "1000000").
+    /// - `.decimal`: chữ số + "." ",".
+    /// Chữ số Unicode khác (toàn khổ, Ả Rập…) đổi về 0-9. Không có chữ số nào ⇒ "" (không chèn).
+    static func cleanPaste(_ text: String?, style: Style) -> String {
+        guard let text, !text.isEmpty else { return "" }
+        var out = ""
+        var hasDigit = false
+        for u in text.unicodeScalars {
+            if u.properties.numericType == .decimal, let v = u.properties.numericValue, v >= 0, v <= 9 {
+                out.append(String(Int(v))); hasDigit = true
+                continue
+            }
+            switch style {
+            case .phone:
+                if u == "*" || u == "#" { out.unicodeScalars.append(u) }
+                else if (u == "+" || u == "\u{FF0B}") && out.isEmpty { out.append("+") }
+            case .decimal:
+                if u == "." || u == "," { out.unicodeScalars.append(u) }
+            case .digits: break
+            }
+        }
+        return hasDigit ? out : ""
     }
 
     /// Giữ phím → ký tự thay thế. "0" ở bàn điện thoại ra "+" (như stock); dấu thập phân ra

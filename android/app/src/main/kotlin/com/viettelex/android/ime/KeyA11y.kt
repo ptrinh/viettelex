@@ -15,6 +15,7 @@ object KeyA11y {
             KeyKind.GLOBE -> tr("Đổi bàn phím")
             KeyKind.CLEAR -> tr("Xoá hết")
             KeyKind.DISMISS -> tr("Ẩn bàn phím")
+            KeyKind.PASTE -> tr("Dán")
             KeyKind.PLANE, KeyKind.MORE -> when (insert) {
                 "ABC" -> tr("Chữ cái")
                 "123" -> tr("Số")

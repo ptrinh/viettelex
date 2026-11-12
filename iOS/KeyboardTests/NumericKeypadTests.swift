@@ -290,4 +290,27 @@ final class NumericKeypadTests: XCTestCase {
         let hit = kb.hitTest(CGPoint(x: f.midX, y: f.minY - 2), with: nil)
         XCTAssertTrue(hit === five || hit === kb.debugKeypadKey("2"))
     }
+
+    // MARK: 📋 Dán (báo lỗi 13/11/2026: bàn số không có cách dán số điện thoại vừa copy)
+
+    func testCornerPasteOnlyWhenEnabled() {
+        XCTAssertEqual(NumericKeypad.corner(style: .digits, needsGlobe: false, paste: true), [.letters, .paste])
+        XCTAssertEqual(NumericKeypad.corner(style: .phone, needsGlobe: true, paste: true),
+                       [.globe, .letters, .text("*"), .text("#"), .paste])
+        XCTAssertFalse(NumericKeypad.corner(style: .digits, needsGlobe: false).contains(.paste))
+    }
+
+    func testCleanPastePerStyle() {
+        XCTAssertEqual(NumericKeypad.cleanPaste("0903 389 710", style: .digits), "0903389710")
+        XCTAssertEqual(NumericKeypad.cleanPaste("+84 903-389-710", style: .phone), "+84903389710")
+        XCTAssertEqual(NumericKeypad.cleanPaste("+84 903-389-710", style: .digits), "84903389710")
+        XCTAssertEqual(NumericKeypad.cleanPaste(" *101# ", style: .phone), "*101#")
+        XCTAssertEqual(NumericKeypad.cleanPaste("09+03", style: .phone), "0903")
+        XCTAssertEqual(NumericKeypad.cleanPaste("０９０３", style: .digits), "0903")
+        XCTAssertEqual(NumericKeypad.cleanPaste("1 234,5", style: .decimal(separator: ",")), "1234,5")
+        XCTAssertEqual(NumericKeypad.cleanPaste("1.000.000 đ", style: .digits), "1000000")
+        XCTAssertEqual(NumericKeypad.cleanPaste("xin chào", style: .phone), "")
+        XCTAssertEqual(NumericKeypad.cleanPaste("+", style: .phone), "")
+        XCTAssertEqual(NumericKeypad.cleanPaste(nil, style: .digits), "")
+    }
 }
