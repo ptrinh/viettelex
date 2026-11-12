@@ -1,6 +1,9 @@
 package com.viettelex.android.ui
 
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import com.viettelex.android.translate.TranslateDownloadError
 import android.content.Context
 import android.content.ContextWrapper
 import android.net.ConnectivityManager
@@ -55,6 +58,8 @@ fun TranslateSettings(leadingDivider: Boolean = true) {
     var have by remember { mutableStateOf<Set<String>?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    /** Lỗi tải module cần cài/cập nhật qua Google Play (APP_NOT_OWNED…) ⇒ hiện nút "Mở Google Play". */
+    var errorOpensPlay by remember { mutableStateOf(false) }
     var picking by remember { mutableStateOf(false) }
     var refresh by remember { mutableStateOf(0) }
     val ui = if (L10n.isEnglish) L10n.EN else L10n.VI     // đọc state ngôn ngữ ⇒ recompose khi đổi
@@ -90,7 +95,11 @@ fun TranslateSettings(leadingDivider: Boolean = true) {
                     backend = TranslateFeature.load(ctx)
                     if (backend == null) error = tr("Đã tải tính năng Dịch — mở lại app để dùng.")
                 }
-                SplitInstallSessionStatus.FAILED -> { moduleStatus = null; error = tr("Chưa tải được — kiểm tra kết nối rồi thử lại.") }
+                SplitInstallSessionStatus.FAILED -> {
+                    moduleStatus = null
+                    error = TranslateDownloadError.text(st.errorCode(), ::tr)
+                    errorOpensPlay = TranslateDownloadError.of(st.errorCode()).openPlay
+                }
                 SplitInstallSessionStatus.CANCELED -> moduleStatus = null
                 else -> {}
             }
@@ -119,7 +128,7 @@ fun TranslateSettings(leadingDivider: Boolean = true) {
         val label = moduleStatus ?: if (moduleChecked) tr("Tải tính năng Dịch (~7 MB)") else "…"
         VTRow(onClick = if (moduleStatus != null || !moduleChecked) null else {
             {
-                error = null
+                error = null; errorOpensPlay = false
                 if (wifiOnly && !ctx.onUnmeteredNetwork()) {
                     error = tr("Chưa tải được — cần Wi-Fi (hoặc tắt “Chỉ tải qua Wi-Fi”).")
                 } else {
@@ -130,8 +139,9 @@ fun TranslateSettings(leadingDivider: Boolean = true) {
                         }
                         .addOnFailureListener { e ->
                             moduleStatus = null
-                            error = tr("Chưa tải được — kiểm tra kết nối rồi thử lại.") +
-                                ((e as? SplitInstallException)?.errorCode?.let { " ($it)" } ?: "")
+                            val code = (e as? SplitInstallException)?.errorCode
+                            error = TranslateDownloadError.text(code, ::tr)
+                            errorOpensPlay = TranslateDownloadError.of(code).openPlay
                         }
                 }
             }
@@ -177,6 +187,9 @@ fun TranslateSettings(leadingDivider: Boolean = true) {
     }
     error?.let { e ->
         VTRow { Text(e, style = VTType.footnote, color = c.secondary) }
+        if (errorOpensPlay) VTRow(onClick = { ctx.openPlayListing() }) {
+            Text(tr("Mở Google Play"), style = VTType.body, color = c.accent)
+        }
     }
     VTRow {
         Text(tr("Dịch chạy ngay trên máy bằng Google ML Kit — chữ bạn gõ không bao giờ được gửi đi. Mạng chỉ dùng khi bạn bấm tải gói."),
@@ -217,4 +230,16 @@ private fun Context.onUnmeteredNetwork(): Boolean {
     val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
     return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) ||
         caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+}
+
+/** Trang VietTelex trên Google Play (app Play, không có thì trình duyệt). */
+private fun Context.openPlayListing() {
+    val id = packageName
+    val market = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$id")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    try { startActivity(market) } catch (_: Exception) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$id"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (_: Exception) {}
+    }
 }
