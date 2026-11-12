@@ -21,6 +21,7 @@
 #include "viettelex/gnome_monitor.h"
 #include "viettelex/session.h"
 #include "viettelex/settings.h"
+#include "viettelex/switch_sound.h"
 #include "viettelex/text_tools.h"
 #include "viettelex/watcher.h"
 
@@ -590,6 +591,7 @@ public:
         if (settings().perAppState && st->rememberState) appState_.set(st->appId, vi);
         updateAction(st);
         st->ic->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea);
+        if (settings().switchSound) vt::playSwitchSound(vi);  // the user switched (hotkey / menu)
     }
 
 private:

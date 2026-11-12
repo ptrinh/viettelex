@@ -41,6 +41,7 @@ DEFAULTS = {
         "terminal_direct": True,
         "toggle_hotkey": "Ctrl+space",
         "per_app_state": True,
+        "switch_sound": False,
         "default_vietnamese": True,
         # Ngôn ngữ giao diện app cài đặt + nhãn menu bộ gõ. Mặc định LUÔN tiếng Việt —
         # không theo locale của máy (quy ước chung các bản VietTelex).

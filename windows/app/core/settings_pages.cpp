@@ -115,6 +115,7 @@ std::vector<PageRow> settingsPageRows(SettingsPage page, const Settings& s, cons
             b.toggle(&Settings::startEnglish);
             if (ctx.offerDefaultInput && !ctx.portable) b.control(PageControl::DefaultInput);
             b.control(PageControl::SwitchIndicator);
+            b.toggle(&Settings::switchSound);
             b.endExpander();
             b.section(PageSection::Spelling);
             b.toggle(&Settings::liveSpellCheck);

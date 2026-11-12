@@ -305,6 +305,7 @@ Decisions are pure functions in `app/core/game_logic.*`, the TIP side is `ime/co
   - **What it does:** every key passes through, in every app. It reaches every TIP through the snapshot, and the foreground TIP at once.
   - **Never stuck on:** it is cleared whenever VietTelex.exe starts, and a TIP ignores it while the app is not running.
   - **Hotkey:** the default is off, because a global hotkey takes its chord away from every app, and Ctrl+Alt is AltGr on some layouts. The choices are `ctrl-alt-g` and `ctrl-shift-alt-g`, never Win+G or Win+Alt+G (Xbox Game Bar).
+- **Switch sound** (`switchSound`, off by default, next to the indicator setting): VietTelex.exe plays two synthesised notes (`core/switch_sound.cpp`, `PlaySound` from memory, async), rising for Việt and falling for Anh, at the same four places as the indicator (TIP `UserSwitched`, tray click, portable chord, chord that brings VietTelex in) and never while keys pass through. It took bit 31: the 32-bit bool word of the snapshot is now full, the next bool needs a second word.
 - **Floating V/E indicator** (`switchIndicator`: `auto` by default, `on`, `off`; `auto` means "while the tray icon is hidden").
   - **Trigger:** the TIP posts `AppCommand::UserSwitched` only for a Ctrl+Shift or Alt+Z switch, not for a focus change.
   - **Window:** a click-through, never-activated popup shows V or E for 1 s, below the caret (`GetGUIThreadInfo`) or in the work area's bottom-right corner.

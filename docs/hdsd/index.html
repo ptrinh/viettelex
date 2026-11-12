@@ -554,6 +554,7 @@ sudo apt install viettelex-fcitx5   # hoặc: sudo apt install viettelex-ibus</p
         <li>Chi tiết từng app: <a href="../typing-modes">Chế độ gõ trong ViệtTelex</a>.</li>
         <li><b>Cho người viết app/script — tín hiệu “kết thúc từ”</b>: ở cách gõ Phím thật, VietTelex thấy mọi phím nên chữ cái mà app terminal dùng làm lệnh (<kbd>j</kbd>/<kbd>k</kbd>/<kbd>i</kbd>…) bị tính là đầu một từ. Gửi <code>com.viettelex.endWord</code> lúc vào chế độ nhập chữ (hoặc sau khi script đổi focus) để kết thúc từ đang gõ, như một phím cách không gõ ra gì: <code>notifyutil -p com.viettelex.endWord</code> trong shell, <code>notify_post("com.viettelex.endWord")</code> trong C, hoặc <code>DistributedNotificationCenter.default().postNotificationName(.init("com.viettelex.endWord"), object: nil)</code> trong Swift. Tín hiệu không mang dữ liệu, không đọc hay sửa chữ, không đổi cài đặt. Tín hiệu là bất đồng bộ: gửi xong hãy để phím kế tiếp đi sau (post cách nhau dưới 50 ms được gộp làm một); tắt được ở Cài đặt → Chung → Nâng cao / Gỡ lỗi.</li>
         <li><b>Giữ VietTelex khi macOS tự đổi bộ gõ</b> (Cài đặt… → Gõ phím → Chuyển Việt/Anh → Nâng cao): một số app (bình luận trong Word…) làm macOS trả về bộ gõ mặc định ở mỗi ô mới; tuỳ chọn này chuyển lại VietTelex — chỉ khi không phải do bạn đổi.</li>
+        <li><b>Phát tiếng khi đổi Việt/Anh</b> (tắt sẵn; cùng chỗ, mục Nâng cao): tiếng đi lên là VietTelex, đi xuống là bộ gõ khác. Chỉ kêu khi bạn tự đổi (phím tắt, menu bàn phím, phím 🌐), không kêu khi macOS tự đổi theo app. Cần quyền Trợ năng.</li>
       </ul>
     </div>
     <div class="card">
@@ -605,6 +606,7 @@ sudo apt install viettelex-fcitx5   # hoặc: sudo apt install viettelex-ibus</p
         <li><b>Biểu tượng bàn phím</b> (thanh tác vụ và danh sách <kbd>Win</kbd><kbd>Space</kbd>): Vᴛ, Ngôi sao, Cờ Việt Nam, Logo hoặc Chữ VI — đổi cần quyền quản trị.</li>
         <li><b>Hiện biểu tượng ở khay hệ thống</b> (bật sẵn cho người dùng mới; người dùng cũ giữ lựa chọn đã lưu): chữ V/E của app đang dùng, mờ khi VietTelex đang tắt.</li>
         <li><b>Mở app không hiện cửa sổ Cài đặt</b> (tắt sẵn): mở VietTelex thì chỉ chạy nền ở khay; mở lần nữa khi đang chạy để hiện Cài đặt.</li>
+        <li><b>Phát tiếng khi đổi Việt/Anh</b> (tắt sẵn; Kiểu gõ → Chuyển Việt/Anh → Nâng cao): tiếng đi lên là tiếng Việt, đi xuống là tiếng Anh. Chỉ kêu khi bạn tự đổi (phím tắt, bấm biểu tượng khay), không kêu khi VietTelex đổi theo app.</li>
         <li><b>Ngôn ngữ / Language</b> của cửa sổ cài đặt và menu khay: Tiếng Việt (mặc định, dù Windows đặt ngôn ngữ nào) hoặc English — đổi là áp dụng ngay.</li>
         <li><b>Cập nhật</b>: bấm Kiểm tra ngay, hoặc bật tự kiểm tra (mỗi ngày một lần). Bản tải về phải có chữ ký hợp lệ mới được cài.</li>
         <li><b>Ghi nhật ký gỡ lỗi</b>: ghi sự kiện vào <code>%LOCALAPPDATA%\VietTelex\debug.log</code>, không ghi nội dung bạn gõ.</li>
@@ -622,6 +624,7 @@ sudo apt install viettelex-fcitx5   # hoặc: sudo apt install viettelex-ibus</p
       <ul>
         <li>Mặc định <kbd>Ctrl</kbd><kbd>Space</kbd>; đổi ở tab Tuỳ chỉnh → <b>Phím chuyển Việt/Anh</b> (cần ít nhất một phím Ctrl/Alt/Shift/Super; không dùng được <kbd>Super</kbd><kbd>Space</kbd> vì GNOME đã dùng; Backspace = tắt phím chuyển).</li>
         <li><b>Nhớ Việt/Anh theo từng app</b> và <b>App mới mở bắt đầu bằng tiếng Việt</b> (đều mặc định bật); nút <b>Quên tất cả</b> xoá trạng thái đã nhớ. Ubuntu 22.04 + IBus không báo app nào đang gõ nên nhớ chung cho mọi app (trừ GNOME Wayland).</li>
+        <li><b>Phát tiếng khi đổi Việt/Anh</b> (tắt sẵn): tiếng đi lên là tiếng Việt, đi xuống là tiếng Anh, chỉ khi bạn tự đổi (phím chuyển, menu bộ gõ). Cần một trong các lệnh <code>pw-play</code>, <code>paplay</code>, <code>aplay</code> (bản phân phối nào cũng có sẵn một cái).</li>
       </ul>
     </div>
     <div class="card">

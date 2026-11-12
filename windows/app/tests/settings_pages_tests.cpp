@@ -31,7 +31,7 @@ const Field kAllToggles[] = {
     &Settings::toneHints,        &Settings::dateHints,          &Settings::underlineMisspelled,
     &Settings::autoOffFullscreen, &Settings::gameMode,          &Settings::filterSensitive,
     &Settings::learnWords,       &Settings::retroactiveEnglish, &Settings::englishByFrequency,
-    &Settings::startEnglish,     &Settings::startHidden,
+    &Settings::startEnglish,     &Settings::startHidden,        &Settings::switchSound,
 };
 
 PageContext allOpen() {
@@ -100,6 +100,7 @@ TEST(settings_pages_structure) {
                     &Settings::retroactiveEnglish, &Settings::englishByFrequency})
         CHECK(placed(f, SettingsPage::Typing, ex(Expander::MixedAdvanced)));
     CHECK(placed(&Settings::startEnglish, SettingsPage::Typing, ex(Expander::SwitchAdvanced)));
+    CHECK(placed(&Settings::switchSound, SettingsPage::Typing, ex(Expander::SwitchAdvanced)));
     CHECK(placed(&Settings::liveSpellCheck, SettingsPage::Typing, -1));
     CHECK(placed(&Settings::underlineMisspelled, SettingsPage::Typing, -1));
     CHECK(placed(&Settings::numberChips, SettingsPage::Suggestions, -1));
@@ -478,7 +479,7 @@ TEST(settings_captions_are_short) {
         S::FilterSensitiveDesc, S::UnderlineMisspelledDesc, S::AutoOffFullscreenDesc, S::GameModeDesc,
         S::GameModeHotkeyDesc, S::SwitchIndicatorDesc, S::ConflictDesc, S::WinHotkeyDesc,
         S::DefaultInputDesc, S::TextToolsNoTray, S::LearnWordsDesc, S::ClearLearnedDesc, S::TrayStyleDesc,
-        S::RetroEnglishDesc, S::EnglishByFrequencyDesc, S::StartEnglishDesc, S::StartHiddenDesc, S::MixedCardDesc,
+        S::RetroEnglishDesc, S::EnglishByFrequencyDesc, S::StartEnglishDesc, S::StartHiddenDesc, S::SwitchSoundDesc, S::MixedCardDesc,
         S::ProfilePickerIntro, S::ProfileCustomDesc, S::ProfileViEx, S::ProfileMixedEx, S::ProfileEnEx,
         S::TypingAdvancedSummary, S::MixedAdvancedSummary, S::SwitchAdvancedSummary, S::GamesSummary,
         S::AppearanceSummary, S::MixedVniNote, S::PortableHintsNote, S::ReEditWordPortableDesc,

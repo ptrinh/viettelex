@@ -102,7 +102,7 @@ std::string settingsLine(const Settings &s) {
          " bracket=" + b(s.bracketVowels) + " reEdit=" + b(s.reEditWord);
     o += std::string(" | display=") + modeName(s.displayMode) + " underline=" + b(s.preeditUnderline) +
          " redMisspelled=" + b(s.underlineMisspelled) + " termDirect=" + b(s.terminalDirect) +
-         " perApp=" + b(s.perAppState) + " defVi=" + b(s.defaultVietnamese) + " ui=" + s.uiLanguage +
+         " perApp=" + b(s.perAppState) + " sound=" + b(s.switchSound) + " defVi=" + b(s.defaultVietnamese) + " ui=" + s.uiLanguage +
          " noUnderline=" + (s.noUnderline == NoUnderline::ForwardKeys ? "forward-keys" : "off");
     o += std::string(" | auto: dblSpace=") + b(s.doubleSpacePeriod) + " caps=" + b(s.autoCapitalize) +
          " smartPunct=" + b(s.smartPunctuation) + " predict=" + b(s.wordPrediction) +

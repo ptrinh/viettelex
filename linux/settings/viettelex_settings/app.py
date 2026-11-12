@@ -439,6 +439,8 @@ class SettingsWindow(Adw.PreferencesWindow):
         start_row = self.switch(adv, "general", "default_vietnamese",
                                 _("App mới mở bắt đầu bằng tiếng Việt"),
                                 _("Tắt = app lần đầu gặp bắt đầu ở chế độ tiếng Anh."))
+        self.switch(adv, "general", "switch_sound", _("Phát tiếng khi đổi Việt/Anh"),
+                    _("Tiếng đi lên là tiếng Việt, đi xuống là tiếng Anh. Chỉ khi bạn tự đổi."))
         # Bộ chọn nhanh theo dõi đúng các công tắc hồ sơ ghi (handler của switch() ghi
         # config trước — nối sau nên đọc được giá trị mới).
         for r in (restore_row, ctx_row, retro_row, freq_row, start_row):

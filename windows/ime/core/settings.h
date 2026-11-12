@@ -56,6 +56,10 @@ struct Settings {
     // start (no --background, no --settings) stays in the tray. Starting the app again while
     // it runs still opens Settings (app_feel.h opensSettingsAtStart).
     bool startHidden = false;
+    // "Phát tiếng khi đổi Việt/Anh" (default OFF; VietTelex.exe only): a short rising tone
+    // for Việt, a falling one for Anh, only when the USER switches (hotkey, tray click) —
+    // never for a per-app change on focus. The last free bit of the 32-bit snapshot word.
+    bool switchSound = false;
     // "Gạch đỏ âm tiết sai chính tả khi gõ" (Windows/Linux only, default OFF): the word in
     // a composition gets a red squiggle when it cannot become a Vietnamese syllable.
     // Composition mode only; in-place has no composition to decorate.

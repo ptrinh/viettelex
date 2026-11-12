@@ -393,6 +393,11 @@ final class AppState: @unchecked Sendable {
     /// ô comment là một document — field report 15/08/2026). EXPERIMENTAL, default
     /// OFF — giành selection với OS là vùng nhạy (bài học #32). Đọc trên MAIN khi có
     /// TIS notification (không phải hot path) → defaults-backed, không cache.
+    /// "Phát tiếng khi đổi Việt/Anh" (mặc định tắt) — xem SwitchSound.swift.
+    var switchSound: Bool {
+        get { defaults.object(forKey: "switchSound") as? Bool ?? false }
+        set { defaults.set(newValue, forKey: "switchSound") }
+    }
     var stickyInputSource: Bool {
         get { defaults.object(forKey: "stickyInputSource") as? Bool ?? false }
         set { defaults.set(newValue, forKey: "stickyInputSource") }

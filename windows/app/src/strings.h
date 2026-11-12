@@ -165,6 +165,8 @@ enum class S {
     RunFromArchive, PortableNoOtherKeyboard,
     // #159: a plain start stays in the tray
     StartHidden, StartHiddenDesc,
+    // A tone when the user switches Việt/Anh
+    SwitchSound, SwitchSoundDesc,
     Count
 };
 

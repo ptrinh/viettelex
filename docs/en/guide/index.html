@@ -554,6 +554,7 @@ sudo apt install viettelex-fcitx5   # or: sudo apt install viettelex-ibus</pre>
         <li>Per-app details: <a href="../../typing-modes">Typing modes in VietTelex</a> (Vietnamese).</li>
         <li><b>For app and script authors — “end of word” signal</b>: in Real keystrokes mode VietTelex sees every key, so letters a terminal app uses as commands (<kbd>j</kbd>/<kbd>k</kbd>/<kbd>i</kbd>…) count as the start of a word. Post <code>com.viettelex.endWord</code> when entering text input (or after moving focus in a script) and the word in progress ends, like a space that types nothing: <code>notifyutil -p com.viettelex.endWord</code> in a shell, <code>notify_post("com.viettelex.endWord")</code> in C, or <code>DistributedNotificationCenter.default().postNotificationName(.init("com.viettelex.endWord"), object: nil)</code> in Swift. It carries no data, never reads or changes your text or settings. The signal is asynchronous: let the next key follow it (posts less than 50 ms apart count as one); it can be turned off in Settings → General → Advanced / Debugging.</li>
         <li><b>Keep VietTelex when macOS auto-switches the input source</b> (Settings… → <b>Apps</b> tab): some apps (Word comments…) make macOS fall back to the default input source in every new field; this switches back to VietTelex — only when the change wasn't yours.</li>
+        <li><b>Play a sound when switching Vietnamese/English</b> (off by default; Typing → Switching → Advanced): a rising tone means VietTelex, a falling one another keyboard. Only when you switch (shortcut, keyboard menu, 🌐 key), never when macOS switches per app. Needs Accessibility.</li>
         <li><b>Ẩn tính năng nâng cao</b> (hide advanced features) hides the Typing modes and Experimental tabs if you don't need them.</li>
       </ul>
     </div>
@@ -606,6 +607,7 @@ sudo apt install viettelex-fcitx5   # or: sudo apt install viettelex-ibus</pre>
         <li><b>Keyboard icon</b> (taskbar and the <kbd>Win</kbd><kbd>Space</kbd> list): Vᴛ, Star, Vietnam flag, Logo or “VI” text — changing it needs administrator rights.</li>
         <li><b>Notification-area (tray) icon</b> (on for new users; existing users keep their saved choice): the current app's V/E, faded while VietTelex is off.</li>
         <li><b>Start without the Settings window</b> (off by default): opening VietTelex only runs it in the tray; open it again while it runs to show Settings.</li>
+        <li><b>Play a sound when switching Việt/Anh</b> (off by default; Typing → Switching → Advanced): a rising tone means Vietnamese, a falling one English. Only when you switch (hotkey, tray icon click), never when VietTelex follows the app.</li>
         <li><b>Ngôn ngữ / Language</b> of the settings window and tray menu: Tiếng Việt (the default, whatever the Windows display language) or English — applies immediately.</li>
         <li><b>Updates</b>: click Check now, or turn on the automatic check (once a day). A downloaded installer is only run if it's validly signed.</li>
         <li><b>Debug log</b>: records events to <code>%LOCALAPPDATA%\VietTelex\debug.log</code>, never what you type.</li>
@@ -623,6 +625,7 @@ sudo apt install viettelex-fcitx5   # or: sudo apt install viettelex-ibus</pre>
       <ul>
         <li>Default <kbd>Ctrl</kbd><kbd>Space</kbd>; change it in the Tuỳ chỉnh tab → <b>Phím chuyển Việt/Anh</b> (needs at least one of Ctrl/Alt/Shift/Super; <kbd>Super</kbd><kbd>Space</kbd> is reserved by GNOME; Backspace = no hotkey).</li>
         <li><b>Remember Vietnamese/English per app</b> and <b>new apps start in Vietnamese</b> (both on by default); <b>Quên tất cả</b> forgets the remembered states. Ubuntu 22.04 with IBus doesn't report which app is typing, so the state is shared by all apps (except on GNOME Wayland).</li>
+        <li><b>Play a sound when switching Vietnamese/English</b> (off by default): a rising tone means Vietnamese, a falling one English, only when you switch (toggle hotkey, input method menu). Needs one of <code>pw-play</code>, <code>paplay</code>, <code>aplay</code> (every distribution ships one).</li>
       </ul>
     </div>
     <div class="card">

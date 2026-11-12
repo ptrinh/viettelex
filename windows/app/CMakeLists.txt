@@ -3,7 +3,7 @@
 
 add_library(vtx_app_core STATIC core/update_check.cpp core/uninstall.cpp core/setup_helper_logic.cpp core/direct_policy.cpp core/input_switch.cpp
             core/text_action_logic.cpp core/typo_fix.cpp core/word_prediction.cpp core/learned_words.cpp core/onboarding.cpp core/game_logic.cpp core/macro_import.cpp core/settings_pages.cpp
-            core/app_feel.cpp core/portable.cpp core/hook_reopen.cpp core/word_adopt.cpp core/store_files.cpp)
+            core/app_feel.cpp core/portable.cpp core/hook_reopen.cpp core/word_adopt.cpp core/store_files.cpp core/switch_sound.cpp)
 target_include_directories(vtx_app_core PUBLIC core)
 target_link_libraries(vtx_app_core PUBLIC vtx_ime_core viettelex_text)
 if(MSVC)
@@ -87,7 +87,7 @@ if(WIN32)
     message(STATUS "VTX_EXPECTED_PUBLISHER not set: this build's self-updater will refuse all MSIs")
   endif()
   target_link_libraries(VietTelex PRIVATE vtx_app_core comctl32 comdlg32 shell32 advapi32 user32 gdi32
-                        dwmapi uxtheme winhttp wintrust crypt32 ole32 oleaut32 uuid gdiplus msi)
+                        dwmapi uxtheme winhttp wintrust crypt32 ole32 oleaut32 uuid gdiplus msi winmm)
   # MSI-only helper (Binary table): quit the app before files are replaced, move in-use
   # TIP DLLs aside. Tiny, windowless, no settings/engine code.
   add_executable(VietTelexSetupHelper WIN32 src/setup_helper.cpp src/app_quit.cpp)

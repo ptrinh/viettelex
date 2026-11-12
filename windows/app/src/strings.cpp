@@ -461,6 +461,9 @@ const Pair kStrings[] = {
     {L"Mở app không hiện cửa sổ Cài đặt", L"Start without the Settings window"},
     {L"Mở VietTelex thì chỉ chạy nền. Mở lần nữa khi đang chạy để hiện Cài đặt.",
      L"Opening VietTelex only runs it in the background. Open it again to show Settings."},
+    {L"Phát tiếng khi đổi Việt/Anh", L"Play a sound when switching Việt/Anh"},
+    {L"Tiếng đi lên là tiếng Việt, đi xuống là tiếng Anh. Chỉ khi bạn tự đổi.",
+     L"A rising tone means Vietnamese, a falling one English. Only when you switch."},
 };
 static_assert(sizeof(kStrings) / sizeof(kStrings[0]) == static_cast<size_t>(S::Count), "string table size");
 }  // namespace

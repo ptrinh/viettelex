@@ -41,6 +41,7 @@ const BoolKey kBoolKeys[] = {
     {"englishByFrequency", &Settings::englishByFrequency},
     {"startEnglish", &Settings::startEnglish},
     {"startHidden", &Settings::startHidden},
+    {"switchSound", &Settings::switchSound},
 };
 constexpr size_t kBoolCount = sizeof(kBoolKeys) / sizeof(kBoolKeys[0]);
 constexpr uint32_t kMagic = 0x53585456;  // "VTXS"

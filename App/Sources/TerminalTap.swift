@@ -3324,6 +3324,12 @@ final class TerminalTapController {
                chordRecognizer.note(flags: event.flags, target: target) {
                 DispatchQueue.main.async { SwitchHotkey.toggle() }
             }
+            // Phím 🌐/Fn hoặc Caps Lock cũng là cách người dùng TỰ đổi bộ gõ (không có
+            // keyDown kèm modifier) — để lại dấu vết gesture như một chord.
+            if event.flags.contains(.maskSecondaryFn)
+                || event.getIntegerValueField(.keyboardEventKeycode) == 57 {
+                StickyInputSource.shared.noteUserModifierChord()
+            }
             return pass
         }
 

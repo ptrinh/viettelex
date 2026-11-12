@@ -73,6 +73,8 @@ inputSourceObserver = DistributedNotificationCenter.default().addObserver(
     SecureInputMonitor.shared.check(reason: "input-source-changed")
     // Sticky-source (experimental): macOS tự đổi source theo document → giành lại.
     StickyInputSource.shared.selectionChanged(isVietTelex: isVietTelex)
+    // Âm báo khi người dùng tự đổi Việt/Anh (mặc định tắt).
+    SwitchSound.selectionChanged(isVietTelex: isVietTelex)
     // Hotkey chuyển bộ gõ: nhớ source non-VietTelex gần nhất làm đích cho chiều
     // VietTelex → khác (xem SwitchHotkey.toggle).
     // Onboarding người mới: chờ VietTelex được chọn (ô gõ thử cần nó).
@@ -91,6 +93,7 @@ SecureInputMonitor.shared.start()
 // source theo document (Word coi mỗi ô comment là một document — field report
 // 15/08/2026). Xem StickyInputSource.swift.
 StickyInputSource.shared.start()
+SwitchSound.start()
 
 // #158: app sandbox có file đệm danh sách bộ gõ tạo trước khi cài VietTelex thì không thấy
 // VietTelex và crash khi đổi bộ gõ — tự làm mới file đệm đó. Xem InputSourceCacheRefresher.swift.

@@ -304,6 +304,8 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "Suggestions next to the cursor" = "Gợi ý cạnh con trỏ";
 "Tools panel hotkey" = "Phím tắt mở bảng Công cụ";
 "Keep VietTelex when macOS auto-switches the input source" = "Giữ VietTelex khi macOS tự đổi bộ gõ";
+"Play a sound when switching Vietnamese/English" = "Phát tiếng khi đổi Việt/Anh";
+"A rising tone means VietTelex, a falling one another keyboard. Only when you switch. Needs Accessibility." = "Tiếng đi lên là VietTelex, đi xuống là bộ gõ khác. Chỉ khi bạn tự đổi. Cần quyền Trợ năng.";
 "Input Sources…" = "Nguồn nhập liệu…";
 
 /* Tự đổi nguồn nhập theo ứng dụng / tài liệu — cài đặt của macOS (Phil 10/11/2026) */

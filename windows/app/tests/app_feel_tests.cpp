@@ -12,6 +12,7 @@
 #include "idle_trim.h"
 #include "onboarding.h"
 #include "portable.h"
+#include "switch_sound.h"
 #include "settings.h"
 #include "settings_pages.h"
 #include "strings.h"
@@ -94,6 +95,49 @@ TEST(feel_new_user_gets_tray_existing_keeps_choice) {
     applyNewUserDefaults(n);
     n.showTrayIcon = d.showTrayIcon;
     CHECK(n == d);
+}
+
+// ---------------------------------------------------------------- switch sound
+
+TEST(feel_switch_sound_is_off_by_default_and_never_in_a_game) {
+    CHECK(!Settings().switchSound);
+    CHECK(!playsSwitchSound(false, false));
+    CHECK(playsSwitchSound(true, false));
+    CHECK(!playsSwitchSound(true, true));  // keys pass through: stay silent
+    Settings s;
+    s.switchSound = true;
+    const std::vector<uint8_t> blob = serialize(s);
+    Settings r;
+    CHECK(deserialize(blob.data(), blob.size(), r) && r.switchSound);  // bit 31 round-trips
+}
+
+TEST(feel_switch_sound_is_a_valid_short_wav_rising_for_viet) {
+    const std::vector<uint8_t> vi = switchSoundWav(true), en = switchSoundWav(false);
+    CHECK(vi.size() == en.size() && vi != en);
+    CHECK(std::string(vi.begin(), vi.begin() + 4) == "RIFF" && std::string(vi.begin() + 8, vi.begin() + 12) == "WAVE");
+    auto u32 = [](const std::vector<uint8_t>& w, size_t at) {
+        return static_cast<uint32_t>(w[at]) | (w[at + 1] << 8) | (w[at + 2] << 16) | (static_cast<uint32_t>(w[at + 3]) << 24);
+    };
+    CHECK_EQ(u32(vi, 4), static_cast<uint32_t>(vi.size() - 8));
+    CHECK_EQ(u32(vi, 40), static_cast<uint32_t>(vi.size() - 44));
+    CHECK_EQ(u32(vi, 24), static_cast<uint32_t>(kSwitchSoundRate));
+    const size_t frames = (vi.size() - 44) / 2;
+    CHECK(frames * 1000 / kSwitchSoundRate <= 120);  // short: never in the way of typing
+    // Zero crossings per half: Việt goes low -> high, Anh high -> low; quiet (well under full scale).
+    auto crossings = [&](const std::vector<uint8_t>& w, size_t from, size_t to) {
+        int n = 0, peak = 0;
+        int16_t prev = 0;
+        for (size_t i = from; i < to; ++i) {
+            const int16_t v = static_cast<int16_t>(w[44 + i * 2] | (w[45 + i * 2] << 8));
+            if ((prev < 0) != (v < 0)) ++n;
+            if (v > peak) peak = v;
+            prev = v;
+        }
+        CHECK(peak < 32767 / 3);
+        return n;
+    };
+    CHECK(crossings(vi, 0, frames / 2) < crossings(vi, frames / 2, frames));
+    CHECK(crossings(en, 0, frames / 2) > crossings(en, frames / 2, frames));
 }
 
 // ---------------------------------------------------------------- #159 start hidden

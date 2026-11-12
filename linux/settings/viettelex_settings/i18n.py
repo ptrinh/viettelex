@@ -211,6 +211,9 @@ EN = {
     "Về mặc định (Ctrl+Space)": "Reset to default (Ctrl+Space)",
     "Tắt": "Off",
     "Nhớ Việt/Anh theo từng app": "Remember Vietnamese/English per app",
+    "Phát tiếng khi đổi Việt/Anh": "Play a sound when switching Vietnamese/English",
+    "Tiếng đi lên là tiếng Việt, đi xuống là tiếng Anh. Chỉ khi bạn tự đổi.":
+        "A rising tone means Vietnamese, a falling one English. Only when you switch.",
     "Mỗi app giữ Việt/Anh riêng: gõ tiếng Anh ở terminal không làm mất tiếng Việt ở app khác.":
         "Each app keeps its own Vietnamese/English: English in a terminal, Vietnamese elsewhere.",
     "App mới mở bắt đầu bằng tiếng Việt": "New apps start in Vietnamese",

@@ -161,6 +161,7 @@ final class SettingsModel: ObservableObject {
     @Published var englishByFrequency: Bool { didSet { AppState.shared.englishByFrequency = englishByFrequency } }
     @Published var collisionPrefersVietnamese: Bool { didSet { AppState.shared.collisionPrefersVietnamese = collisionPrefersVietnamese } }
     @Published var stickyInputSource: Bool { didSet { AppState.shared.stickyInputSource = stickyInputSource } }
+    @Published var switchSound: Bool { didSet { AppState.shared.switchSound = switchSound } }
     @Published var switchHotkey: String { didSet { AppState.shared.switchHotkey = switchHotkey } }
     @Published var textToolsInMenu: Bool { didSet { AppState.shared.textToolsInMenu = textToolsInMenu } }
     /// Công cụ → Dịch: ngôn ngữ đích (TranslatePrefs; chỉ hiện trên macOS 26+).
@@ -269,6 +270,7 @@ final class SettingsModel: ObservableObject {
         englishByFrequency = AppState.shared.englishByFrequency
         collisionPrefersVietnamese = AppState.shared.collisionPrefersVietnamese
         stickyInputSource = AppState.shared.stickyInputSource
+        switchSound = AppState.shared.switchSound
         switchHotkey = AppState.shared.switchHotkey
         textToolsInMenu = AppState.shared.textToolsInMenu
         translateTarget = AppState.shared.translateTarget
@@ -892,6 +894,7 @@ struct TypingTab: View {
         static let frequency = "At the start, “his” stays English, not “hí”; switches back if the sentence is Vietnamese."
         static let hotkey = "Press and release just these keys to switch input source. Needs {PANE} permission."
         static let sticky = "When macOS switches input source on a new field (e.g. Word comments), switch back."
+        static let switchSound = "A rising tone means VietTelex, a falling one another keyboard. Only when you switch. Needs Accessibility."
         static let osShortcut = "Set in macOS Keyboard Shortcuts → Input Sources."
         static let liveSpell = "Stop adding tones once a word can’t be Vietnamese (google, github)."
         /// Thay cả nhóm "Gõ lẫn tiếng Anh" khi chọn VNI (spec §1) — cùng chữ iOS/Android.
@@ -1155,6 +1158,8 @@ struct TypingTab: View {
                 if switchAdvancedOpen {
                     toggleRow("Keep VietTelex when macOS auto-switches the input source",
                               isOn: $model.stickyInputSource, caption: C.sticky)
+                    toggleRow("Play a sound when switching Vietnamese/English",
+                              isOn: $model.switchSound, caption: C.switchSound)
                     HStack {
                         rowLabel("macOS input source shortcut", model.loc(C.osShortcut))
                         Spacer()

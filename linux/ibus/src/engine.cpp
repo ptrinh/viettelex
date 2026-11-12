@@ -26,6 +26,7 @@
 #include "viettelex/gnome_monitor.h"
 #include "viettelex/session.h"
 #include "viettelex/settings.h"
+#include "viettelex/switch_sound.h"
 #include "viettelex/surrounding_cache.h"
 #include "viettelex/text_tools.h"
 #include "viettelex/watcher.h"
@@ -319,6 +320,7 @@ void refreshPropLabels(VtIBusEngine *self) {
 void onToggled(VtIBusEngine *self, bool vi) {
     if (settings().perAppState && self->rememberState) G().appState->set(*self->appId, vi);
     updateModeProp(self);
+    if (settings().switchSound) vt::playSwitchSound(vi);  // the user switched (hotkey / menu)
 }
 
 void refreshFieldFlags(VtIBusEngine *self) {

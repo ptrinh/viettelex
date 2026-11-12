@@ -57,6 +57,8 @@ struct Settings {
     bool terminalDirect = true;     // terminals on ordered hosts: Direct instead of Preedit
     std::string toggleHotkey = "Ctrl+space";
     bool perAppState = true;
+    // "Phát tiếng khi đổi Việt/Anh" (switch_sound, default OFF): switch_sound.h.
+    bool switchSound = false;
     bool defaultVietnamese = true;
     // UI language of the IM menu + settings app: "vi" (DEFAULT, whatever the system locale
     // is) | "en". Anything else reads as "vi".

@@ -21,6 +21,7 @@
 //   --set-profile-icon <choice>  (elevated) set the keyboard profile icon, then exit
 #include <windows.h>
 #include <commctrl.h>
+#include <mmsystem.h>
 #include <shellapi.h>
 #include <shlobj.h>
 
@@ -42,6 +43,7 @@
 #include "game_mode.h"
 #include "input_switch.h"
 #include "onboarding.h"
+#include "switch_sound.h"
 #include "switch_toast.h"
 #include "hook_fallback.h"
 #include "idle_trim.h"
@@ -76,6 +78,15 @@ namespace {
 constexpr wchar_t kAppWindowClass[] = L"VietTelexAppWindow";
 constexpr UINT kAppCommandMsg = WM_APP + 0x56;
 constexpr UINT kTrayMsg = WM_APP + 0x57;
+// Setting switchSound: a rising tone for Việt, a falling one for Anh, for a switch the USER
+// made (hotkey, tray click) — never for a per-app change on focus. Async, from memory.
+static void playSwitchSound(bool vietnamese) {
+    if (!vtx::playsSwitchSound(g_settings.switchSound, gameSuspendedNow())) return;
+    static const std::vector<uint8_t> vi = vtx::switchSoundWav(true), en = vtx::switchSoundWav(false);
+    PlaySoundW(reinterpret_cast<LPCWSTR>((vietnamese ? vi : en).data()), nullptr,
+               SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
+}
+
 static_assert(kAppCommandMsg == kAppCommand && kTrayMsg == kTrayCallback, "app_messages.h is the list");
 constexpr UINT kTrayId = 1;
 UINT g_taskbarCreated = 0;
@@ -396,6 +407,7 @@ void trayLeftClick() {
                         currentNotificationState()) &&
         g_trayState != vtx::TrayState::Off)
         toastShow(g_stateVietnamese ? L"V" : L"E");
+    if (g_trayState != vtx::TrayState::Off) playSwitchSound(g_stateVietnamese);
 }
 
 // Tray "Thoát VietTelex" (§5): installed -> the session goes back to the keyboard used
@@ -438,6 +450,7 @@ void portableChord() {
     if (showSwitchToast(parseSwitchIndicator(g_settings.switchIndicator), g_trayShown, gameSuspendedNow(),
                         currentNotificationState()))
         toastShow(on ? L"V" : L"E");
+    playSwitchSound(on);
 }
 
 // In-TIP Việt/Anh switch (Ctrl+Shift, Alt+Z): store it for hosts that cannot (bit 1:
@@ -463,6 +476,7 @@ void runCommand(unsigned cmd, LPARAM lp = 0) {
             if (showSwitchToast(parseSwitchIndicator(g_settings.switchIndicator), g_trayShown, gameSuspendedNow(),
                                 currentNotificationState()))
                 toastShow(lp ? L"V" : L"E");
+            playSwitchSound(lp != 0);
             break;
         case AppCommand::DirectMode:
             hookSetDirectFromTip((lp & kDirectOn) != 0, (lp & kDirectAdoptTyped) != 0);
@@ -597,6 +611,7 @@ LRESULT CALLBACK mainProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                 if (showSwitchToast(parseSwitchIndicator(g_settings.switchIndicator), g_trayShown, gameSuspendedNow(),
                                     currentNotificationState()))
                     toastShow(L"V");
+                playSwitchSound(true);
             }
             return 0;
         // Restart Manager / logoff / an upgrade closing us: agree, then exit cleanly
