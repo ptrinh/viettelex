@@ -2132,7 +2132,10 @@ class KeyboardView(
         ptrKey[pid]?.let { hideBalloon(it) }
         ptrKey[pid] = null
         val p = swipePath
-        swipeSound?.end()
+        swipeSound?.let { s ->
+            if (cancelled || p == null) s.end()   // huỷ: không có tiếng nhấc tay
+            else { s.move(x / d, (y - yOffPx) / d, t); s.end(liftAtMs = t) }
+        }
         if (cancelled || p == null) {
             trail?.end(fade = false)
             listener?.onSwipeTypingCancel()

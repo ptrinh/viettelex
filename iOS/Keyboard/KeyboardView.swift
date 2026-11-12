@@ -7583,7 +7583,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         swipeTouchID = nil
         classifier = nil
         trail?.fadeOut(reduceMotion: false)   // Giảm chuyển động KHÔNG tắt hiệu ứng (Phil 11/2026)
-        Self.swipeSound?.end()
+        if let ss = Self.swipeSound {          // điểm nhấc tay vào đo tốc độ, rồi tiếng nhấc tay (kiểu có)
+            ss.move(x: Double(p.x), y: Double(p.y), t: time)
+            ss.end(liftAt: time)
+        }
         if shift == .on { shift = .off; applyShiftAppearance() }
         #if DEBUG
         debugSwipeUps += 1

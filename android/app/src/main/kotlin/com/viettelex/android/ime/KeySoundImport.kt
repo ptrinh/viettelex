@@ -13,6 +13,7 @@ import android.provider.OpenableColumns
 import com.viettelex.keyboard.KeySoundCustom
 import com.viettelex.keyboard.KeySoundStyle
 import com.viettelex.keyboard.KeySoundSynth
+import com.viettelex.keyboard.SwipeSoundCustom
 import java.io.File
 import java.nio.ByteOrder
 
@@ -129,6 +130,36 @@ object KeySoundImport {
 }
 
 /**
+ * "Âm thanh nét vuốt" → "Âm của bạn": cùng đường nhập với âm phím tự chọn ([KeySoundImport.decode], cùng lỗi), xử lý
+ * thành vòng lặp ([SwipeSoundCustom.process]: 22,05 kHz mono, ≤ 3 s, nối vòng, đỉnh như vòng tổng hợp) → WAV ở
+ * noBackupFilesDir ([SwipeSoundPlayer.customFile]). Chỉ trên máy: không tải lên, KHÔNG vào Auto Backup / file sao lưu.
+ */
+object SwipeSoundImport {
+    fun importUri(ctx: Context, uri: Uri, dest: File = SwipeSoundPlayer.customFile(ctx)): KeySoundImport.Outcome {
+        val size = runCatching {
+            ctx.contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { c ->
+                if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else null
+            }
+        }.getOrNull()
+        if (size != null && size > KeySoundImport.MAX_BYTES) throw KeySoundImport.ImportException(KeySoundImport.Failure.TOO_LARGE)
+        val (mono, rate) = runCatching { KeySoundImport.decode(ctx, uri) }.getOrNull()
+            ?: throw KeySoundImport.ImportException(KeySoundImport.Failure.UNREADABLE)
+        if (mono.isEmpty()) throw KeySoundImport.ImportException(KeySoundImport.Failure.UNREADABLE)
+        val r = try { SwipeSoundCustom.process(mono, rate) } catch (_: SwipeSoundCustom.Failure) {
+            throw KeySoundImport.ImportException(KeySoundImport.Failure.SILENT)
+        }
+        KeySoundImport.write(dest, KeySoundSynth.wav(r.samples, KeySoundSynth.SWIPE_SAMPLE_RATE))
+        return KeySoundImport.Outcome(r.samples.size / KeySoundSynth.SWIPE_SAMPLE_RATE.toDouble(), r.truncated)
+    }
+
+    fun remove(ctx: Context) { SwipeSoundPlayer.customFile(ctx).delete() }
+
+    /** Độ dài (s) vòng lặp đang lưu; null ⇒ chưa có / hỏng. */
+    fun storedDuration(ctx: Context): Double? =
+        SwipeSoundCustom.load(SwipeSoundPlayer.customFile(ctx))?.let { it.size / KeySoundSynth.SWIPE_SAMPLE_RATE.toDouble() }
+}
+
+/**
  * Nghe/rung thử trong app — cùng mẫu + cùng đường cong âm lượng + cùng [KeyVibrator] như bàn
  * phím. Âm: AudioTrack tĩnh (USAGE_ASSISTANCE_SONIFICATION như SoundPool của IME) và IM khi
  * máy để Rung/Im lặng — cố ý giống bàn phím (nghe thử phải đúng cảm giác lúc gõ); chú thích
@@ -185,10 +216,15 @@ class KeyFeedbackPreview(ctx: Context) {
     fun playSwipe(style: com.viettelex.keyboard.SwipeSoundStyle, volume: Int) {
         if (style == com.viettelex.keyboard.SwipeSoundStyle.NONE) { runCatching { track?.stop() }; return }
         if (runCatching { audio.ringerMode != AudioManager.RINGER_MODE_NORMAL }.getOrDefault(false)) return
-        val key = "swipe/" + style.id
+        // Âm của bạn: khoá theo ngày sửa + cỡ file (vừa đổi file ⇒ dựng lại); vắng/hỏng ⇒ Bút chì như IME.
+        val custom = SwipeSoundPlayer.customFile(appCtx)
+        val isCustom = style == com.viettelex.keyboard.SwipeSoundStyle.CUSTOM
+        val key = if (isCustom) "swipe/custom@${custom.lastModified()}#${custom.length()}" else "swipe/" + style.id
         if (key != trackKey || track == null) {
             release()
-            track = staticTrack(KeySoundSynth.swipePreviewSamples(style), KeySoundSynth.SWIPE_SAMPLE_RATE)
+            val samples = if (isCustom) KeySoundSynth.swipePreview(SwipeSoundCustom.resolvedLoop(SwipeSoundCustom.load(custom)))
+                else KeySoundSynth.swipePreviewSamples(style)
+            track = staticTrack(samples, KeySoundSynth.SWIPE_SAMPLE_RATE)
             trackKey = key
         }
         replay(volume)

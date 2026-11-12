@@ -1,12 +1,17 @@
 package com.viettelex.keyboard
 
+import java.io.File
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlin.math.sin
 import org.junit.After
 import org.junit.Before
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -28,14 +33,22 @@ class SwipeSoundTests {
     }
 
     @Test fun idsTitlesAndDefaults() {
-        assertEquals(listOf("none", "pencil", "brush", "chalk", "marker"), SwipeSoundStyle.entries.map { it.id })
+        assertEquals(listOf("none", "pencil", "brush", "chalk", "marker", "whip", "lightning", "plasma", "wand", "custom"),
+            SwipeSoundStyle.entries.map { it.id })
         assertEquals(SwipeSoundStyle.NONE, SwipeSoundStyle.DEFAULT)
         assertEquals(SwipeSoundStyle.NONE, SwipeSoundStyle.of(null))
         assertEquals(SwipeSoundStyle.NONE, SwipeSoundStyle.of("loud"))
         assertEquals(SwipeSoundStyle.CHALK, SwipeSoundStyle.of("chalk"))
         assertEquals("swipeSound", Keys.SWIPE_SOUND)
-        assertEquals(listOf(false, false, true, true, true), SwipeSoundStyle.entries.map { it.isPlus })
-        assertEquals(listOf("Tắt", "Bút chì", "Chổi lông", "Phấn bảng", "Bút dạ"), SwipeSoundStyle.entries.map { it.viTitle })
+        assertEquals(listOf(false, false, true, true, true, true, true, true, true, true), SwipeSoundStyle.entries.map { it.isPlus })
+        assertEquals(listOf("Tắt", "Bút chì", "Chổi lông", "Phấn bảng", "Bút dạ", "Roi vụt", "Tia sét", "Plasma", "Đũa phép", "Âm của bạn"),
+            SwipeSoundStyle.entries.map { it.viTitle })
+        assertEquals(listOf(SwipeSoundStyle.WHIP, SwipeSoundStyle.LIGHTNING, SwipeSoundStyle.PLASMA, SwipeSoundStyle.WAND),
+            SwipeSoundStyle.entries.filter { it.hasLift })
+        assertEquals(8, SwipeSoundStyle.SYNTHESIZED.size)
+        assertFalse(SwipeSoundStyle.CUSTOM in SwipeSoundStyle.SYNTHESIZED)
+        assertEquals(SwipeSoundStyle.WAND, SwipeSoundStyle.of("wand"))
+        assertEquals(SwipeSoundStyle.CUSTOM, SwipeSoundStyle.of("custom"))
         for (s in SwipeSoundStyle.entries) assertTrue(L10nTable.EN.containsKey(s.viTitle), s.viTitle)
     }
 
@@ -44,7 +57,8 @@ class SwipeSoundTests {
         assertEquals(SwipeSoundStyle.NONE, KeyboardSettings.load { null }.swipeSound)
         assertEquals(SwipeSoundStyle.BRUSH, KeyboardSettings.load { if (it == Keys.SWIPE_SOUND) "brush" else null }.swipeSound)
         val spec = BackupSettings.all.first { it.key == Keys.SWIPE_SOUND }
-        assertEquals(SettingKind.Choice("none", setOf("none", "pencil", "brush", "chalk", "marker")), spec.kind)
+        assertEquals(SettingKind.Choice("none", setOf("none", "pencil", "brush", "chalk", "marker", "whip", "lightning", "plasma",
+            "wand", "custom")), spec.kind)
     }
 
     @Test fun plusGateAndPolicy() {
@@ -59,10 +73,16 @@ class SwipeSoundTests {
         assertEquals(SwipeSoundStyle.PENCIL, p.active(SwipeSoundStyle.BRUSH, plus = false, powerSave = false, volumePercent = 50))
         assertEquals(SwipeSoundStyle.PENCIL, p.active(SwipeSoundStyle.CHALK, plus = true, powerSave = true, volumePercent = 50))
         assertEquals(SwipeSoundStyle.MARKER, p.active(SwipeSoundStyle.MARKER, plus = true, powerSave = false, volumePercent = 1))
+        for (s in listOf(SwipeSoundStyle.WHIP, SwipeSoundStyle.LIGHTNING, SwipeSoundStyle.PLASMA, SwipeSoundStyle.WAND, SwipeSoundStyle.CUSTOM)) {
+            assertEquals(SwipeSoundStyle.PENCIL, p.active(s, plus = false, powerSave = false, volumePercent = 50), "${s.id} cần Plus")
+            assertEquals(s, p.active(s, plus = true, powerSave = false, volumePercent = 50))
+            assertEquals(SwipeSoundStyle.PENCIL, SwipeSoundStyle.displayed(s.id, plus = false))
+        }
         // Cổng = cổng Hiệu ứng nét vuốt.
         plus(false)
         assertFalse(SwipeSoundGate.allows); assertTrue(SwipeSoundGate.allows(SwipeSoundStyle.PENCIL))
         assertFalse(SwipeSoundGate.allows(SwipeSoundStyle.CHALK))
+        assertFalse(SwipeSoundGate.allows(SwipeSoundStyle.WHIP)); assertFalse(SwipeSoundGate.allows(SwipeSoundStyle.CUSTOM))
         plus(true)
         assertEquals(SwipeTrailGate.allows, SwipeSoundGate.allows); assertTrue(SwipeSoundGate.allows(SwipeSoundStyle.CHALK))
     }
@@ -131,8 +151,10 @@ class SwipeSoundTests {
         val sr = KeySoundSynth.SWIPE_SAMPLE_RATE.toDouble()
         assertEquals(0, KeySoundSynth.swipeLoopSamples(SwipeSoundStyle.NONE).size)
         assertEquals(0, KeySoundSynth.swipePreviewSamples(SwipeSoundStyle.NONE).size)
+        assertTrue(KeySoundSynth.swipeLoopSamples(SwipeSoundStyle.CUSTOM).contentEquals(KeySoundSynth.swipeLoopSamples(SwipeSoundStyle.PENCIL)),
+            "Âm của bạn: dự phòng Bút chì")
         val sums = ArrayList<String>()
-        for (s in SwipeSoundStyle.entries.drop(1)) {
+        for (s in SwipeSoundStyle.SYNTHESIZED) {
             val x = KeySoundSynth.swipeLoopSamples(s)
             assertTrue(x.contentEquals(KeySoundSynth.swipeLoopSamples(s)), "tất định ${s.id}")
             assertEquals((KeySoundSynth.swipeLoopSeconds(s) * sr).roundToInt(), x.size)
@@ -155,18 +177,130 @@ class SwipeSoundTests {
             sums += "${s.id}=" + "%.4f".format(sum)
             println("SWIPE-SOUND-GOLDEN ${s.id}=" + "%.4f".format(sum))
         }
-        for (s in SwipeSoundStyle.entries.drop(1)) {
+        for (s in SwipeSoundStyle.SYNTHESIZED) {
             val sum = KeySoundSynth.swipeLoopSamples(s).sumOf { abs(it).toDouble() }
             assertEquals(GOLDEN.getValue(s), sum, 0.01, "checksum chung iOS: ${s.id}")
         }
         // Âm sắc: Bút chì sáng nhất, Chổi lông trầm nhất (trọng tâm phổ, khung 2048 mẫu).
         fun centroid(s: SwipeSoundStyle) = KeySoundSynth.spectralCentroid(KeySoundSynth.swipeLoopSamples(s).copyOfRange(4000, 6048), sr)
-        val c = SwipeSoundStyle.entries.drop(1).associateWith { centroid(it) }
+        val c = SwipeSoundStyle.SYNTHESIZED.associateWith { centroid(it) }
         println("SWIPE-SOUND-CENTROID $c")
         assertTrue(c.getValue(SwipeSoundStyle.BRUSH) < 2600, "chổi lông trầm-trung")
         assertTrue(c.getValue(SwipeSoundStyle.PENCIL) > c.getValue(SwipeSoundStyle.MARKER))
         assertTrue(c.getValue(SwipeSoundStyle.PENCIL) > c.getValue(SwipeSoundStyle.BRUSH))
         assertTrue(c.getValue(SwipeSoundStyle.CHALK) > c.getValue(SwipeSoundStyle.BRUSH))
+        assertTrue(c.getValue(SwipeSoundStyle.WHIP) > c.getValue(SwipeSoundStyle.BRUSH) + 1000, "roi vụt sáng/gió hơn chổi lông")
+        assertTrue(c.getValue(SwipeSoundStyle.PLASMA) < c.getValue(SwipeSoundStyle.WHIP), "plasma ù trầm")
+    }
+
+    @Test fun layerAndLiftSamples() {
+        val sr = KeySoundSynth.SWIPE_SAMPLE_RATE.toDouble()
+        for (s in SwipeSoundStyle.entries) if (s != SwipeSoundStyle.WAND) assertEquals(0, KeySoundSynth.swipeLayerSamples(s).size, s.id)
+        val layer = KeySoundSynth.swipeLayerSamples(SwipeSoundStyle.WAND)
+        assertTrue(layer.contentEquals(KeySoundSynth.swipeLayerSamples(SwipeSoundStyle.WAND)))
+        assertEquals(KeySoundSynth.swipeLoopSamples(SwipeSoundStyle.WAND).size, layer.size)
+        assertEquals(KeySoundSynth.SWIPE_LAYER_PEAK, layer.maxOf { abs(it) }.toDouble(), 1e-6)
+        val lsum = layer.sumOf { abs(it).toDouble() }
+        println("SWIPE-LAYER-GOLDEN wand=" + "%.4f".format(lsum))
+        assertEquals(LAYER_GOLDEN, lsum, 0.01)
+        for (s in SwipeSoundStyle.entries) if (!s.hasLift) assertEquals(0, KeySoundSynth.swipeLiftSamples(s).size, s.id)
+        for (s in SwipeSoundStyle.entries.filter { it.hasLift }) {
+            val x = KeySoundSynth.swipeLiftSamples(s)
+            assertTrue(x.contentEquals(KeySoundSynth.swipeLiftSamples(s)), "tất định ${s.id}")
+            assertTrue(x.size in (0.12 * sr).toInt()..(0.35 * sr).toInt(), "ngắn: ${s.id} ${x.size}")
+            val peak = x.maxOf { abs(it) }.toDouble()
+            assertTrue(peak <= 0.55 + 1e-6 && peak > 0.3, "đỉnh ${s.id}: $peak")
+            assertTrue(abs(x[x.size - 1]) < 1e-3, "đóng mềm ${s.id}")
+            val sum = x.sumOf { abs(it).toDouble() }
+            println("SWIPE-LIFT-GOLDEN ${s.id}=" + "%.4f".format(sum))
+            assertEquals(LIFT_GOLDEN.getValue(s), sum, 0.01, "checksum chung iOS: ${s.id}")
+        }
+        // Roi vụt: "chát" — đỉnh trong 10 ms đầu, đuôi nhiễu ngắn, dài 120–200 ms.
+        val crack = KeySoundSynth.swipeLiftSamples(SwipeSoundStyle.WHIP)
+        assertTrue(crack.size in (0.12 * sr).toInt()..(0.2 * sr).toInt())
+        val iPeak = crack.indices.maxByOrNull { abs(crack[it]) } ?: 0
+        assertTrue(iPeak < (0.01 * sr).toInt(), "đỉnh ở đầu")
+        val w = (0.02 * sr).toInt(); val tail = (0.05 * sr).toInt()
+        assertTrue(KeySoundSynth.rms(crack.copyOfRange(0, w)) > 5 * KeySoundSynth.rms(crack.copyOfRange(crack.size - tail, crack.size)))
+        val zw = KeySoundSynth.swipeLiftSamples(SwipeSoundStyle.PLASMA); val h = zw.size / 2
+        assertTrue(KeySoundSynth.spectralCentroid(zw.copyOfRange(h, zw.size), sr) > KeySoundSynth.spectralCentroid(zw.copyOfRange(0, h), sr),
+            "plasma víu đi lên")
+    }
+
+    @Test fun liftGainFollowsLastWindowSpeed() {
+        val f = SwipeSoundFx
+        assertEquals(0.0, f.liftGain(0.0), 0.0)
+        assertEquals(0.0, f.liftGain(f.LIFT_MIN), 0.0, "gần như đứng yên ⇒ không kêu")
+        assertEquals(1.0, f.liftGain(f.SPEED_FULL), 1e-12)
+        assertEquals(1.0, f.liftGain(9000.0), 0.0)
+        assertEquals(0.527046, f.liftGain(525.0), 1e-6)   // số tham chiếu chung iOS
+        val m = SwipeSoundMeter()
+        m.reset(0.0, 0.0, 0.0)
+        var t = 0.0; var x = 0.0
+        repeat(60) { t += 1.0 / 120; x += 8.0; m.move(x, 0.0, t) }   // 960 dp/s
+        assertEquals(960.0, m.recentSpeed(t), 960 * 0.15, "nhấc ngay: ~tốc độ 80 ms cuối")
+        assertEquals(0.0, m.recentSpeed(t + 0.1), 0.0, "dừng 100 ms rồi mới nhấc ⇒ 0")
+        repeat(12) { t += 1.0 / 120; x += 0.5; m.move(x, 0.0, t) }
+        assertTrue(m.recentSpeed(t) < 100)
+        assertEquals(0.0, f.liftGain(m.recentSpeed(t)), 0.0)
+        val n = SwipeSoundMeter()
+        n.reset(0.0, 0.0, 0.0)
+        var tt = 0.0
+        for (i in 1..120) { tt = i / 240.0; n.move(i * 5.0, 0.0, tt) }   // 1200 dp/s, vòng đệm đầy
+        assertEquals(1200.0, n.recentSpeed(tt), 1200 * 0.1)
+        n.reset(0.0, 0.0, tt)
+        assertEquals(0.0, n.recentSpeed(tt), 0.0)
+    }
+
+    private fun sine(seconds: Double, rate: Double, freq: Double = 440.0, amp: Float = 0.9f, lead: Double = 0.0): FloatArray =
+        FloatArray(((seconds + lead) * rate).toInt()) { i ->
+            val t = i / rate - lead
+            if (t < 0) 0f else amp * sin(2 * PI * freq * t).toFloat()
+        }
+
+    @Test fun customProcessTrimsNormalisesAndLoopsSeamlessly() {
+        val sr = KeySoundSynth.SWIPE_SAMPLE_RATE.toDouble()
+        val long = SwipeSoundCustom.process(sine(5.0, 44_100.0, lead = 0.3), 44_100.0)
+        assertTrue(long.truncated)
+        assertEquals((SwipeSoundCustom.MAX_DURATION * sr).toInt(), long.samples.size, "đúng 3 s")
+        assertEquals(SwipeSoundCustom.TARGET_PEAK.toDouble(), long.samples.maxOf { abs(it) }.toDouble(), 1e-4)
+        assertEquals(KeySoundSynth.swipePeak(SwipeSoundStyle.PENCIL), SwipeSoundCustom.TARGET_PEAK.toDouble(), 1e-6)
+        assertTrue(KeySoundSynth.rms(long.samples.copyOfRange(0, (0.05 * sr).toInt())) > 0.1, "lặng đầu đã bỏ")
+        for (r in listOf(long.samples, SwipeSoundCustom.process(sine(1.5, 48_000.0, freq = 523.0), 48_000.0).samples)) {
+            var maxStep = 0f
+            for (i in 1 until r.size) maxStep = maxOf(maxStep, abs(r[i] - r[i - 1]))
+            assertTrue(abs(r[0] - r[r.size - 1]) <= maxStep * 1.05f, "nối vòng không tách")
+        }
+        val mid = SwipeSoundCustom.process(sine(1.5, sr), sr)
+        assertFalse(mid.truncated)
+        assertTrue(abs((1.5 * sr).toInt() - (KeySoundSynth.SWIPE_CROSSFADE * sr).roundToInt() - mid.samples.size) <= 2)
+        val short = SwipeSoundCustom.process(sine(0.1, sr), sr)
+        assertTrue(short.samples.size >= (SwipeSoundCustom.MIN_LOOP * sr).toInt())
+        assertTrue(short.samples.size <= (SwipeSoundCustom.MAX_DURATION * sr).toInt())
+        assertFailsWith<SwipeSoundCustom.Failure> { SwipeSoundCustom.process(FloatArray(0), sr) }
+        assertFailsWith<SwipeSoundCustom.Failure> { SwipeSoundCustom.process(FloatArray(5000), sr) }
+    }
+
+    @Test fun customLoadFallback() {
+        val dir = java.nio.file.Files.createTempDirectory("ss").toFile()
+        try {
+            val f = File(dir, SwipeSoundCustom.FILE_NAME)
+            assertNull(SwipeSoundCustom.load(null))
+            assertNull(SwipeSoundCustom.load(f), "vắng")
+            assertTrue(SwipeSoundCustom.resolvedLoop(SwipeSoundCustom.load(f)).contentEquals(KeySoundSynth.swipeLoopSamples(SwipeSoundStyle.PENCIL)))
+            f.writeText("not a wav")
+            assertNull(SwipeSoundCustom.load(f), "hỏng")
+            val sr = KeySoundSynth.SWIPE_SAMPLE_RATE
+            f.writeBytes(KeySoundSynth.wav(sine(4.0, sr.toDouble()), sr))
+            assertNull(SwipeSoundCustom.load(f), "quá dài ⇒ không tin")
+            val loop = SwipeSoundCustom.process(sine(4.0, 48_000.0, lead = 0.25), 48_000.0).samples
+            f.writeBytes(KeySoundSynth.wav(loop, sr))
+            val back = SwipeSoundCustom.load(f)!!
+            assertEquals(loop.size, back.size)
+            assertEquals(SwipeSoundCustom.TARGET_PEAK.toDouble(), back.maxOf { abs(it) }.toDouble(), 2e-3)
+            assertTrue(SwipeSoundCustom.resolvedLoop(back).contentEquals(back))
+            assertEquals((KeySoundSynth.SWIPE_PREVIEW * sr).roundToInt(), KeySoundSynth.swipePreview(back).size)
+        } finally { dir.deleteRecursively() }
     }
 
     @Test fun previewFollowsDemoSwipeAndFadesOut() {
@@ -174,15 +308,23 @@ class SwipeSoundTests {
         assertEquals(0.0, KeySoundSynth.swipeDemoSpeed(0.0), 0.0)
         assertEquals(0.0, KeySoundSynth.swipeDemoSpeed(KeySoundSynth.SWIPE_PREVIEW_LIFT), 0.0)
         assertEquals(675.0, KeySoundSynth.swipeDemoSpeed(KeySoundSynth.SWIPE_PREVIEW_LIFT / 2), 1e-9)   // giữa nét: chậm lại ở phím
-        for (s in SwipeSoundStyle.entries.drop(1)) {
+        for (s in SwipeSoundStyle.SYNTHESIZED) {
             val p = KeySoundSynth.swipePreviewSamples(s)
-            assertEquals((KeySoundSynth.SWIPE_PREVIEW * sr).toInt(), p.size)
+            val shot = KeySoundSynth.swipeLiftSamples(s)
+            val liftAt = (KeySoundSynth.SWIPE_PREVIEW_LIFT * sr).roundToInt()
+            assertEquals(maxOf((KeySoundSynth.SWIPE_PREVIEW * sr).toInt(), liftAt + shot.size), p.size)
             assertTrue(p.contentEquals(KeySoundSynth.swipePreviewSamples(s)))
             val lift = (KeySoundSynth.SWIPE_PREVIEW_LIFT * sr).toInt()
             val fadeEnd = lift + (SwipeSoundFx.FADE_OUT * sr).toInt() + 2
-            for (i in fadeEnd until p.size) assertEquals(0.0, abs(p[i]).toDouble(), 0.0, "im sau khi tắt dần (${s.id})")
+            for (i in fadeEnd until p.size) {
+                val k = i - liftAt
+                val want = if (k < shot.size) (shot[k].toDouble() * SwipeSoundFx.PREVIEW_LIFT_GAIN).toFloat() else 0f
+                assertEquals(want.toDouble(), p[i].toDouble(), 0.0, "sau tắt dần chỉ còn tiếng nhấc tay (${s.id})")
+            }
             assertTrue(abs(p[0]) < 1e-3, "mở từ 0")
-            assertTrue(p.maxOf { abs(it) } <= KeySoundSynth.swipePeak(s) + 1e-6)
+            val cap = KeySoundSynth.swipePeak(s) + (if (s == SwipeSoundStyle.WAND) KeySoundSynth.SWIPE_LAYER_PEAK else 0.0) +
+                (shot.maxOfOrNull { abs(it) }?.toDouble() ?: 0.0) * SwipeSoundFx.PREVIEW_LIFT_GAIN
+            assertTrue(p.maxOf { abs(it) } <= cap + 1e-6)
             val sum = p.sumOf { abs(it).toDouble() }
             println("SWIPE-PREVIEW-GOLDEN ${s.id}=" + "%.4f".format(sum))
             assertEquals(PREVIEW_GOLDEN.getValue(s), sum, 0.01)
@@ -195,12 +337,27 @@ class SwipeSoundTests {
             SwipeSoundStyle.BRUSH to 1786.0301,
             SwipeSoundStyle.CHALK to 932.4742,
             SwipeSoundStyle.MARKER to 1379.6404,
+            SwipeSoundStyle.WHIP to 1272.6721,
+            SwipeSoundStyle.LIGHTNING to 878.1293,
+            SwipeSoundStyle.PLASMA to 1586.8690,
+            SwipeSoundStyle.WAND to 1352.8294,
         )
         val PREVIEW_GOLDEN = mapOf(
             SwipeSoundStyle.PENCIL to 593.6883,
             SwipeSoundStyle.BRUSH to 842.1863,
             SwipeSoundStyle.CHALK to 364.0651,
             SwipeSoundStyle.MARKER to 786.1841,
+            SwipeSoundStyle.WHIP to 786.1677,
+            SwipeSoundStyle.LIGHTNING to 579.4536,
+            SwipeSoundStyle.PLASMA to 1061.6143,
+            SwipeSoundStyle.WAND to 1066.6231,
         )
+        val LIFT_GOLDEN = mapOf(
+            SwipeSoundStyle.WHIP to 94.7710,
+            SwipeSoundStyle.LIGHTNING to 239.0145,
+            SwipeSoundStyle.PLASMA to 434.8444,
+            SwipeSoundStyle.WAND to 581.7851,
+        )
+        const val LAYER_GOLDEN = 906.3455
     }
 }

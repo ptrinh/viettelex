@@ -74,6 +74,36 @@ enum KeySoundImport {
     }
 }
 
+/// "Âm thanh nét vuốt" → "Âm của bạn": cùng đường nhập với âm phím tự chọn (giải mã KeySoundImport.decode, cùng lỗi), xử lý
+/// thành vòng lặp (SwipeSoundCustom.process: 22,05 kHz mono, ≤ 3 s, nối vòng, đỉnh như vòng tổng hợp) → WAV trong App Group.
+/// Chỉ trên máy: không tải lên, KHÔNG vào file sao lưu (như âm phím tự chọn).
+enum SwipeSoundImport {
+    @discardableResult
+    static func importFile(_ src: URL, to dest: URL? = SwipeSoundCustom.fileURL) throws -> KeySoundImport.Outcome {
+        guard let dest else { throw KeySoundImport.Failure.noStorage }
+        let scoped = src.startAccessingSecurityScopedResource()
+        defer { if scoped { src.stopAccessingSecurityScopedResource() } }
+        if let size = (try? src.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size > KeySoundImport.maxBytes {
+            throw KeySoundImport.Failure.tooLarge
+        }
+        let (mono, rate) = try KeySoundImport.decode(src)
+        let r: SwipeSoundCustom.Result
+        do { r = try SwipeSoundCustom.process(mono, sampleRate: rate) } catch { throw KeySoundImport.Failure.silent }
+        try KeySoundSynth.wav(r.samples, sampleRate: Int(KeySoundSynth.swipeSampleRate)).write(to: dest, options: .atomic)
+        return KeySoundImport.Outcome(duration: Double(r.samples.count) / KeySoundSynth.swipeSampleRate, truncated: r.truncated)
+    }
+
+    static func remove(_ dest: URL? = SwipeSoundCustom.fileURL) {
+        guard let dest else { return }
+        try? FileManager.default.removeItem(at: dest)
+    }
+
+    /// Độ dài (s) vòng lặp đang lưu; nil ⇒ chưa có / hỏng.
+    static func storedDuration(_ url: URL? = SwipeSoundCustom.fileURL) -> Double? {
+        SwipeSoundCustom.load(url).map { Double($0.count) / KeySoundSynth.swipeSampleRate }
+    }
+}
+
 /// Nghe thử âm phím / rung thử trong app.
 final class KeyFeedbackPreview {
     static let shared = KeyFeedbackPreview()
@@ -138,10 +168,13 @@ final class KeyFeedbackPreview {
             try? session.setActive(true)
             sessionReady = true
         }
-        let key = "swipe/" + s.rawValue
+        // Âm của bạn: dựng lại mỗi lần (file có thể vừa đổi); vắng/hỏng ⇒ Bút chì như bàn phím.
+        let key = s == .custom ? "swipe/custom/\(UUID())" : "swipe/" + s.rawValue
         if key != playerKey || player == nil {
-            player = try? AVAudioPlayer(data: KeySoundSynth.wav(KeySoundSynth.swipePreviewSamples(s),
-                                                               sampleRate: Int(KeySoundSynth.swipeSampleRate)))
+            let samples = s == .custom
+                ? KeySoundSynth.swipePreview(loop: SwipeSoundCustom.resolvedLoop(SwipeSoundCustom.load(SwipeSoundCustom.fileURL)))
+                : KeySoundSynth.swipePreviewSamples(s)
+            player = try? AVAudioPlayer(data: KeySoundSynth.wav(samples, sampleRate: Int(KeySoundSynth.swipeSampleRate)))
             player?.prepareToPlay()
             playerKey = key
         }

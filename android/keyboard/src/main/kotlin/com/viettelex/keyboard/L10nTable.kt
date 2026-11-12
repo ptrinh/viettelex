@@ -204,8 +204,15 @@ object L10nTable {
         put("Chổi lông", "Brush")
         put("Phấn bảng", "Chalk")
         put("Bút dạ", "Marker")
-        put("Tiếng khẽ khi ngón đang vuốt một từ, như bút lướt trên giấy: to hơn khi vuốt nhanh, im khi ngón dừng. Tắt: không phát gì. Chổi lông, Phấn bảng và Bút dạ thuộc VietTelex Plus.",
-            "A soft sound while your finger swipes a word, like a pen gliding on paper: louder when you swipe fast, silent when your finger stops. Off: no sound. Brush, Chalk and Marker are part of VietTelex Plus.")
+        put("Roi vụt", "Whip")
+        put("Đũa phép", "Magic wand")
+        put("Chọn âm thanh…", "Choose sound…")
+        put("Nghe thử", "Preview")
+        put("Chưa có âm — chọn một file âm thanh (mp3, m4a, ogg, wav…); dùng tối đa 3 giây đầu làm vòng lặp.", "No sound yet — choose an audio file (mp3, m4a, ogg, wav…); up to the first 3 seconds become the loop.")
+        put("Âm dài hơn 3 giây nên chỉ dùng 3 giây đầu.", "The sound is longer than 3 seconds, so only the first 3 seconds are used.")
+        put("Bỏ lặng đầu/cuối, nối đuôi vào đầu cho liền, chỉnh độ to như các kiểu khác. File chỉ trên máy này (không tải lên, không sao lưu); thiếu file ⇒ phát Bút chì.", "Silence at both ends is trimmed, the end is blended into the start so it loops smoothly, and the loudness matches the other styles. The file stays on this device (never uploaded, not backed up); if it is missing, Pencil plays instead.")
+        put("Tiếng khẽ khi ngón đang vuốt một từ: to hơn khi vuốt nhanh, im khi ngón dừng. Roi vụt, Tia sét, Plasma và Đũa phép thêm một tiếng ngắn lúc nhấc tay. Tắt: không phát gì. Bút chì miễn phí, các kiểu còn lại thuộc VietTelex Plus.",
+            "A soft sound while your finger swipes a word: louder when you swipe fast, silent when your finger stops. Whip, Lightning, Plasma and Magic wand add a short sound when you lift your finger. Off: no sound. Pencil is free, the other styles are part of VietTelex Plus.")
         put("Theo âm lượng của Âm thanh phím; im khi máy để Rung/Im lặng. Tự về Bút chì khi bật Trình tiết kiệm pin.",
             "Uses the Key sound volume; silent when the phone is on Vibrate/Silent. Falls back to Pencil with Battery Saver on.")
         // Hiệu ứng nét vuốt (SwipeTrailStyle)
