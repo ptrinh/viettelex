@@ -610,6 +610,9 @@ class KeyboardView(
     private var fxY = 0f
     private var fxW = 0f
     private var fxH = 0f
+    /** Phím sáng: chữ đang hiện trên phím vừa chạm + paint nhãn của nó (kiểu khác ⇒ null). */
+    private var fxGlyph: String? = null
+    private var fxGlyphPaint: Paint? = null
 
     /** "Đèn rọi" (theme "photoFx":"spotlight", [SpotlightView]) — null = theme khác: đường phím chỉ đọc một biến null. */
     var spotlight: SpotlightView? = null
@@ -628,6 +631,18 @@ class KeyboardView(
         fxY = (k.top + k.bottom) / 2f + top
         // Chỉ TOẠ ĐỘ + cỡ phím: hiệu ứng (vd mảnh vỡ Tia sét) vẽ trên overlay, không đụng phím thật.
         fxW = k.right - k.left; fxH = k.bottom - k.top
+        // Phím sáng: chữ + paint nhãn đúng như đang vẽ (kiểu khác ⇒ chỉ một phép so sánh).
+        if (effects?.effect == com.viettelex.keyboard.KeyEffect.KEYGLOW) {
+            fxGlyph = when (k.kind) {
+                KeyKind.LETTER -> if (shift == Shift.OFF) k.label else k.upper
+                KeyKind.CHAR, KeyKind.PUNCT, KeyKind.PAD -> k.label
+                else -> null
+            }
+            fxGlyphPaint = if (k.kind == KeyKind.PAD && k.hint.isEmpty()) (if (k.side) sidePaint else digitPaint)
+                else if (k.kind == KeyKind.PAD) digitPaint else letterPaint
+        } else {
+            fxGlyph = null
+        }
     }
 
     /** Sau khi phím đã tới IME: chữ / ký tự / dấu cách mới mang hiệu ứng. */
@@ -637,7 +652,11 @@ class KeyboardView(
         if (k == Key.Space || k == Key.DoubleSpacePeriod) onBeat?.invoke()   // Sàn nhảy LED: flash nền ở phím cách
         if (isReturnKey(k)) { effects?.let { it.burst(fxX - it.left, fxY - it.top, fxW, fxH, isReturn = true) }; return }
         if (k is Key.Letter || k is Key.Text || k == Key.Space || k == Key.DoubleSpacePeriod) {
-            effects?.let { it.burst(fxX - it.left, fxY - it.top, fxW, fxH) }
+            effects?.let {
+                val g = fxGlyph
+                if (g != null) fxGlyphPaint?.let { p -> it.keyGlowStyle(p.textSize, p.typeface) }
+                it.burst(fxX - it.left, fxY - it.top, fxW, fxH, glyph = g)
+            }
             spotlight?.let { it.light(fxX - it.left, fxY - it.top, fxW) }   // Đèn rọi: theme khác ⇒ null
         }
     }

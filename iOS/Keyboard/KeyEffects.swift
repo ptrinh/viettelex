@@ -62,6 +62,8 @@ enum KeyEffect: String, CaseIterable {
     // Theme JSON (11/2026): "Theo giao diện" — hạt tự tạo trong "particles" của theme đang dùng (ThemeFx.swift); theme
     // không có "particles" ⇒ chùm sao mặc định (ThemeParticles.fallback).
     case theme
+    // Phím sáng (11/2026): phím vừa bấm sáng lên như bàn phím cơ có đèn nền — chữ rực màu nhấn + quầng rồi tắt dần (KeyGlow).
+    case keyglow
 
     static let key = "keyEffect"
     static let defaultValue: KeyEffect = .none
@@ -117,6 +119,7 @@ enum KeyEffect: String, CaseIterable {
         case .fishfeed: return L("Cho cá ăn")
         case .ice: return L("Đá lanh canh")
         case .theme: return L("Theo giao diện")
+        case .keyglow: return L("Phím sáng")
         }
     }
 
@@ -285,6 +288,47 @@ enum GlowSprite {
         case .lantern: return [(0, 1), (0.28, 0.9), (0.6, 0.35), (1, 0)]
         default: return [(0, 0.5), (0.45, 0.32), (1, 0)]      // sương: mờ, mép tan
         }
+    }
+}
+
+/// "Phím sáng" (11/2026): phím vừa bấm sáng lên như bàn phím cơ có đèn nền — chữ trên phím rực màu nhấn (pha trắng)
+/// + quầng mềm quanh chữ + nền phím ửng nhẹ, rồi tắt dần. Hàm thuần — Android KeyGlow y hệt (test số chung).
+/// - Pool `pool` ô (= nét vuốt "Phím sáng theo đường", SwipeTrailFx.keyGlowCap): gõ nhanh mỗi phím tắt riêng, quá trần ⇒
+///   ô cũ nhất bị bắn lại.
+/// - Độ sáng: giữ 1 trong `hold` rồi tắt kiểu ease-out (1 − u)² tới `duration`.
+enum KeyGlow {
+    static let duration = 0.42
+    static let hold = 0.05
+    static let pool = SwipeTrailFx.keyGlowCap
+    /// Độ đục nền phím ửng màu nhấn lúc sáng nhất.
+    static let capAlpha = 0.22
+    /// Bán kính quầng quanh chữ (pt / dp).
+    static let halo = 6.0
+    /// Chữ sáng = màu nhấn pha `whiteMix` phần trắng (đèn nền nhìn rực hơn màu nhấn).
+    static let whiteMix = 0.45
+    /// Số mẫu khung hình của đường mờ (iOS keyframes; Android tính thẳng mỗi khung).
+    static let steps = 8
+
+    /// Độ sáng sau `t` giây kể từ lúc bấm (0…1).
+    static func alpha(_ t: Double) -> Double {
+        if t < 0 || t >= duration { return 0 }
+        if t <= hold { return 1 }
+        let u = (t - hold) / (duration - hold)
+        return (1 - u) * (1 - u)
+    }
+
+    /// Màu chữ sáng (RGB) từ màu nhấn (RGB).
+    static func glyphColor(accent: UInt32) -> UInt32 {
+        func ch(_ s: UInt32) -> UInt32 {
+            let v = Double((accent >> s) & 0xFF)
+            return UInt32((v + (255 - v) * whiteMix).rounded()) << s
+        }
+        return ch(16) | ch(8) | ch(0)
+    }
+
+    /// Bo góc nền phím (kẹp ≤ nửa cạnh — CGPath / RoundRect không vượt).
+    static func corner(w: Double, h: Double) -> Double {
+        max(0, min(SwipeTrailFx.keyGlowCorner, w / 2, h / 2))
     }
 }
 
@@ -2033,6 +2077,15 @@ final class KeyEffectOverlay: UIView {
     // Nháy sáng
     private var flashLayer: CALayer?
     private var flashPulse = FlashPulse()
+    // Phím sáng — pool KeyGlow.pool ô (nền ửng + ảnh chữ sáng), animation mờ gắn MỘT lần lúc dựng; ảnh chữ (đã có quầng)
+    // dựng một lần mỗi (chữ, cỡ) rồi dùng lại. Kiểu khác ⇒ mảng rỗng, chữ chờ luôn nil.
+    private var keyGlows: [(root: CALayer, glyph: CALayer)] = []
+    private var keyGlowPool = KeyEffectPool(capacity: KeyGlow.pool)
+    private var keyGlowImages: [String: (image: CGImage, size: CGSize)] = [:]
+    private var nextGlowGlyph: String?
+    private var glowFont: UIFont = .systemFont(ofSize: 22)
+    /// Chữ của từng khung chờ (song song `pending`) — chỉ Phím sáng ghi.
+    private var pendingGlyphs: [String?] = []
     // Tia sét
     private var strikes: [Strike] = []
     private var strikePool = KeyEffectPool(capacity: Strike.cap)
@@ -2290,7 +2343,7 @@ final class KeyEffectOverlay: UIView {
 
     static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor,
                                           .kaleido, .tunnel, .merit, .sunlight, .rain, .reps, .constellation, .rainbowburst,
-                                          .goal, .fishfeed, .ice, .theme]
+                                          .goal, .fishfeed, .ice, .theme, .keyglow]
 
     private func applyBand() {
         // Trên phím (zPosition 0), dưới ô phóng to (BalloonView 10) và popup (11). Dải dưới phím: 0 +
@@ -2327,6 +2380,13 @@ final class KeyEffectOverlay: UIView {
     func queueToken(_ g: String) { if effect == .tokens { pendingToken = g } }
     /// "Cầu vồng": controller vừa thấy từ khoá Tự hào (PrideKeywords) — lần vẽ kế (phím ranh giới) thêm cờ + tim.
     func queuePride() { if effect == .rainbowburst { pendingPride = true } }
+    /// "Phím sáng": chữ đang hiện trên phím sắp emit (nil = phím không chữ, vd phím cách ⇒ chỉ nền ửng) + phông nhãn.
+    /// Gọi TRƯỚC emit(key:). Kiểu khác ⇒ return ngay.
+    func markGlowGlyph(_ g: String?, font: UIFont?) {
+        guard effect == .keyglow else { return }
+        nextGlowGlyph = g.flatMap { $0.isEmpty ? nil : $0 }
+        if let font { glowFont = font }
+    }
 
     /// "Token AI": thanh gợi ý vừa hiện `words` trong khung `bar` (toạ độ overlay). Chỉ đổi THẬT (ShimmerGate) mới quét
     /// một vệt sáng ~0,3 s; kiểu khác ⇒ return ngay (0 chi phí).
@@ -2364,8 +2424,12 @@ final class KeyEffectOverlay: UIView {
         #endif
         // Emoji / Dấu thanh / Từ khoá / Chữ bay (và "Không" chỉ có từ khoá theme): không có sự kiện ⇒ không hẹn gì.
         if (effect == .none || effect.isQueued), pendingThemeKeyword == nil, effect == .none || !hasQueued { return }
-        if pending.count >= Self.maxPending { pending.removeFirst() }
+        if pending.count >= Self.maxPending {
+            pending.removeFirst()
+            if !pendingGlyphs.isEmpty { pendingGlyphs.removeFirst() }
+        }
         pending.append(r)
+        if effect == .keyglow { pendingGlyphs.append(nextGlowGlyph); nextGlowGlyph = nil }
         guard !scheduled else { return }
         scheduled = true
         DispatchQueue.main.async { [weak self] in self?.flush() }
@@ -2385,6 +2449,7 @@ final class KeyEffectOverlay: UIView {
             pendingPride = false
             pendingReturn = nil; pendingCheer = false
             pendingThemeKeyword = nil
+            pendingGlyphs.removeAll(keepingCapacity: true)
             return
         }
         CATransaction.begin()
@@ -2411,6 +2476,10 @@ final class KeyEffectOverlay: UIView {
         } else if effect == .tokens {
             if let g = pendingToken, let r = pending.last { fireToken(g, at: r, now: now) }
             pendingToken = nil
+        } else if effect == .keyglow {
+            for (i, r) in pending.enumerated() {
+                fireKeyGlow(r, glyph: i < pendingGlyphs.count ? pendingGlyphs[i] : nil, now: now)
+            }
         } else {
             for r in pending { fire(r, now: now, media: media) }
             if pendingSlam { pendingSlam = false; fireSlam(now: now) }
@@ -2421,6 +2490,7 @@ final class KeyEffectOverlay: UIView {
         pendingReturn = nil; pendingCheer = false
         CATransaction.commit()
         pending.removeAll(keepingCapacity: true)
+        pendingGlyphs.removeAll(keepingCapacity: true)
     }
 
     override func layoutSubviews() {
@@ -2506,6 +2576,10 @@ final class KeyEffectOverlay: UIView {
     var debugShimmerFrame: CGRect? { shimmerClip?.frame }
     /// Sàn nhảy LED: gốc các chùm ô đã dựng (pool) + lớp nháy cả bàn phím (nil = chưa nháy lần nào).
     var debugDanceRoots: [CALayer] { dances.map(\.root) }
+    /// Phím sáng: gốc các ô đã dựng (pool) + layer ảnh chữ từng ô + số ảnh chữ đã dựng.
+    var debugKeyGlowRoots: [CALayer] { keyGlows.map(\.root) }
+    var debugKeyGlowGlyphs: [CALayer] { keyGlows.map(\.glyph) }
+    var debugKeyGlowImageCount: Int { keyGlowImages.count }
     /// Mưa: hạt mưa nền đã dựng (pool) + số đang hiện, số phím đã gõ, độ đậm mưa, độ sáng đèn (đích) + lớp đèn.
     var debugRainDrops: [CALayer] { rainDrops }
     var debugRainVisibleDrops: Int { rainDrops.filter { !$0.isHidden }.count }
@@ -2589,6 +2663,7 @@ final class KeyEffectOverlay: UIView {
         case .goal, .fishfeed, .ice: fxPack?.fire(r, isReturn: pendingReturn == r, now: now, media: media)
         case .theme: fireTheme(r, now: now)
         case .flash: fireFlash(now: now, media: media)
+        case .keyglow: fireKeyGlow(r, glyph: nil, now: now)
         case .lightning: fireLightning(r, now: now)
         case .matrix: pokeMatrix(media: media)
         case .string: fireString(r)
@@ -2644,6 +2719,87 @@ final class KeyEffectOverlay: UIView {
             flashLayer = l
         }
         l.beginTime = now
+    }
+
+    // MARK: Phím sáng
+
+    /// Bắn một ô của pool tại khung phím `r`: đặt khung + ảnh chữ (cache) rồi chạy lại animation mờ bằng beginTime.
+    private func fireKeyGlow(_ r: CGRect, glyph: String?, now: CFTimeInterval) {
+        let slot = keyGlowPool.next()
+        let g = slot < keyGlows.count ? keyGlows[slot] : makeKeyGlow()
+        let size = r.size == .zero ? Self.defaultKeySize : r.size
+        g.root.bounds = CGRect(origin: .zero, size: size)
+        g.root.position = CGPoint(x: r.midX, y: r.midY)
+        g.root.cornerRadius = CGFloat(KeyGlow.corner(w: Double(size.width), h: Double(size.height)))
+        if let glyph, let img = keyGlowImage(glyph) {
+            g.glyph.contents = img.image
+            g.glyph.bounds = CGRect(origin: .zero, size: img.size)
+            g.glyph.position = CGPoint(x: size.width / 2, y: size.height / 2)
+            g.glyph.isHidden = false
+        } else {
+            g.glyph.isHidden = true
+        }
+        g.root.beginTime = now
+        g.root.isHidden = false
+    }
+
+    /// Một ô: nền ửng màu nhấn (bo góc) + layer ảnh chữ; animation mờ (KeyGlow.alpha) gắn MỘT lần.
+    private func makeKeyGlow() -> (root: CALayer, glyph: CALayer) {
+        let root = CALayer()
+        root.backgroundColor = color.withAlphaComponent(CGFloat(KeyGlow.capAlpha)).cgColor
+        root.opacity = 0
+        root.isHidden = true
+        let a = CAKeyframeAnimation(keyPath: "opacity")
+        let n = KeyGlow.steps
+        a.values = (0...n).map { KeyGlow.alpha(KeyGlow.duration * Double($0) / Double(n)) }
+        a.keyTimes = (0...n).map { NSNumber(value: Double($0) / Double(n)) }
+        a.duration = KeyGlow.duration
+        a.beginTime = Self.animBegin
+        a.fillMode = .both
+        a.isRemovedOnCompletion = false
+        root.add(a, forKey: "fx")
+        let glyph = CALayer()
+        glyph.contentsScale = UIScreen.main.scale
+        glyph.isHidden = true
+        root.addSublayer(glyph)
+        layer.addSublayer(root)
+        keyGlows.append((root, glyph))
+        return (root, glyph)
+    }
+
+    /// Ảnh chữ sáng (đã có quầng) theo chữ + phông nhãn — dựng MỘT lần, giữ tối đa ~96 ảnh (đổi kiểu / màu ⇒ dựng lại).
+    private func keyGlowImage(_ g: String) -> (image: CGImage, size: CGSize)? {
+        let key = "\(g)|\(glowFont.fontName)|\(glowFont.pointSize)"
+        if let i = keyGlowImages[key] { return i }
+        if keyGlowImages.count >= 96 { keyGlowImages.removeAll(keepingCapacity: true) }
+        guard let i = Self.renderKeyGlow(g, font: glowFont, accent: color.argbValue & 0xFF_FFFF, scale: UIScreen.main.scale)
+        else { return nil }
+        keyGlowImages[key] = i
+        return i
+    }
+
+    /// Chữ màu KeyGlow.glyphColor + quầng màu nhấn (hai lớp bóng mờ: rộng + sát chữ) — chỉ vẽ lúc dựng ảnh.
+    static func renderKeyGlow(_ g: String, font: UIFont, accent: UInt32, scale: CGFloat) -> (image: CGImage, size: CGSize)? {
+        let halo = CGFloat(KeyGlow.halo)
+        let ink = UIColor(rgb: KeyGlow.glyphColor(accent: accent))
+        let glowColor = UIColor(rgb: accent)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: ink]
+        let s = g as NSString
+        let sz = s.size(withAttributes: attrs)
+        guard sz.width > 0, sz.height > 0 else { return nil }
+        let size = CGSize(width: ceil(sz.width + 2 * halo + 2), height: ceil(sz.height + 2 * halo + 2))
+        let f = UIGraphicsImageRendererFormat()
+        f.scale = scale
+        f.opaque = false
+        let origin = CGPoint(x: (size.width - sz.width) / 2, y: (size.height - sz.height) / 2)
+        let img = UIGraphicsImageRenderer(size: size, format: f).image { ctx in
+            let c = ctx.cgContext
+            c.setShadow(offset: .zero, blur: halo * 1.6, color: glowColor.cgColor)
+            s.draw(at: origin, withAttributes: attrs)
+            c.setShadow(offset: .zero, blur: halo * 0.6, color: glowColor.cgColor)
+            s.draw(at: origin, withAttributes: attrs)
+        }.cgImage
+        return img.map { ($0, size) }
     }
 
     // MARK: Rung dây
@@ -2972,6 +3128,8 @@ final class KeyEffectOverlay: UIView {
         pendingPride = false
         for b in rainbows { b.isHidden = true }
         prideRoot?.isHidden = true
+        for g in keyGlows { g.root.isHidden = true }   // Phím sáng: ẩn bàn phím ⇒ không còn ô nào sáng
+        nextGlowGlyph = nil
     }
 
     // MARK: Công đức
@@ -4951,6 +5109,7 @@ final class KeyEffectOverlay: UIView {
         shimmerClip?.removeFromSuperlayer()
         for g in grains { g.removeFromSuperlayer() }
         for d in dances { d.root.removeFromSuperlayer() }
+        for g in keyGlows { g.root.removeFromSuperlayer() }
         clearThemeLayers()
         floorFlicker?.root.removeFromSuperlayer()
         merit?.remove(); merit = nil
@@ -4985,6 +5144,8 @@ final class KeyEffectOverlay: UIView {
         seaWaves.removeAll(); seaBuiltFor = .zero; seaCursor = 0; seaFish = nil; seaFishSeq = 0
         seaLastWave = -.greatestFiniteMagnitude; seaLastFish = -.greatestFiniteMagnitude; seaLevel = 0
         dances.removeAll(); dancePool = KeyEffectPool(capacity: DanceFloor.pool); danceSeq = 0
+        keyGlows.removeAll(); keyGlowPool = KeyEffectPool(capacity: KeyGlow.pool); keyGlowImages.removeAll()
+        nextGlowGlyph = nil; pendingGlyphs.removeAll()
         rainDrops.removeAll(); rainBuiltFor = .zero; rainCursor = 0; rainSeq = 0; rainGlow = nil
         rainKeys = 0; rainGlowLevel = 0; rainLastDrop = -.greatestFiniteMagnitude; rainLastKey = -.greatestFiniteMagnitude
         floorFlicker = nil; flickerGate = DanceFloor.FlickerGate()
@@ -5367,6 +5528,7 @@ extension KeyEffect {
         case .fishfeed: return LK("Cá bơi sau hàng phím; mỗi phím thả một viên thức ăn, chú cá gần nhất bơi tới ăn, lớn dần và có thêm bạn.")
         case .ice: return LK("Viên đá trên phím lắc nhẹ, đọng giọt; phin nhỏ giọt cà phê sau vài phím; gõ thật nhanh, sữa xoáy vào ly.")
         case .theme: return LK("Dùng hạt riêng của giao diện đang chọn; giao diện không có hạt riêng thì là chùm sao nhỏ.")
+        case .keyglow: return LK("Phím vừa bấm sáng lên như bàn phím cơ có đèn nền: chữ trên phím rực màu nhấn rồi tắt dần.")
         }
     }
 

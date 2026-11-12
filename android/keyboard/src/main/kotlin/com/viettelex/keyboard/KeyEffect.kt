@@ -77,7 +77,9 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     ICE("ice", "Đá lanh canh"), // l10n-key
     // Theme JSON (11/2026): "Theo giao diện" — hạt tự tạo trong "particles" của theme đang dùng ([ThemeFx]); theme không có
     // ⇒ chùm sao mặc định ([ThemeParticles.FALLBACK]).
-    THEME("theme", "Theo giao diện"); // l10n-key
+    THEME("theme", "Theo giao diện"), // l10n-key
+    // Phím sáng (11/2026): phím vừa bấm sáng lên như bàn phím cơ có đèn nền — chữ rực màu nhấn + quầng rồi tắt dần ([KeyGlow]).
+    KEYGLOW("keyglow", "Phím sáng"); // l10n-key
 
     val title: String get() = tr(viTitle)
 
@@ -216,6 +218,7 @@ enum class KeyEffect(val id: String, val viTitle: String) {
         FISHFEED -> "Cá bơi sau hàng phím; mỗi phím thả một viên thức ăn, chú cá gần nhất bơi tới ăn, lớn dần và có thêm bạn." // l10n-key
         ICE -> "Viên đá trên phím lắc nhẹ, đọng giọt; phin nhỏ giọt cà phê sau vài phím; gõ thật nhanh, sữa xoáy vào ly." // l10n-key
         THEME -> "Dùng hạt riêng của giao diện đang chọn; giao diện không có hạt riêng thì là chùm sao nhỏ." // l10n-key
+        KEYGLOW -> "Phím vừa bấm sáng lên như bàn phím cơ có đèn nền: chữ trên phím rực màu nhấn rồi tắt dần." // l10n-key
     }
 
     /** Mô tả đã dịch theo ngôn ngữ giao diện; [NONE] ⇒ null. */
@@ -228,6 +231,45 @@ enum class KeyEffect(val id: String, val viTitle: String) {
         /** Giá trị lạ / thiếu ⇒ [DEFAULT]. */
         fun of(raw: Any?): KeyEffect = entries.firstOrNull { it.id == raw } ?: DEFAULT
     }
+}
+
+/**
+ * "Phím sáng" (11/2026): phím vừa bấm sáng lên như bàn phím cơ có đèn nền — chữ trên phím rực màu nhấn (pha trắng) + quầng
+ * mềm quanh chữ + nền phím ửng nhẹ, rồi tắt dần. Hàm thuần — = iOS KeyGlow (test số chung). Pool [POOL] ô (= nét vuốt
+ * "Phím sáng theo đường", [SwipeTrailFx.KEY_GLOW_CAP]); độ sáng giữ 1 trong [HOLD] rồi tắt ease-out (1 − u)² tới [DURATION].
+ */
+object KeyGlow {
+    const val DURATION = 0.42
+    const val HOLD = 0.05
+    const val POOL = SwipeTrailFx.KEY_GLOW_CAP
+    /** Độ đục nền phím ửng màu nhấn lúc sáng nhất. */
+    const val CAP_ALPHA = 0.22
+    /** Bán kính quầng quanh chữ (dp). */
+    const val HALO = 6.0
+    /** Chữ sáng = màu nhấn pha [WHITE_MIX] phần trắng. */
+    const val WHITE_MIX = 0.45
+    /** Số mẫu khung hình (iOS keyframes; Android tính thẳng mỗi khung). */
+    const val STEPS = 8
+
+    /** Độ sáng sau [t] giây kể từ lúc bấm (0…1). */
+    fun alpha(t: Double): Double {
+        if (t < 0 || t >= DURATION) return 0.0
+        if (t <= HOLD) return 1.0
+        val u = (t - HOLD) / (DURATION - HOLD)
+        return (1 - u) * (1 - u)
+    }
+
+    /** Màu chữ sáng (RGB) từ màu nhấn (RGB; byte alpha bỏ qua). */
+    fun glyphColor(accent: Int): Int {
+        fun ch(s: Int): Int {
+            val v = ((accent shr s) and 0xFF).toDouble()
+            return Math.round(v + (255 - v) * WHITE_MIX).toInt() shl s
+        }
+        return ch(16) or ch(8) or ch(0)
+    }
+
+    /** Bo góc nền phím (kẹp ≤ nửa cạnh). */
+    fun corner(w: Double, h: Double): Double = maxOf(0.0, minOf(SwipeTrailFx.KEY_GLOW_CORNER, w / 2, h / 2))
 }
 
 /**

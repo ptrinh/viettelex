@@ -132,6 +132,7 @@ final class KeyEffectPreviewView: UIView {
             o.emit(key: k.offsetBy(dx: 24, dy: -24)); o.flush()
         }
         if effect == .goal { o.queueCheer() }   // Sút!: "Enter" sút bóng vào lưới + cụm cổ vũ (như vừa gõ "vô địch" + cách)
+        o.markGlowGlyph(label.text, font: label.font)   // Phím sáng: chữ "V" của phím mẫu rực lên
         o.emit(key: k, isReturn: effect == .goal)
         o.flush()
         if KeyEffectPreviewScript.beat(effect, tap: tap) { beat?.kick() }

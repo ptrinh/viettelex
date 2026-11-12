@@ -24,7 +24,7 @@ class KeyEffectTests {
     }
 
     @Test fun idsMatchIosAndDefaultIsNone() {
-        assertEquals(listOf("none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps", "constellation", "rainbowburst", "goal", "fishfeed", "ice", "theme"), KeyEffect.entries.map { it.id })
+        assertEquals(listOf("none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps", "constellation", "rainbowburst", "goal", "fishfeed", "ice", "theme", "keyglow"), KeyEffect.entries.map { it.id })
         assertEquals("keyEffect", Keys.KEY_EFFECT)
         assertEquals(KeyEffect.NONE, KeyEffect.DEFAULT)
         assertEquals(KeyEffect.NONE, KeyEffect.of(null))
@@ -42,7 +42,7 @@ class KeyEffectTests {
 
     @Test fun backupSpecWhitelistsIds() {
         val spec = BackupSettings.all.first { it.key == Keys.KEY_EFFECT }
-        assertEquals(SettingKind.Choice("none", setOf("none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps", "constellation", "rainbowburst", "goal", "fishfeed", "ice", "theme")), spec.kind)
+        assertEquals(SettingKind.Choice("none", setOf("none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps", "constellation", "rainbowburst", "goal", "fishfeed", "ice", "theme", "keyglow")), spec.kind)
     }
 
     @Test fun titlesBilingual() {
@@ -181,5 +181,35 @@ class KeyEffectTests {
             assertTrue("${e.id} frame ${frameNs}ns", frameNs < 100_000)
             assertTrue(alive > 0)
         }
+    }
+
+    /** Phím sáng: id lưu + đường mờ + màu chữ + bo góc — số chung với iOS KeyEffectTests.testKeyGlowModelParity. */
+    @Test fun keyGlowModelParity() {
+        assertEquals(KeyEffect.KEYGLOW, KeyEffect.of("keyglow"))
+        assertEquals("keyglow", KeyEffect.KEYGLOW.id)
+        assertEquals(KeyEffect.KEYGLOW, KeyEffect.entries.last())
+        assertTrue(KeyEffect.KEYGLOW.isPlus)
+        assertFalse(KeyEffect.KEYGLOW.isQueued)
+        assertEquals(KeyEffectBand.ABOVE_KEYS, KeyEffect.KEYGLOW.band)
+        assertEquals(12, KeyGlow.POOL)
+        assertEquals(0.0, KeyGlow.alpha(-0.01), 0.0)
+        assertEquals(1.0, KeyGlow.alpha(0.0), 0.0)
+        assertEquals(1.0, KeyGlow.alpha(KeyGlow.HOLD), 0.0)
+        assertEquals(0.25, KeyGlow.alpha(0.235), 1e-9)
+        assertEquals(0.0, KeyGlow.alpha(KeyGlow.DURATION), 0.0)
+        assertTrue(KeyGlow.DURATION in 0.35..0.5)
+        var prev = 1.0
+        for (k in 0..100) {
+            val a = KeyGlow.alpha(KeyGlow.DURATION * k / 100)
+            assertTrue("chỉ tắt dần", a <= prev + 1e-12 && a >= 0.0)
+            prev = a
+        }
+        assertEquals(0x73B6FF, KeyGlow.glyphColor(0x007AFF))
+        assertEquals(0x73B6FF, KeyGlow.glyphColor(0xFF007AFF.toInt()))   // byte alpha bỏ qua
+        assertEquals(0x737373, KeyGlow.glyphColor(0x000000))
+        assertEquals(0xFFFFFF, KeyGlow.glyphColor(0xFFFFFF))
+        assertEquals(6.0, KeyGlow.corner(34.0, 42.0), 0.0)
+        assertEquals(4.0, KeyGlow.corner(8.0, 42.0), 0.0)
+        assertEquals(0.0, KeyGlow.corner(0.0, 0.0), 0.0)
     }
 }
