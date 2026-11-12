@@ -45,14 +45,17 @@ class EditPanelTest {
         for (k in keys) assertEquals(k, KeyLayout.hit(keys, Plane.EDIT, k.centerX, k.centerY, 4f, 1f))
     }
 
-    /** Nối công cụ văn bản: editTools ⇒ hàng thứ 5 gồm mọi TextTool, chạm = TOOL:id. */
+    private val nTools = com.viettelex.keyboard.TextTool.entries.size + 1   // + "Thêm dấu"
+
+    /** Nối công cụ văn bản: editTools ⇒ các hàng công cụ (TextTool…, Thêm dấu) dưới lưới 4×4, chạm = TOOL:id. */
     @Test fun toolsRowWhenTextToolsUnlocked() {
         val keys = KeyLayout.build(LayoutConfig(Plane.EDIT, 390f, 280f, 1f, oneHand = OneHandSide.RIGHT, editTools = true))
-        assertEquals(16 + com.viettelex.keyboard.TextTool.entries.size, keys.size)
+        assertEquals(16 + nTools, keys.size)
         val tools = keys.filter { EditPanel.toolOf(it.insert) != null }
         assertEquals(com.viettelex.keyboard.TextTool.entries, tools.map { EditPanel.toolOf(it.insert) })
+        assertEquals(1, keys.count { it.insert == EditPanel.ADD_TONES_INSERT })
         val gridBottom = keys.filter { EditAction.of(it.insert) != null }.maxOf { it.bottom }
-        assertTrue(tools.all { it.top >= gridBottom && it.bottom <= 280f + 0.01f })
+        assertTrue(keys.filter { EditPanel.isToolCell(it.insert) }.all { it.top >= gridBottom && it.bottom <= 280f + 0.01f })
         assertTrue(keys.all { it.left >= 390f * (1 - OneHand.RATIO) - 0.01f })
         for (k in keys) assertEquals(k, KeyLayout.hit(keys, Plane.EDIT, k.centerX, k.centerY, 4f, 1f))
         assertEquals(null, EditPanel.toolOf("LEFT"))
@@ -61,17 +64,59 @@ class EditPanelTest {
         assertEquals(16, KeyLayout.build(LayoutConfig(Plane.EDIT, 390f, 280f, 1f)).size)
     }
 
-    /** Dịch trên máy: ô "Dịch" cuối hàng công cụ; chỉ bật dịch ⇒ hàng có đúng một ô. */
+    /** Dịch trên máy: ô "Dịch" cuối hàng công cụ; chỉ bật dịch ⇒ một hàng một ô phủ kín. */
     @Test fun translateCellOnToolsRow() {
         val both = KeyLayout.build(LayoutConfig(Plane.EDIT, 390f, 280f, 1f, editTools = true, editTranslate = true))
-        assertEquals(16 + com.viettelex.keyboard.TextTool.entries.size + 1, both.size)
+        assertEquals(16 + nTools + 1, both.size)
         val tr = both.single { it.insert == EditPanel.TRANSLATE_INSERT }
         assertEquals(null, EditPanel.toolOf(tr.insert)); assertEquals(null, EditAction.of(tr.insert))
+        assertTrue(EditPanel.isToolCell(tr.insert))
         assertEquals(both.filter { it.top == tr.top }.maxOf { it.right }, tr.right)
         for (k in both) assertEquals(k, KeyLayout.hit(both, Plane.EDIT, k.centerX, k.centerY, 4f, 1f))
         val only = KeyLayout.build(LayoutConfig(Plane.EDIT, 390f, 280f, 1f, editTranslate = true))
         assertEquals(17, only.size)
-        assertTrue(only.any { it.insert == EditPanel.TRANSLATE_INSERT })
+        val t = only.single { it.insert == EditPanel.TRANSLATE_INSERT }
+        assertEquals(3f, t.left, 0.01f); assertEquals(387f, t.right, 0.01f)
+    }
+
+    /**
+     * Tester 11/2026 ("cho người OCD"): mọi hàng cùng cao, cùng khe, phủ đúng bề ngang; hàng công
+     * cụ đầy thì THẲNG cột với lưới 4×4; không ô trống / nhãn rỗng (trừ icon ⌫); tổng chiều cao
+     * không vượt vùng phím.
+     */
+    @Test fun allRowsAlignedNoEmptyCells() {
+        for ((tools, trans) in listOf(true to false, true to true, false to true, false to false)) {
+            val W = 390f; val H = 224f
+            val keys = KeyLayout.build(LayoutConfig(Plane.EDIT, W, H, 1f, editTools = tools, editTranslate = trans))
+            val rows = keys.groupBy { it.top }.toSortedMap().values.toList()
+            val nCells = EditPanel.toolCells(tools, trans).size
+            assertEquals(4 + EditPanel.rowSizes(nCells, EditPanel.COLS).size, rows.size)
+            val h = rows.first().first().height
+            val gap = KeyLayout.KEY_SPACING
+            val colEdges = rows.first().map { it.left to it.right }
+            for (row in rows) {
+                assertTrue(row.all { kotlin.math.abs(it.height - h) < 0.01f })
+                assertEquals(KeyLayout.ROW_MARGIN_H, row.first().left, 0.01f)
+                assertEquals(W - KeyLayout.ROW_MARGIN_H, row.last().right, 0.01f)
+                for (i in 1 until row.size) assertEquals(gap, row[i].left - row[i - 1].right, 0.01f)
+                val w0 = row.first().width
+                assertTrue(row.all { kotlin.math.abs(it.width - w0) < 0.01f })
+                if (row.size == EditPanel.COLS) assertEquals(colEdges, row.map { it.left to it.right })
+                assertTrue(row.all { it.label.isNotEmpty() || it.insert == EditAction.DELETE.name })
+            }
+            assertTrue(keys.maxOf { it.bottom } <= H + 0.01f)
+            // khe dọc đều
+            val tops = rows.map { it.first().top }
+            for (i in 2 until tops.size) assertEquals(tops[1] - tops[0], tops[i] - tops[i - 1], 0.01f)
+        }
+    }
+
+    @Test fun toolCellsOrderAndNames() {
+        val labels = EditPanel.toolCells(true, true).map { it.first }
+        assertEquals(listOf("HOA", "thường", "Hoa đầu từ", "Hoa đầu câu", "Xoá dấu", "Thêm dấu", "Dịch").map { com.viettelex.keyboard.tr(it) }, labels)
+        assertEquals(listOf(4, 3), EditPanel.rowSizes(7, 4))
+        assertEquals(listOf(4, 2), EditPanel.rowSizes(6, 4))
+        assertEquals(emptyList<Int>(), EditPanel.rowSizes(0, 4))
     }
 
     // MARK: hàm thuần

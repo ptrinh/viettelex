@@ -11,28 +11,33 @@ import com.viettelex.keyboard.TemplateItem
 import kotlin.math.abs
 
 /**
- * Plane mẫu câu (☰, spec §10.2): bubble chip kiểu tag cloud, cuộn dọc, vẽ trên Canvas
- * của [KeyboardView]. Có label ⇒ chỉ hiện label, không thì text cắt "…" (≤150 dp);
- * bubble ⚙️ cuối mở tab Mẫu Câu. Hàng đáy do KeyboardView vẽ (plane TEMPLATES).
- * Dàn dòng như UICollectionViewFlowLayout: dòng ≥2 chip dàn đều (justified), dòng 1
- * chip canh giữa.
+ * Plane mẫu câu / công cụ (☰, spec §10.2): lưới ô cột đều, khe đều ([TemplatesMenu.grid] —
+ * tester 11/2026: chip rộng hẹp lộn xộn, hàng không thẳng), cuộn dọc, vẽ trên Canvas của
+ * [KeyboardView]. Có label ⇒ chỉ hiện label, không thì text; dài quá ô thì cắt "…".
+ * Đầu bảng (khi cả Mẫu câu lẫn Công cụ bật): thanh chọn [Mẫu câu | Công cụ] + ⚙️ bên phải,
+ * đứng yên khi cuộn. Không thanh chọn ⇒ ⚙️ là ô cuối lưới mẫu câu. Hàng đáy do KeyboardView vẽ.
  */
 class TemplatesPane(
     private val host: KeyboardView,
     private val theme: ImeTheme,
     private val feedback: Feedback,
 ) {
-    /** [extraId] != null: chip đặc biệt (công cụ văn bản) — chạm gửi id qua [KeyboardView.paneExtra]. */
+    /** [extraId] != null: ô công cụ / đoạn thanh chọn — chạm gửi id qua [KeyboardView.paneExtra]. */
     private class Chip(val item: TemplateItem?, val shown: String, val extraId: String? = null) {
         var l = 0f; var t = 0f; var r = 0f; var b = 0f
     }
 
     private val d = theme.density
     private var items: List<TemplateItem> = emptyList()
-    /** Chip đứng ĐẦU lưới: (hiển thị, id). */
+    /** Ô công cụ (hiển thị, id) — rỗng ở tab Mẫu câu. */
     private var extras: List<Pair<String, String>> = emptyList()
     private var showGear = true
+    private var segmented = false
+    private var toolsTab = false
     private var chips: List<Chip> = emptyList()
+    /** Thanh chọn + ⚙️ (không cuộn). */
+    private var header: List<Chip> = emptyList()
+    private var headerH = 0f
     private var width = 0f
     private var bottom = 0f
     private var contentH = 0f
@@ -44,7 +49,10 @@ class TemplatesPane(
 
     private val textPaint = TextPaint(theme.text(16f))
     private val textOff = theme.centerOffset(textPaint)
+    private val segPaint = TextPaint(theme.text(14f, medium = true))
+    private val segOff = theme.centerOffset(segPaint)
     private val chipPaint = theme.fill(theme.keyFill)
+    private val selPaint = theme.fill(theme.chip)
 
     private var ptr = -1
     private var dragging = false
@@ -56,10 +64,13 @@ class TemplatesPane(
         width = 0f   // ép dàn lại ở layout kế
     }
 
-    /** Đổi nội dung chip đặc biệt; [gear] = còn bubble ⚙️ cuối (tắt khi đang ở danh sách công cụ). */
-    fun setExtras(list: List<Pair<String, String>>, gear: Boolean) {
-        if (list == extras && gear == showGear) return
-        extras = list; showGear = gear
+    /**
+     * Đổi nội dung: [list] = ô công cụ (tab Công cụ), [gear] = có ⚙️, [segmented] = có thanh
+     * chọn, [toolsTab] = đoạn đang chọn là Công cụ.
+     */
+    fun setExtras(list: List<Pair<String, String>>, gear: Boolean, segmented: Boolean = false, toolsTab: Boolean = false) {
+        if (list == extras && gear == showGear && segmented == this.segmented && toolsTab == this.toolsTab) return
+        extras = list; showGear = gear; this.segmented = segmented; this.toolsTab = toolsTab
         width = 0f
     }
 
@@ -68,70 +79,87 @@ class TemplatesPane(
     fun contains(x: Float, y: Float) = y < bottom
 
     fun layout(w: Float, paneBottom: Float) {
-        if (w == width && paneBottom == bottom && chips.isNotEmpty()) return
+        if (w == width && paneBottom == bottom && (chips.isNotEmpty() || header.isNotEmpty())) return
         width = w; bottom = paneBottom
-        val maxLabel = 150 * d
-        val padH = 12 * d; val padV = 7 * d
+        val padH = 6 * d; val padV = 7 * d
         val fm = textPaint.fontMetrics
-        val lineH = fm.descent - fm.ascent
-        val chipH = padV * 2 + lineH
-        val list = ArrayList<Chip>(extras.size + items.size + 1)
-        for ((shown, id) in extras) list += Chip(null, shown, id)
-        for (it in items) {
-            val s = if (it.label.isEmpty()) it.text else it.label
-            val oneLine = s.replace('\n', ' ')
-            list += Chip(it, TextUtils.ellipsize(oneLine, textPaint, maxLabel, TextUtils.TruncateAt.END).toString())
-        }
-        if (showGear) list += Chip(null, "⚙️")
-        // flow layout: inset 8/6, khoảng cách chip 6, dòng 8
+        val chipH = padV * 2 + (fm.descent - fm.ascent)
+        val gap = 6 * d
         val left = 6 * d; val right = w - 6 * d
-        var y = 8 * d
-        var i = 0
-        while (i < list.size) {
-            var j = i
-            var used = 0f
-            while (j < list.size) {
-                val cw = textPaint.measureText(list[j].shown) + 2 * padH
-                val need = if (j == i) cw else used + 6 * d + cw
-                if (j > i && need > right - left) break
-                used = need
-                list[j].r = cw          // tạm giữ bề rộng
-                j++
-            }
-            val n = j - i
-            val totalW = (i until j).sumOf { list[it].r.toDouble() }.toFloat()
-            if (n == 1) {
-                val cw = minOf(list[i].r, right - left)
-                val x0 = left + (right - left - cw) / 2
-                list[i].apply { l = x0; r = x0 + cw; t = y; b = y + chipH }
-            } else {
-                val gap = (right - left - totalW) / (n - 1)
-                var x = left
-                for (k in i until j) {
-                    val cw = list[k].r
-                    list[k].apply { l = x; r = x + cw; t = y; b = y + chipH }
-                    x += cw + gap
+        // Đầu bảng: [Mẫu câu | Công cụ] giãn hết, ⚙️ vuông bên phải (cùng cao ô lưới).
+        val head = ArrayList<Chip>(3)
+        if (segmented) {
+            val top = 8 * d
+            val gearW = if (showGear) chipH * 1.4f else 0f
+            val segR = if (showGear) right - gap - gearW else right
+            val segs = TemplatesMenu.segments()
+            val segW = (segR - left) / segs.size
+            for ((i, sg) in segs.withIndex()) {
+                head += Chip(null, sg.first, sg.second).apply {
+                    l = left + i * segW; r = l + segW; t = top; b = top + chipH
                 }
             }
-            y += chipH + 8 * d
-            i = j
+            if (showGear) head += Chip(null, "⚙️").apply { l = right - gearW; r = right; t = top; b = top + chipH }
+            headerH = top + chipH
+        } else headerH = 0f
+        header = head
+        // Lưới: công cụ (giãn hàng cuối) hoặc mẫu câu (+ ⚙️ cuối khi không có thanh chọn).
+        val list = ArrayList<Chip>(extras.size + items.size + 1)
+        val tools = extras.isNotEmpty()
+        val gearCell = !segmented && showGear && !tools
+        val n = if (tools) extras.size else items.size + if (gearCell) 1 else 0
+        val wDp = w / d
+        val cols = if (tools) TemplatesMenu.toolCols(wDp) else TemplatesMenu.snippetCols(wDp)
+        val cells = TemplatesMenu.grid(n, cols, left, right, headerH + 8 * d, chipH, gap, stretchLast = tools)
+        for ((i, c) in cells.withIndex()) {
+            val maxText = c.r - c.l - 2 * padH
+            val chip = when {
+                tools -> extras[i].let { Chip(null, fit(it.first, maxText), it.second) }
+                i < items.size -> items[i].let {
+                    val s = if (it.label.isEmpty()) it.text else it.label
+                    Chip(it, fit(s.replace('\n', ' '), maxText))
+                }
+                else -> Chip(null, "⚙️")
+            }
+            chip.l = c.l; chip.t = c.t; chip.r = c.r; chip.b = c.b
+            list += chip
         }
         chips = list
-        contentH = y - 8 * d + 8 * d
+        contentH = (cells.lastOrNull()?.b ?: headerH) + 8 * d
         scrollY = scrollY.coerceIn(0f, maxScroll())
     }
+
+    private fun fit(s: String, maxW: Float): String =
+        TextUtils.ellipsize(s, textPaint, maxOf(maxW, 0f), TextUtils.TruncateAt.END).toString()
 
     private fun maxScroll() = maxOf(0f, contentH - bottom)
 
     fun draw(c: Canvas) {
+        val rad = 8 * d
+        // Đầu bảng đứng yên: nền chung một khối, đoạn đang chọn sáng màu chip.
+        if (header.isNotEmpty()) {
+            val segs = header.filter { it.extraId != null }
+            if (segs.isNotEmpty()) {
+                c.drawRoundRect(segs.first().l, segs.first().t, segs.last().r, segs.last().b, rad, rad, chipPaint)
+                for (s in segs) {
+                    val on = (s.extraId == TemplatesMenu.TOOLS_ENTRY) == toolsTab
+                    if (on) c.drawRoundRect(s.l + 2 * d, s.t + 2 * d, s.r - 2 * d, s.b - 2 * d, rad - 2 * d, rad - 2 * d, selPaint)
+                    segPaint.alpha = if (on) 255 else 170
+                    c.drawText(s.shown, (s.l + s.r) / 2, (s.t + s.b) / 2 + segOff, segPaint)
+                }
+            }
+            header.firstOrNull { it.extraId == null }?.let { g ->
+                c.drawRoundRect(g.l, g.t, g.r, g.b, rad, rad, chipPaint)
+                c.drawText(g.shown, (g.l + g.r) / 2, (g.t + g.b) / 2 + textOff, textPaint)
+            }
+        }
         c.save()
-        c.clipRect(0f, 0f, width, bottom)
-        val rad = 8 * d; val sd = 0f   // chip Material: bo 8 dp, phẳng
+        c.clipRect(0f, headerH, width, bottom)
         val list = chips
         for (i in list.indices) {
             val ch = list[i]
             val t = ch.t - scrollY; val b = ch.b - scrollY
-            if (b + sd < 0 || t > bottom) continue
+            if (b < headerH || t > bottom) continue
             c.drawRoundRect(ch.l, t, ch.r, b, rad, rad, chipPaint)
             c.drawText(ch.shown, (ch.l + ch.r) / 2, (t + b) / 2 + textOff, textPaint)
         }
@@ -167,8 +195,10 @@ class TemplatesPane(
             scroller.fling(0, scrollY.toInt(), 0, (-v.getYVelocity(pid)).toInt(), 0, 0, 0, maxScroll().toInt())
             host.postInvalidateOnAnimation()
         } else if (!cancelled) {
-            val cy = downY + scrollY
-            val hit = chips.firstOrNull { downX >= it.l - 3 * d && downX < it.r + 3 * d && cy >= it.t - 4 * d && cy < it.b + 4 * d }
+            val inHeader = downY < headerH + 3 * d && header.isNotEmpty()
+            val cy = if (inHeader) downY else downY + scrollY
+            val hit = (if (inHeader) header else chips)
+                .firstOrNull { downX >= it.l - 3 * d && downX < it.r + 3 * d && cy >= it.t - 4 * d && cy < it.b + 4 * d }
             if (hit != null && abs(x - downX) < 24 * d && abs(y - downY) < 24 * d) {
                 val item = hit.item
                 val extra = hit.extraId

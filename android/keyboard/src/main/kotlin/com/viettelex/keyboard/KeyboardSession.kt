@@ -1894,6 +1894,9 @@ class KeyboardSession(
         return AddTones.Personal(langModel::count) { a, b -> if (fs && SensitiveWords.isPair(a, b)) 0 else langModel.bigramCount(a, b) }
     }
 
+    /** Dữ liệu cá nhân cho nút "Thêm dấu" bấm tay (thẻ Công cụ / bảng sửa — TextToolRunner.addTones). */
+    fun addTonesPersonal(): AddTones.Personal = tonesPersonal()
+
     /** Kế hoạch thêm dấu cho chữ trước con trỏ (cache theo văn bản); null = không mời. */
     private fun addTonesPlan(proxy: TextProxy): AddTones.Plan? {
         if (!addTonesChip) return null

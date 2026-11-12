@@ -53,11 +53,11 @@ enum class PlusFeature(val viTitle: String, val viDetail: String) {
      */
     val howTo: String get() = when (this) {
         PREMIUM_THEMES -> tr("Cách dùng: Tính Năng → Giao diện → chọn theme hoặc ảnh nền.")
-        SENTENCE_DIACRITICS -> tr("Cách dùng: bật “Thêm dấu” ở Tính Năng → Sửa lỗi & gợi ý, gõ không dấu cả câu (hom nay troi dep), gõ dấu cách rồi chạm chip ở đầu thanh gợi ý.")
+        SENTENCE_DIACRITICS -> tr("Cách dùng: bật “Thêm dấu” ở Tính Năng → Sửa lỗi & gợi ý, gõ không dấu cả câu (hom nay troi dep), gõ dấu cách rồi chạm chip ở đầu thanh gợi ý. Hoặc chạm “Thêm dấu” trong thẻ Công cụ (☰) / bảng sửa văn bản.")
         ADVANCED_CLIPBOARD -> tr("Cách dùng: bật Lịch sử clipboard (Tính Năng → Riêng tư & sao lưu), chạm nút clipboard trên thanh gợi ý. Copy STK/SĐT/OTP → chip “Dán …” hiện trên thanh gợi ý.")
         CLOUD_SYNC -> tr("Cách dùng: tự động qua Sao lưu của Android (Cài đặt hệ thống → Google → Sao lưu). Chuyển máy: Tính Năng → Riêng tư & sao lưu → Xuất / nhập file.")
-        TEXT_TOOLS -> tr("Cách dùng: chạm ☰ trên thanh gợi ý → chip “⚒️ Công cụ”, hoặc hàng cuối bảng sửa văn bản (icon con trỏ trên thanh gợi ý).")
-        TRANSLATE -> tr("Cách dùng: Tính Năng → Gõ tắt & mẫu câu → Dịch trên máy: chọn ngôn ngữ đích, tải gói dịch; rồi chạm ☰ trên thanh gợi ý → “⚒️ Công cụ” → “Dịch” (hoặc ô “Dịch” ở hàng cuối bảng sửa văn bản).")
+        TEXT_TOOLS -> tr("Cách dùng: chạm ☰ trên thanh gợi ý → thẻ “Công cụ”, hoặc các hàng công cụ cuối bảng sửa văn bản (icon con trỏ trên thanh gợi ý).")
+        TRANSLATE -> tr("Cách dùng: Tính Năng → Gõ tắt & mẫu câu → Dịch trên máy: chọn ngôn ngữ đích, tải gói dịch; rồi chạm ☰ trên thanh gợi ý → thẻ “Công cụ” → “Dịch” (hoặc ô “Dịch” cuối bảng sửa văn bản).")
         THANKS_BADGE -> tr("Tự hiện sau khi mua.")
     }
 
@@ -77,7 +77,7 @@ enum class PlusFeature(val viTitle: String, val viDetail: String) {
     /** Nhãn + một dòng mô tả của công tắc trên màn Plus. */
     val settingTitle: String get() = if (this == TEXT_TOOLS) tr("Công cụ văn bản") else tr("Bật chip “Thêm dấu”")
     val settingCaption: String? get() =
-        if (this == TEXT_TOOLS) tr("Chip ⚒️ Công cụ trong lưới mẫu câu: đổi HOA/thường, bỏ dấu, dịch…") else null
+        if (this == TEXT_TOOLS) tr("Thẻ Công cụ trong bảng ☰ và bảng sửa văn bản: đổi HOA/thường, thêm/xoá dấu, dịch…") else null
 }
 
 /**

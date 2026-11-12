@@ -22,6 +22,22 @@ enum TextToolRunner {
         return replace(src, with: TextTools.apply(tool, src.text), proxy: proxy)
     }
 
+    /// Nút "Thêm dấu" (thẻ Công cụ của ☰, Plus .sentenceDiacritics): vùng chọn nếu có chữ, không
+    /// thì đoạn không dấu cuối trước con trỏ (AddTones.segment — như chip tự hiện). AddTones chạy
+    /// trên máy (không mạng); độ dài giữ nguyên, chữ đã có dấu giữ nguyên. Song sinh Android
+    /// TextToolRunner.addTones.
+    static func addTones(proxy: TextProxyLike, selectedText: String?, personal: AddTones.Personal?) -> Outcome {
+        guard let src = addTonesSource(selected: selectedText, before: proxy.contextBeforeInput) else { return .noSource }
+        return replace(src, with: AddTones.restore(src.text, personal: personal).text, proxy: proxy)
+    }
+
+    static func addTonesSource(selected: String?, before: String?) -> TextTools.Source? {
+        if let sel = selected, sel.contains(where: \.isLetter) { return TextTools.Source(text: sel, isSelection: true) }
+        guard let b = before, !b.isEmpty else { return nil }
+        let seg = AddTones.segment(b)
+        return seg.contains(where: \.isLetter) ? TextTools.Source(text: seg, isSelection: false) : nil
+    }
+
     /// Thay `src` bằng `result` trong ô. `strict` (dùng sau khi CHỜ, vd bản dịch xong
     /// muộn): ô có thể đã đổi trong lúc chờ ⇒ vùng chọn phải còn y nguyên (`currentSelection`)
     /// hoặc chữ trước con trỏ phải còn kết thúc bằng `src.text`, không thì không động vào ô.

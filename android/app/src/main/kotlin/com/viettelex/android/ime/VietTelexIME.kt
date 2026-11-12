@@ -1588,6 +1588,36 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         refreshBar()
     }
 
+    /**
+     * Nút "Thêm dấu" (thẻ Công cụ của ☰ / hàng công cụ bảng sửa): thêm dấu cho vùng chọn, không
+     * thì đoạn không dấu cuối trước con trỏ — AddTones trên máy, không mạng. Gate: nằm trong nhóm
+     * công cụ văn bản (Plus + công tắc, đặt lúc vào ô) + Plus "Thêm dấu cả câu"; KHÔNG cần công tắc
+     * chip tự hiện (addTonesChip — công tắc đó chỉ để tránh chạy AddTones mỗi dấu cách).
+     * Hoàn tác như công cụ văn bản: ô "↩︎ Hoàn tác" / ⌫ ngay sau.
+     */
+    override fun onAddTones() {
+        if (keyboard?.textToolsEnabled != true || !PlusGate.isUnlocked(PlusFeature.SENTENCE_DIACRITICS)) return
+        clearSwipeUndo()
+        handler.removeCallbacks(suggestRun)
+        if (!proxy.begin()) return
+        val out = try {
+            session.commitComposing(proxy)
+            TextToolRunner.addTones(proxy, session.addTonesPersonal(), IcProxy.CONTEXT_CAP)
+        } finally { proxy.end() }
+        resetIfEditFailed()
+        when (out) {
+            is TextToolRunner.Outcome.Applied -> {
+                session.externalSelectionChange()
+                toolUndo = out.undo
+                strip?.showRestore(true, tr("Hoàn tác"))
+            }
+            TextToolRunner.Outcome.FailSafe -> TouchLog.write("failsafe: add tones button tail mismatch → skip")
+            else -> {}
+        }
+        applyAutoShift()
+        refreshBar()
+    }
+
     // MARK: dịch trên máy (Plus) — logic thuần ở keyboard/Translate.kt, ML Kit ở translate/
 
     /**

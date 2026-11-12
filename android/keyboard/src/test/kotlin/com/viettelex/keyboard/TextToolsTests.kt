@@ -162,4 +162,33 @@ class TextToolsTests {
         assertFalse(TextToolRunner.undo(out.undo, p))
         assertEquals("Xin Chào!", p.text)
     }
+
+    // MARK: nút "Thêm dấu" (thẻ Công cụ / bảng sửa văn bản)
+
+    @Test fun addTonesButtonBeforeCursorKeepsTonedPrefix() {
+        TestAssets.install()
+        val p = SelProxy("Mở đầu\nHôm nay toi di hoc ")
+        val out = TextToolRunner.addTones(p, null) as TextToolRunner.Outcome.Applied
+        assertEquals("Mở đầu\nHôm nay tôi đi học ", p.text)
+        assertTrue(TextToolRunner.undo(out.undo, p))
+        assertEquals("Mở đầu\nHôm nay toi di hoc ", p.text)
+    }
+
+    @Test fun addTonesButtonSelectionOnly() {
+        TestAssets.install()
+        val p = SelProxy("A: ", "khong co gi", " — ok")
+        TextToolRunner.addTones(p, null) as TextToolRunner.Outcome.Applied
+        assertEquals("A: không có gì — ok", p.text)
+        assertEquals(0, p.deletes)
+    }
+
+    @Test fun addTonesButtonNothingToDo() {
+        TestAssets.install()
+        assertEquals(TextToolRunner.Outcome.Unchanged, TextToolRunner.addTones(SelProxy("hello world"), null))
+        assertEquals(TextToolRunner.Outcome.NoSource, TextToolRunner.addTones(SelProxy("tôi đi học"), null))
+        assertEquals(TextToolRunner.Outcome.NoSource, TextToolRunner.addTones(SelProxy("\n"), null))
+        // context bị cắt đầu ⇒ bỏ mẩu từ dở
+        assertEquals("toi di", TextToolRunner.addTonesSource(null, "xtoi toi di", contextCap = 11)?.text)
+        assertNull(TextToolRunner.addTonesSource(null, "abcdef", contextCap = 6))
+    }
 }

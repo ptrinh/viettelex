@@ -92,11 +92,11 @@ enum PlusFeature: String, CaseIterable, Identifiable {
     var howTo: String {
         switch self {
         case .premiumThemes: return L("Cách dùng: Tính Năng → Giao diện → chọn theme hoặc ảnh nền.")
-        case .sentenceDiacritics: return L("Cách dùng: gõ không dấu cả câu (hom nay troi dep), gõ dấu cách rồi chạm chip “Thêm dấu” ở đầu thanh gợi ý. Cần bật chip bên dưới.")
+        case .sentenceDiacritics: return L("Cách dùng: gõ không dấu cả câu (hom nay troi dep), gõ dấu cách rồi chạm chip “Thêm dấu” ở đầu thanh gợi ý. Cần bật chip bên dưới. Hoặc chạm “Thêm dấu” trong thẻ Công cụ (☰).")
         case .advancedClipboard: return L("Cách dùng: bật Lịch sử clipboard (Tính Năng → Riêng tư & sao lưu), chạm nút clipboard trên thanh gợi ý. Copy STK/SĐT/OTP → chip “Dán …” hiện trên thanh gợi ý.")
         case .iCloudSync: return L("Cách dùng: Tính Năng → Riêng tư & sao lưu → bật Đồng bộ iCloud.")
-        case .textTools: return L("Cách dùng: chạm ☰ trên thanh gợi ý → chip “⚒️ Công cụ” đầu lưới mẫu câu. Áp lên đoạn đang chọn hoặc câu trước con trỏ.")
-        case .translate: return L("Cách dùng: chạm ☰ trên thanh gợi ý → “⚒️ Công cụ” → “Dịch ↔ …”. Chọn ngôn ngữ và tải gói dịch ngay bên dưới (cần iOS 26).")
+        case .textTools: return L("Cách dùng: chạm ☰ trên thanh gợi ý → thẻ “Công cụ”. Áp lên đoạn đang chọn hoặc câu trước con trỏ.")
+        case .translate: return L("Cách dùng: chạm ☰ trên thanh gợi ý → thẻ “Công cụ” → “Dịch ↔ …”. Chọn ngôn ngữ và tải gói dịch ngay bên dưới (cần iOS 26).")
         case .aiProofread: return L("Cách dùng: bật công tắc bên dưới, rồi chọn vài từ trong ô gõ → chip “✨ Sửa lỗi” trên thanh gợi ý. Chọn một từ → gợi ý từ thay thế.")
         case .thanksBadge: return L("Tự hiện sau khi mua.")
         }
@@ -130,7 +130,7 @@ enum PlusFeature: String, CaseIterable, Identifiable {
     }
     var settingSubtitle: String? {
         switch self {
-        case .textTools: return L("Chip ⚒️ Công cụ trong lưới mẫu câu: đổi HOA/thường, bỏ dấu, dịch…")
+        case .textTools: return L("Thẻ Công cụ trong bảng ☰: đổi HOA/thường, thêm/xoá dấu, dịch…")
         case .aiProofread: return L("Tắt mặc định. Chỉ chạy khi bạn chọn chữ.")
         default: return nil
         }

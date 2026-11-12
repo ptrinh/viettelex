@@ -95,7 +95,7 @@ object Keys {
     /** "Hiện kết quả phép tính" (Bool, mặc định BẬT) — chỉ đọc context ngay sau phím "=". */
     const val MATH_RESULTS = "mathResults"
     /**
-     * Công cụ văn bản (Plus — chip "⚒️ Công cụ" + hàng cuối bảng sửa văn bản) — Bool,
+     * Công cụ văn bản (Plus — thẻ "Công cụ" của bảng ☰ + hàng công cụ bảng sửa văn bản) — Bool,
      * mặc định BẬT; tắt ⇒ không chip, không hàng công cụ, không làm gì. Cùng tên key iOS.
      */
     const val TEXT_TOOLS_ENABLED = "textToolsEnabled"
