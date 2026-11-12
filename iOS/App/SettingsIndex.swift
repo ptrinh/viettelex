@@ -23,7 +23,7 @@ enum FeaturePage: String, CaseIterable, Identifiable {
         }
     }
     /// Cả nhóm đang thử nghiệm → nhãn nhỏ ngay trên dòng.
-    var experimental: Bool { self == .goVuot }
+    var experimental: Bool { false }   // Gõ vuốt hết nhãn Thử nghiệm (Phil 12/11/2026)
     /// Mục tương ứng trong Hướng dẫn sử dụng (docs/hdsd/index.html); nil = không có mục riêng.
     var guideAnchor: String? {
         switch self {
@@ -143,7 +143,7 @@ enum SettingsIndex {
             E(viTitle: SettingLabel.addTones, keywords: "chip thêm dấu câu không dấu add tones plus", location: .page(.suaLoi), key: "addTonesChip", condition: .addTones),
             E(viTitle: LK("Sửa lỗi bằng Apple Intelligence"), keywords: "apple intelligence ai trí tuệ nhân tạo sửa lỗi chính tả ngữ pháp proofread grammar spelling từ thay thế đồng nghĩa synonym plus", location: .page(.suaLoi), key: "aiProofread", condition: .aiProofread),
             // Gõ vuốt
-            E(viTitle: LK("Gõ vuốt"), keywords: "swipe vuốt thử nghiệm", location: .page(.goVuot), key: "swipeTyping"),
+            E(viTitle: LK("Gõ vuốt"), keywords: "swipe vuốt", location: .page(.goVuot), key: "swipeTyping"),
             E(viTitle: SettingLabel.swipeEnglish, keywords: "swipe english check mail meeting", location: .page(.goVuot), key: "swipeEnglish"),
             E(viTitle: LK("Hiệu ứng nét vuốt"), keywords: "swipe trail nét vuốt vệt hiệu ứng lửa fire điện electric lightning bút lông brush mực ink cầu vồng rainbow neon bụi sao stardust sparkle pháo hoa firework plasma ảo ảnh kính vạn hoa kaleidoscope tan chảy melt vệt lặp chroma echo theo giao diện theme plus", location: .page(.goVuot)),
             E(viTitle: LK("Âm thanh nét vuốt"), keywords: "swipe sound tiếng âm thanh vuốt bút chì pencil chổi lông brush phấn bảng chalk bút dạ marker roi vụt whip tia sét lightning plasma đũa phép magic wand âm của bạn your sound custom plus", location: .page(.goVuot)),

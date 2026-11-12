@@ -537,7 +537,7 @@ struct GoVuotPage: View {
         let rows = SettingsDeps.swipeRows(swipeTyping: swipeTyping)
         FeaturePageList(page: .goVuot) {
             Section {
-                experimentalToggle(L("Gõ vuốt"), L(SettingCaption.swipeTyping), isOn: $swipeTyping)
+                settingToggle(L("Gõ vuốt"), L(SettingCaption.swipeTyping), isOn: $swipeTyping)
                 if rows.contains(.swipeEnglish) {
                     settingToggle(L(SettingLabel.swipeEnglish), L(SettingCaption.swipeEnglish), isOn: $swipeEnglish)
                         .padding(.leading, 12)

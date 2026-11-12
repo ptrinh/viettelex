@@ -73,7 +73,7 @@ internal const val FEEDBACK_TITLE = "Phản hồi khi chạm" // l10n-key
 /** [viTitle] = khoá dịch; hiển thị qua [title] (theo ngôn ngữ giao diện). [anchor] rỗng = không có mục Hướng dẫn. */
 enum class FeaturePage(val viTitle: String, val glyph: Glyph, val color: Color, val anchor: String, val enAnchor: String, val experimental: Boolean = false) {
     SuaLoi("Sửa lỗi & gợi ý", Glyph.Spell, Color(0xFF34C759), "goi-y", "suggestions"), // l10n-key
-    GoVuot("Gõ vuốt", Glyph.Swipe, Color(0xFFAF52DE), "go-vuot", "swipe", experimental = true), // l10n-key
+    GoVuot("Gõ vuốt", Glyph.Swipe, Color(0xFFAF52DE), "go-vuot", "swipe"), // l10n-key
     GoTat("Gõ tắt & mẫu câu", Glyph.Quote, Color(0xFF30B0C7), "go-tat", "shortcuts"), // l10n-key
     Phim("Phím & cử chỉ", Glyph.Keyboard, Color(0xFF8E8E93), "cu-chi", "gestures"), // l10n-key
     GiaoDien("Giao diện", Glyph.Palette, Color(0xFFFF2D55), "giao-dien", "look"), // l10n-key
@@ -138,7 +138,7 @@ internal data class FeatureSearchEntry(
             FeatureSearchEntry("Lọc từ nhạy cảm", "tục chửi filter", FeaturePage.SuaLoi), // l10n-key
             FeatureSearchEntry("Từ điển cá nhân", "dictionary tên riêng thuật ngữ", FeaturePage.SuaLoi), // l10n-key
             FeatureSearchEntry("Xóa từ đã học", "xoá học reset", FeaturePage.SuaLoi), // l10n-key
-            FeatureSearchEntry("Gõ vuốt", "swipe vuốt thử nghiệm experimental", FeaturePage.GoVuot), // l10n-key
+            FeatureSearchEntry("Gõ vuốt", "swipe vuốt", FeaturePage.GoVuot), // l10n-key
             FeatureSearchEntry("Vuốt từ tiếng Anh", "swipe english gõ vuốt tiếng anh", FeaturePage.GoVuot), // l10n-key
             FeatureSearchEntry("Hiệu ứng nét vuốt", "swipe trail nét vuốt vệt hiệu ứng lửa fire điện electric lightning bút lông brush mực ink cầu vồng rainbow neon bụi sao stardust sparkle pháo hoa firework plasma ảo ảnh kính vạn hoa kaleidoscope tan chảy melt vệt lặp chroma echo theo giao diện theme plus", FeaturePage.GoVuot), // l10n-key
             FeatureSearchEntry("Âm thanh nét vuốt", "swipe sound tiếng âm thanh vuốt bút chì pencil chổi lông brush phấn bảng chalk bút dạ marker roi vụt whip tia sét lightning plasma đũa phép magic wand âm của bạn your sound custom plus", FeaturePage.GoVuot), // l10n-key
@@ -563,7 +563,7 @@ private fun GoVuotPage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     // Gõ vuốt tắt ⇒ ẩn mọi mục con của trang (SETTINGS-CLEANUP-SPEC §6), bật lại là hiện tại chỗ.
     val rows = SettingDeps.swipeRows(swipeOn)
     VTSection(footer = tr("Tự tắt khi bật TalkBack và ở ô mật khẩu, email, địa chỉ web.")) {
-        ExperimentalToggle(Keys.SWIPE_TYPING, Prefs.D.swipeTyping, tr("Gõ vuốt"),
+        BoolToggle(Keys.SWIPE_TYPING, Prefs.D.swipeTyping, tr("Gõ vuốt"),
             tr(SettingCaption.swipeTyping))
         // "Vuốt từ tiếng Anh" ngay dưới công tắc Gõ vuốt (SETTINGS-CLEANUP-SPEC §1). Bộ chọn hồ sơ
         // (Kiểu Gõ › Gõ lẫn tiếng Anh) vẫn đặt cùng key.
