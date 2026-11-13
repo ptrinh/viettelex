@@ -2752,3 +2752,86 @@ TEST(hard_field_matrix_types_the_phrase) {
         }
     }
 }
+
+// ---- 2026-11: Gmail's "#" (delete) did nothing in V mode -------------------------------
+// A key Telex does not transform, with no word in progress, is never claimed: the app (a web
+// page's single-key shortcut) gets the genuine key event, not one the TIP let through.
+
+TEST(punctuation_with_no_word_passes_through) {
+    const char32_t keys[] = {U'#', U'?', U'!', U'/', U'[', U']', U'1', U'0', U'.', U',', U'*', U'@'};
+    const KeyInput enter{KeyKind::Boundary, 0}, nav{KeyKind::Navigation, 0}, chord{KeyKind::Chord, 0};
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        Rig r(m);
+        for (char32_t c : keys) CHECK(!r.s.wantsKey(KeyInput{KeyKind::Char, c}));
+        CHECK(!r.s.wantsKey(enter));
+        CHECK(!r.s.wantsKey(nav));
+        CHECK(!r.s.wantsKey(chord));
+        // Right after a committed word (⌫ re-open armed): still not claimed.
+        r.type("vieetj ");
+        CHECK_EQ(r.text(), std::string("việt "));
+        for (char32_t c : keys) CHECK(!r.s.wantsKey(KeyInput{KeyKind::Char, c}));
+        CHECK(!r.s.wantsKey(enter));
+        CHECK(!r.s.wantsKey(nav));
+        CHECK(!r.s.wantsKey(chord));
+        // Letters still are (a word may start), and so is ⌫ (it re-opens the word).
+        CHECK(r.s.wantsKey(KeyInput{KeyKind::Char, U'j'}));
+        CHECK(r.s.wantsKey(KeyInput{KeyKind::Backspace, 0}));
+    }
+}
+
+TEST(shift3_in_noneditable_context_passes) {
+    // Gmail's list: "#" with nothing typed — not claimed, in either mode, retro English on
+    // or off.
+    for (bool retroOn : {false, true}) {
+        for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+            RetroRig r(m, retroOn);
+            const KeyInput hash{KeyKind::Char, U'#'};
+            CHECK(!r.s.wantsKey(hash));
+            r.send(hash);
+            CHECK_EQ(r.text(), std::string("#"));
+            CHECK(!r.s.wantsKey(hash));  // "##"
+        }
+    }
+}
+
+TEST(passed_key_disarms_reopen_and_retro_undo) {
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        // ⌫ right after "việt␣" re-opens the word; after "việt␣#" it only deletes "#".
+        Rig r(m);
+        r.type("vieetj #");
+        CHECK_EQ(r.text(), std::string("việt #"));
+        CHECK(!r.s.wantsKey(KeyInput{KeyKind::Backspace, 0}));
+        r.type("\b\b");
+        CHECK_EQ(r.text(), std::string("việt"));
+        CHECK(!r.s.wordActive());
+        // A passed arrow disarms it the same way.
+        Rig e(m);
+        e.type("vieetj ");
+        e.send(KeyInput{KeyKind::Navigation, 0});
+        CHECK(!e.s.wantsKey(KeyInput{KeyKind::Backspace, 0}));
+        // Retro English: the one-key ⌫ undo dies with a passed punctuation key.
+        RetroRig q(m, true);
+        q.type("His car is very ");
+        CHECK(q.s.retroUndoArmed());
+        q.type("?");
+        CHECK(!q.s.retroUndoArmed());
+        q.key('\b');
+        CHECK_EQ(q.text(), std::string("His car is very "));
+    }
+}
+
+TEST(punctuation_after_word_still_commits_first) {
+    // A symbol ending a word is still claimed: the word is committed before the symbol
+    // reaches the app (ordering); auto-restore and tone keys unchanged.
+    bothModes("vieetj#", "việt#");
+    bothModes("tieengs?", "tiếng?");
+    bothModes("google!", "google!");
+    bothModes("dduwowngf/", "đường/");
+    bothModes("xin chaof, cacs banj.", "xin chào, các bạn.");
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        Rig r(m);
+        r.type("vieet");
+        CHECK(r.s.wantsKey(KeyInput{KeyKind::Char, U'#'}));
+        CHECK(r.s.wantsKey(KeyInput{KeyKind::Char, U'j'}));  // tone key after a word
+    }
+}

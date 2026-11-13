@@ -170,6 +170,9 @@ private:
     void afterHintApplied(bool ok, ITfContext* c, const hints::Suggestion& s);
     bool hintKeyTest(WPARAM wp, BOOL* eaten);  // true = handled (eaten set)
     void notePassedBy(const KeyInput& k);      // session_.noteKeyPassedBy + passNoted_
+    // Word start in a context suspected of having no editable text (NoEditableContext):
+    // true = claim nothing there (a read-only probe found no caret again).
+    bool noEditableHere(ITfContext* ctx);
     HRESULT testKeyDownBody(ITfContext* ctx, WPARAM wp, BOOL* eaten);         // OnTestKeyDown body
     HRESULT keyDownBody(ITfContext* ctx, WPARAM wp, LPARAM lp, BOOL* eaten);   // OnKeyDown body
     bool keyOfferedAgain(bool atTest, WPARAM wp, LPARAM lp);  // tip_caches.h KeyEventRepeat
@@ -231,6 +234,8 @@ private:
     unsigned long settingsGen_ = 0;
     FocusStateNotify focusNotify_;      // tray state posts at focus changes (tip_caches.h)
     PerKeyOnce hostEval_;               // evaluateHost once per key (tip_caches.h)
+    NoEditableContext noEdit_;          // a page with no editable element (tip_caches.h)
+    bool noEditLogged_ = false;         // logged once per focus
     KeyEventRepeat keyRepeat_;          // a key we let through, offered again (tip_caches.h)
     mutable HookReachCache reachCache_; // UIPI answer per focus + app process (tip_caches.h)
     bool keyRepeatLogged_ = false;      // once per focus

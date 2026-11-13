@@ -293,16 +293,21 @@ bool TypingSession::wantsKey(const KeyInput& k) const {
             // Retro English: boundary characters declined here reach the engine through
             // noteKeyPassedBy() (no edit session for them).
             // A space right after a symbol key ("=>␣"): no word, but an expansion.
-            return isWordKey(k) || wordActive() || reopenArmed_ || (isShortcutSpace(k.ch) && tokenCandidate());
+            // No word in progress: a key Telex does not transform ("#", "?", "/", digits)
+            // is never claimed — the app gets the genuine key event, not one the TIP let
+            // through or retyped (2026-11: Gmail's "#" = delete did nothing in V mode; a
+            // web page's single-key shortcuts listen to keydown). An armed ⌫ re-open /
+            // retro undo is disarmed by noteKeyPassedBy() instead.
+            return isWordKey(k) || wordActive() || (isShortcutSpace(k.ch) && tokenCandidate());
         case KeyKind::Backspace:
             return wordActive() || retroUndo_.armed() ||
                    (opt_.reEditWord && reopenArmed_ && vtx_can_reopen_last_commit(engine_));
         case KeyKind::Boundary:
         case KeyKind::Navigation:
         case KeyKind::Chord:
-            // reopenArmed_ / retro undo: so the key disarms it
-            return wordActive() || reopenArmed_ || retroUndo_.armed() ||
-                   (k.kind == KeyKind::Boundary && tokenCandidate());
+            // Same: with no word, only a symbol shortcut key claims Enter / Tab (an armed
+            // re-open / retro undo is disarmed by noteKeyPassedBy()).
+            return wordActive() || (k.kind == KeyKind::Boundary && tokenCandidate());
         case KeyKind::Modifier:
         case KeyKind::Other:
             return false;
@@ -354,6 +359,9 @@ void TypingSession::noteKeyPassedBy(const KeyInput& k) {
     }
     retroOffer_.clear();
     lastRetroWords_ = 0;
+    // ⌫ re-opens the last word only right after its boundary: any other key disarms it
+    // (wantsKey no longer claims a key just to disarm it). Shift / Caps Lock do not.
+    if (k.kind != KeyKind::Modifier && k.kind != KeyKind::Other) reopenArmed_ = false;
     // Any other key drops the one-key undo (retro rewrite or boundary restore), and the
     // engine hears about every boundary character even with retro off: it also uses them
     // for glued separators ("my_var", "os.path", "100W").

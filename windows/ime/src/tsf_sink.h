@@ -25,6 +25,9 @@ public:
     bool compositionText(std::u16string& out) override;
     AppView appTextEndsWith(const std::u16string& tail) override;
 
+    // The store gives a selection (a caret) at all: false on a page with no editable
+    // element focused (tip_caches.h NoEditableContext).
+    bool hasCaret();
     // True when the selection lies inside the active composition (OnEndEdit check).
     bool selectionInsideComposition();
 
