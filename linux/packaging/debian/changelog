@@ -1,3 +1,15 @@
+viettelex (1.0.27) UNRELEASED; urgency=medium
+
+  * Bàn phím có phím ghép dấu (US International, Đức, Pháp…) và phím Compose
+    gõ đúng khi đang bật VietTelex: ´ rồi e ra é, ´ rồi dấu cách ra ', ¨ rồi u
+    ra ü. Trước đây dấu bị mất hoặc dính vào phím sau.
+  * ---
+  * Dead keys (US International, German, French…) and the Compose key now work
+    while VietTelex is active: ´ then e gives é, ´ then Space gives ', ¨ then u
+    gives ü. Previously the accent was lost or attached to a later key.
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Fri, 13 Nov 2026 16:00:00 +0700
+
 viettelex (1.0.26) UNRELEASED; urgency=medium
 
   * Tuỳ chọn mới "Phát tiếng khi đổi Việt/Anh" (tắt sẵn): tiếng đi lên là tiếng
