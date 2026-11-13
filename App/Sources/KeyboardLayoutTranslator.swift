@@ -47,6 +47,21 @@ struct KeyboardLayoutTranslator {
     /// cannot identify a dead key there — the layout itself has to say.
     private let dead: [Bool]
 
+    /// [keyCode * 2 + (shift ? 1 : 0)] → the UTF-16 unit a DEAD key types on its own
+    /// when that character is NOT ASCII (´ ¨ on German / French layouts), 0 otherwise.
+    /// Kept out of `table` on purpose: it must never become a Telex key nor a chord
+    /// remap target — it is only what the dead-key rescue inserts (#161).
+    private let deadLiteral: [UInt16]
+
+    /// [keyCode * 2 + (shift ? 1 : 0)] → true when ⌥(+Shift)+key is a DEAD key on this
+    /// layout (⌥e ´, ⌥u ¨, ⌥i ˆ, ⌥n ˜, ⌥` ` on ABC). The composition that follows is
+    /// done by `compose`, on demand — only after such a key.
+    private let optionDead: [Bool]
+
+    /// The layout's raw `uchr` bytes (immutable copy) + keyboard type, for `compose`.
+    private let layoutData: Data
+    private let kbdType: UInt32
+
     private static let keyCodeCount = 128
     private static let asciiCount = 128
 
@@ -63,6 +78,8 @@ struct KeyboardLayoutTranslator {
         var built = [UInt8](repeating: 0, count: Self.keyCodeCount * 2)
         var inverse = [UInt16](repeating: 0, count: Self.asciiCount * 2)
         var deadKeys = [Bool](repeating: false, count: Self.keyCodeCount * 2)
+        var deadLits = [UInt16](repeating: 0, count: Self.keyCodeCount * 2)
+        var optDead = [Bool](repeating: false, count: Self.keyCodeCount * 2)
         let ok = data.withUnsafeBytes { buf -> Bool in
             guard let layout = buf.baseAddress?.assumingMemoryBound(to: UCKeyboardLayout.self)
             else { return false }
@@ -72,11 +89,18 @@ struct KeyboardLayoutTranslator {
                     // the same shift the Carbon docs specify (`modifierKeyState =
                     // (EventRecord.modifiers >> 8) & 0xFF`).
                     let modifiers = UInt32(shift == 1 ? (shiftKey >> 8) : 0)
-                    guard let (ascii, isDead) = Self.resolve(layout, code: UInt16(code),
-                                                             modifiers: modifiers, kbdType: kbdType)
+                    optDead[code * 2 + shift] = Self.deadState(
+                        layout, code: UInt16(code),
+                        modifiers: modifiers | UInt32(optionKey >> 8), kbdType: kbdType) != 0
+                    guard let r = Self.resolve(layout, code: UInt16(code),
+                                               modifiers: modifiers, kbdType: kbdType)
                     else { continue }
+                    deadKeys[code * 2 + shift] = r.isDead
+                    guard let ascii = r.ascii else {
+                        deadLits[code * 2 + shift] = r.deadLiteral ?? 0
+                        continue
+                    }
                     built[code * 2 + shift] = ascii
-                    deadKeys[code * 2 + shift] = isDead
                     let slot = Int(ascii) * 2 + shift
                     if inverse[slot] == 0 { inverse[slot] = UInt16(code) + 1 }
                 }
@@ -88,6 +112,10 @@ struct KeyboardLayoutTranslator {
         self.table = built
         self.reverse = inverse
         self.dead = deadKeys
+        self.deadLiteral = deadLits
+        self.optionDead = optDead
+        self.layoutData = data
+        self.kbdType = kbdType
     }
 
     /// One key, one plane → its ASCII character, or nil.
@@ -100,9 +128,11 @@ struct KeyboardLayoutTranslator {
     ///
     /// A dead key whose own character is not ASCII (˜ ˆ on U.S. International – PC)
     /// gets a second try: the dead key followed by Space, i.e. what typing it alone
-    /// produces on that layout (~ ^). Still nil when even that is not ASCII (´ ¨).
+    /// produces on that layout (~ ^). When even that is not ASCII (´ ¨) the key comes
+    /// back with `ascii` nil and its own (non-ASCII) character in `deadLiteral`.
     private static func resolve(_ layout: UnsafePointer<UCKeyboardLayout>, code: UInt16,
-                                modifiers: UInt32, kbdType: UInt32) -> (UInt8, Bool)? {
+                                modifiers: UInt32, kbdType: UInt32)
+        -> (ascii: UInt8?, isDead: Bool, deadLiteral: UniChar?)? {
         func translate(_ key: UInt16, _ mods: UInt32, _ options: OptionBits,
                        _ state: inout UInt32) -> UniChar? {
             var length = 0
@@ -125,9 +155,79 @@ struct KeyboardLayoutTranslator {
         // Was it a dead key? With dead keys ON it produces nothing and sets a state.
         var deadState: UInt32 = 0
         let isDead = translate(code, modifiers, 0, &deadState) == nil && deadState != 0
-        if let ascii = printable(plain) { return (ascii, isDead) }
+        if let ascii = printable(plain) { return (ascii, isDead, nil) }
         guard isDead else { return nil }
-        return printable(translate(UInt16(kVK_Space), 0, 0, &deadState)).map { ($0, true) }
+        let spaced = translate(UInt16(kVK_Space), 0, 0, &deadState)
+        if let ascii = printable(spaced) { return (ascii, true, nil) }
+        // Neither is ASCII (´ ¨): keep the key's own character for the rescue —
+        // dead key + Space first (what typing it alone gives), else the plain one.
+        return (nil, true, [spaced, plain].lazy.compactMap { $0 }.first(where: Self.isLiteralUnit))
+    }
+
+    /// The dead-key state `code` leaves behind with dead keys ON, 0 when the key is
+    /// not dead (it produced output, or nothing at all).
+    private static func deadState(_ layout: UnsafePointer<UCKeyboardLayout>, code: UInt16,
+                                  modifiers: UInt32, kbdType: UInt32) -> UInt32 {
+        var state: UInt32 = 0
+        var length = 0
+        var chars: (UniChar, UniChar, UniChar, UniChar) = (0, 0, 0, 0)
+        let status = withUnsafeMutableBytes(of: &chars) { raw in
+            UCKeyTranslate(layout, code, UInt16(kUCKeyActionDown), modifiers, kbdType, 0,
+                           &state, 4, &length, raw.bindMemory(to: UniChar.self).baseAddress)
+        }
+        return status == noErr && length == 0 ? state : 0
+    }
+
+    /// Carbon modifier byte (UCKeyTranslate's format) for a key event.
+    static func carbonModifiers(shift: Bool, option: Bool, capsLock: Bool) -> UInt32 {
+        var m = 0
+        if shift { m |= shiftKey }
+        if option { m |= optionKey }
+        if capsLock { m |= alphaLock }
+        return UInt32(m >> 8)
+    }
+
+    /// Is ⌥(+Shift)+keyCode a dead key on this layout (⌥e ⌥u ⌥i ⌥n ⌥` on ABC)?
+    /// One array read — the only cost an ⌥ chord pays.
+    func isOptionDeadKey(keyCode: UInt16, shift: Bool) -> Bool {
+        let index = Int(keyCode) * 2 + (shift ? 1 : 0)
+        return index < optionDead.count && optionDead[index]
+    }
+
+    /// The dead-key state ⌥(+Shift)+keyCode starts, 0 when it is not a dead key.
+    func optionDeadState(keyCode: UInt16, shift: Bool, capsLock: Bool) -> UInt32 {
+        guard isOptionDeadKey(keyCode: keyCode, shift: shift) else { return 0 }
+        let mods = Self.carbonModifiers(shift: shift, option: true, capsLock: capsLock)
+        return layoutData.withUnsafeBytes { buf -> UInt32 in
+            guard let layout = buf.baseAddress?.assumingMemoryBound(to: UCKeyboardLayout.self)
+            else { return 0 }
+            return Self.deadState(layout, code: keyCode, modifiers: mods, kbdType: kbdType)
+        }
+    }
+
+    /// Finish a pending dead key with the next key, exactly as the layout would:
+    /// ⌥e then e → "é"; ⌥e then Space → "´"; ⌥e then x (no composition) → "´x".
+    /// `state` stays non-zero in the result when the key chained another dead state.
+    /// Empty text = the layout produced nothing.
+    func compose(state: UInt32, keyCode: UInt16, modifiers: UInt32) -> (text: String, state: UInt32) {
+        layoutData.withUnsafeBytes { buf -> (String, UInt32) in
+            guard let layout = buf.baseAddress?.assumingMemoryBound(to: UCKeyboardLayout.self)
+            else { return ("", 0) }
+            var st = state
+            var length = 0
+            var chars = [UniChar](repeating: 0, count: 8)
+            let status = UCKeyTranslate(layout, keyCode, UInt16(kUCKeyActionDown), modifiers, kbdType, 0,
+                                        &st, chars.count, &length, &chars)
+            guard status == noErr else { return ("", 0) }
+            return (String(utf16CodeUnits: chars, count: length), st)
+        }
+    }
+
+    /// A UTF-16 unit the rescue may insert as a dead key's own character: printable,
+    /// not a control, not a private-use function-key code, not a lone surrogate.
+    static func isLiteralUnit(_ u: UniChar) -> Bool {
+        u >= 0x20 && u != 0x7F && !(0x80..<0xA0).contains(u)
+            && !(0xD800...0xDFFF).contains(u) && !(0xE000...0xF8FF).contains(u)
     }
 
     /// The character `keyCode` produces on this layout, or nil to defer to whatever
@@ -169,12 +269,26 @@ struct KeyboardLayoutTranslator {
     }
 
     /// Is `keyCode` a dead key on this layout (in the plane Shift / Caps Lock select)?
-    /// Only keys whose own character is in the table can be true. One array read.
+    /// True for ASCII dead keys (' " ` ~ ^) and non-ASCII ones (´ ¨). One array read.
     func isDeadKey(keyCode: UInt16, shift: Bool, capsLock: Bool) -> Bool {
         let effective = Self.effectiveShift(
             shift: shift, capsLock: capsLock, plainASCII: ascii(keyCode: keyCode, shift: false))
         let index = Int(keyCode) * 2 + (effective ? 1 : 0)
         return index < dead.count && dead[index]
+    }
+
+    /// What a DEAD key types on its own, ASCII (' " ` ~ ^) or not (´ ¨), or nil when the
+    /// key is not dead on this layout. Two array reads. This is the rescue's literal
+    /// (#161) — never a Telex key: non-ASCII literals go to the engine as punctuation.
+    func deadLiteral(keyCode: UInt16, shift: Bool, capsLock: Bool) -> Character? {
+        guard isDeadKey(keyCode: keyCode, shift: shift, capsLock: capsLock) else { return nil }
+        let effective = Self.effectiveShift(
+            shift: shift, capsLock: capsLock, plainASCII: ascii(keyCode: keyCode, shift: false))
+        if let a = ascii(keyCode: keyCode, shift: effective) { return Character(UnicodeScalar(a)) }
+        let index = Int(keyCode) * 2 + (effective ? 1 : 0)
+        guard index < deadLiteral.count, deadLiteral[index] != 0,
+              let scalar = UnicodeScalar(deadLiteral[index]) else { return nil }
+        return Character(scalar)
     }
 
     /// The keyCode that produces `ascii` on this layout, or nil when none does.
@@ -240,9 +354,103 @@ enum DeadKeyLiteral {
     ///   already carries that very character: handed back to the client, Spotlight
     ///   runs the layout's dead-key composition on it and types nothing (#161,
     ///   reporter: ' " work everywhere after 1.9.9 except the Spotlight field).
+    /// - A dead key whose own character is not ASCII (´ ¨, German / French) is
+    ///   inserted too — it counts as punctuation, never as a Telex key.
     static func insertion(ours: String?, eventCharacters: String?, deadOnLayout: Bool) -> String? {
-        guard let ours, TelexInputController.insertsOneCharacter(ours),
-              ours != eventCharacters || deadOnLayout else { return nil }
-        return ours
+        guard let ours, ours != eventCharacters || deadOnLayout else { return nil }
+        if TelexInputController.insertsOneCharacter(ours) { return ours }
+        let deadKey = deadOnLayout || isDeadKeyEvent(eventCharacters)
+        return deadKey && isLiteral(ours) ? ours : nil
+    }
+
+    /// One printable character a dead key may type on its own (' or ´ alike): not
+    /// empty, not a control, not a function-key code (U+F7xx).
+    static func isLiteral(_ text: String?) -> Bool {
+        guard let text, text.count == 1, text.utf16.count <= 2,
+              let u = text.utf16.first else { return false }
+        return KeyboardLayoutTranslator.isLiteralUnit(u) || (0xD800...0xDBFF).contains(u)
+    }
+
+    /// Same prefilter as `mayBeDeadKey`, for the tap (first UTF-16 unit of the event;
+    /// nil = empty event).
+    @inline(__always)
+    static func mayBeDeadKey(unit: UniChar?) -> Bool {
+        guard let u = unit else { return true }
+        if u < 0x80 {
+            let a = UInt8(u)
+            return !((a >= 0x30 && a <= 0x39) || (a | 0x20 >= 0x61 && a | 0x20 <= 0x7A))
+        }
+        return true
+    }
+
+    // MARK: - Rescue invariant (#161)
+
+    /// THE INVARIANT: while VietTelex is the input source, a plain (no ⌘⌃⌥) keyDown
+    /// that is a dead key on the live layout puts EXACTLY ONE character on screen —
+    /// never zero (the layout's own dead-key composition does not run while an input
+    /// method is selected, so a key handed back to the app types nothing), never two.
+    ///
+    /// The IMK controller enforces it in ONE place, after its whole decision tree
+    /// ran: whatever branch let the key go (`handled == false` — secure field,
+    /// tap-defer while the tap is tripped/quarantined/dead, manual Off, a game in
+    /// passthrough, stall breaker, machine typing…), the literal is inserted here and
+    /// the key consumed. The text to insert, or nil to keep the verdict.
+    ///
+    /// - handled: the decision tree already returned true (it inserted / composed).
+    /// - deadKey: this keyDown is a dead key (empty characters, or the live layout
+    ///   says so) without ⌘⌃⌥.
+    /// - keepRaw: the key must reach the app as a raw keycode — remote desktop / VM
+    ///   (the GUEST composes from the scancode), our own synthetic echoes.
+    /// - tapOwned: the event tap already typed this very keystroke (it rewrote the
+    ///   physical event in place — DeadKeyHandoff). A tap that swallows a key and
+    ///   re-posts the literal never reaches here with the physical event at all, and
+    ///   its re-post is keycode 0 + our magic, so it is not a dead key either.
+    /// - literal: the key's own character (evaluated only when everything else says
+    ///   rescue).
+    static func rescue(handled: Bool, deadKey: Bool, keepRaw: Bool, tapOwned: @autoclosure () -> Bool,
+                       literal: () -> String?) -> String? {
+        guard !handled, deadKey, !keepRaw, !tapOwned(), let text = literal(), isLiteral(text)
+        else { return nil }
+        return text
+    }
+
+    /// Passthrough apps whose dead keys must stay RAW: a remote desktop / VM forwards
+    /// the scancode and the guest's own layout composes it — inserting a literal here
+    /// would type it twice (or type it on the host). Other passthrough apps (a game's
+    /// chat box, a manual "Off" pin on an ordinary app) read TEXT, and there a dead
+    /// key passed through types nothing, so they get the rescue.
+    static func passthroughKeepsRaw(remoteDesktop: Bool, builtInPassthrough: Bool,
+                                    bundleID: String?) -> Bool {
+        if remoteDesktop { return true }
+        guard builtInPassthrough else { return false }
+        guard let id = bundleID else { return true }
+        return !textPassthroughPrefixes.contains { id.hasPrefix($0) }
+    }
+
+    /// Built-in passthrough entries that are NOT scancode tunnels (typing-modes.yml:
+    /// games are there to keep their keys unconverted, not to forward keycodes).
+    static let textPassthroughPrefixes = ["com.valvesoftware."]
+}
+
+/// Which keystroke the event TAP already typed itself while letting the physical
+/// event pass (the in-place rewrite, TerminalTap.modifyInPlace). The rescue must not
+/// type it again. Exact match on (keyCode, CGEvent timestamp): the IMK controller
+/// receives that same event, so there is no time window to go stale.
+/// Written on the tap thread, read on main — guarded.
+enum DeadKeyHandoff {
+    private static let lock = NSLock()
+    private static var owned: (keyCode: UInt16, timestamp: UInt64)?
+
+    static func markTapOwned(keyCode: UInt16, timestamp: UInt64) {
+        lock.withLock { owned = (keyCode, timestamp) }
+    }
+
+    /// Consumes the mark when it names this keystroke.
+    static func consumeTapOwned(keyCode: UInt16, timestamp: UInt64) -> Bool {
+        lock.withLock {
+            guard let o = owned, o.keyCode == keyCode, o.timestamp == timestamp else { return false }
+            owned = nil
+            return true
+        }
     }
 }

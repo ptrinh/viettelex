@@ -214,8 +214,15 @@ enum KeyboardLayoutOverride {
     /// own, which VietTelex then inserts literally. See DeadKeyLiteral.
     ///
     /// Built here, on main, once per layout change: the tap thread must not call TIS
-    /// (macOS asserts it is on main), so it only ever reads this cache.
+    /// (macOS asserts it is on main), so it only ever reads this cache. Rebuilt from
+    /// activateServer (apply), from the input-source-changed notification
+    /// (`inputSourceChanged`, main.swift), and lazily on first need (`ensureLiveTable`
+    /// on main; `requestLiveTable` from the tap thread schedules it).
     private static var _liveTable: KeyboardLayoutTranslator?
+    /// A build was attempted at least once (success or not) — the lazy path must not
+    /// retry a layout without `uchr` data on every key.
+    private static var _liveTableAttempted = false
+    private static var _liveTableScheduled = false
 
     static var liveTable: KeyboardLayoutTranslator? {
         translatorLock.withLock { _liveTable }
@@ -224,15 +231,53 @@ enum KeyboardLayoutOverride {
     /// Rebuild the live table when macOS's layout changed. No-op (one string compare)
     /// otherwise. Main thread only.
     static func refreshLiveTable(_ live: String) {
-        if translatorLock.withLock({ _liveTable?.layoutID == live }) { return }
+        if !translatorLock.withLock({
+            liveTableStale(cachedLayoutID: _liveTable?.layoutID, attempted: _liveTableAttempted, live: live)
+        }) { return }
         let built = source(for: live).flatMap { KeyboardLayoutTranslator(layoutID: live, source: $0) }
-        translatorLock.withLock { _liveTable = built }
+        translatorLock.withLock { _liveTable = built; _liveTableAttempted = true }
+    }
+
+    /// kTISNotifySelectedKeyboardInputSourceChanged (main): the user may have switched
+    /// the layout macOS binds to VietTelex without any activateServer following.
+    static func inputSourceChanged() {
+        refreshLiveTable(liveLayoutID())
+    }
+
+    /// Main thread: build the table now if it was never attempted. One bool read after.
+    static func ensureLiveTable() {
+        if translatorLock.withLock({ _liveTableAttempted }) { return }
+        refreshLiveTable(liveLayoutID())
+    }
+
+    /// Any thread (the tap): the table was never built — have main build it. The key
+    /// in hand cannot wait for that; the caller hands it to the IMK controller, which
+    /// builds synchronously on main and rescues the dead key itself.
+    static func requestLiveTable() {
+        let schedule = translatorLock.withLock { () -> Bool in
+            guard !_liveTableAttempted, !_liveTableScheduled else { return false }
+            _liveTableScheduled = true
+            return true
+        }
+        guard schedule else { return }
+        DispatchQueue.main.async {
+            ensureLiveTable()
+            translatorLock.withLock { _liveTableScheduled = false }
+        }
+    }
+
+    /// Pure: does the cache need a rebuild for `live`? (nil table = never built.)
+    static func liveTableStale(cachedLayoutID: String?, attempted: Bool, live: String) -> Bool {
+        !attempted || cachedLayoutID != live
     }
 
     /// The character `keyCode` types on the live layout with dead keys off, or nil.
     /// Callable from any thread: reads the cache only.
+    /// A dead key whose own character is not ASCII (´ ¨) answers that character.
     static func liveCharacter(keyCode: UInt16, shift: Bool, capsLock: Bool) -> Character? {
-        liveTable?.character(keyCode: keyCode, shift: shift, capsLock: capsLock)
+        guard let t = liveTable else { return nil }
+        return t.character(keyCode: keyCode, shift: shift, capsLock: capsLock)
+            ?? t.deadLiteral(keyCode: keyCode, shift: shift, capsLock: capsLock)
     }
 
     /// Is `keyCode` a dead key on the live layout? Any thread: reads the cache only.
