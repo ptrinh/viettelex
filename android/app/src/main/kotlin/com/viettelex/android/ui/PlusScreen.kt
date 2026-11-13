@@ -18,8 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.viettelex.android.BuildConfig
 import com.viettelex.android.plus.PlusController
-import com.viettelex.android.translate.TranslateFeature
-import androidx.compose.ui.platform.LocalContext
 import com.viettelex.keyboard.Keys
 import com.viettelex.keyboard.PlusConfig
 import com.viettelex.keyboard.PlusFeature
@@ -70,9 +68,7 @@ fun PlusScreen(plus: PlusController, onBack: () -> Unit, onOpenFeature: (Feature
     }
     VTSection(header = tr("Quyền lợi Plus"),
         footer = tr("Toàn bộ phần gõ — Telex/VNI, sửa dấu từ đã gõ, gợi ý, gõ vuốt, gõ tắt, mẫu câu, theme sáng/tối — luôn miễn phí.")) {
-        // APK ngoài Play không tải được module Dịch ⇒ ẩn hẳn dòng này.
-        val translateOffered = TranslateFeature.offered(LocalContext.current)
-        PlusFeature.entries.filter { it != PlusFeature.TRANSLATE || translateOffered }.forEachIndexed { i, f ->
+        PlusFeature.entries.forEachIndexed { i, f ->
             if (i > 0) RowDivider()
             // Màn Plus chỉ là trang mua: công tắc/cài đặt nằm ở trang tính năng — chạm để mở.
             val page = plusFeaturePage(f)

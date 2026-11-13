@@ -636,12 +636,10 @@ private fun GoTatPage(onBack: () -> Unit) {
                 tr(SettingCaption.textTools))
         } else PlusLockedRow(tr("Công cụ văn bản"), tr(SettingCaption.textTools))
     }
-    // Dịch trên máy (Plus): cài đặt ở đây (cạnh Công cụ) — APK ngoài Play không tải được module ⇒ ẩn.
-    if (com.viettelex.android.translate.TranslateFeature.offered(LocalContext.current)) {
-        VTSection(header = PlusFeature.TRANSLATE.title) {
-            if (PlusGate.isUnlocked(PlusFeature.TRANSLATE)) TranslateSettings(leadingDivider = false)
-            else PlusLockedRow(PlusFeature.TRANSLATE.title, PlusFeature.TRANSLATE.detail)
-        }
+    // Dịch trên máy (Plus): cài đặt ở đây (cạnh Công cụ).
+    VTSection(header = PlusFeature.TRANSLATE.title) {
+        if (PlusGate.isUnlocked(PlusFeature.TRANSLATE)) TranslateSettings(leadingDivider = false)
+        else PlusLockedRow(PlusFeature.TRANSLATE.title, PlusFeature.TRANSLATE.detail)
     }
     GuideLinkSection(FeaturePage.GoTat)
 }

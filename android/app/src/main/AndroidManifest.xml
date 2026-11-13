@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Chỉ dùng cho Mẫu câu động (https://) do người dùng tạo — fetch lúc chạm. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Dịch trên máy: "Chỉ tải qua Wi-Fi" kiểm tra mạng hiện tại trước khi tải module/gói. -->
+    <!-- Dịch trên máy: "Chỉ tải qua Wi-Fi" kiểm tra mạng hiện tại trước khi tải gói ngôn ngữ. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Nút gõ giọng nói: thấy IME khác (vd Google voice typing) dưới package visibility. -->
     <queries>
@@ -24,6 +24,12 @@
         android:supportsRtl="false">
         <!-- Perfetto/Macrobenchmark đọc được mốc "VT.*" trên bản release (API 29+), không cần debuggable. -->
         <profileable android:shell="true" tools:targetApi="29" />
+        <!-- ML Kit (Dịch trên máy): không tự khởi tạo lúc mở process (bàn phím chạy ở process này) —
+             MlKitBackend khởi tạo khi chạm "Dịch" / mở trang cài đặt dịch. -->
+        <provider
+            android:name="com.google.mlkit.common.internal.MlKitInitProvider"
+            android:authorities="${applicationId}.mlkitinitprovider"
+            tools:node="remove" />
         <!-- App cài đặt (Compose) chạy process riêng ":settings" — không để ~15 MB Compose/HWUI nằm
              lại mãi trong process bàn phím (RAM-AUDIT #5). Prefs đồng bộ qua shared/PrefSync. -->
         <activity
