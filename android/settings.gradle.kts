@@ -4,6 +4,6 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 rootProject.name = "VietTelex"
-include(":telexcore", ":keyboard", ":app", ":translate")
+include(":telexcore", ":keyboard", ":app")
 // Đo hiệu năng hiện bàn phím (docs/PERF-IME-SHOW.md): app chủ tối giản + Macrobenchmark — không phát hành.
 include(":perfhost", ":benchmark")

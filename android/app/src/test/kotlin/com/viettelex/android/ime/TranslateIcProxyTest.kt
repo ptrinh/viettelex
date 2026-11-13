@@ -68,12 +68,4 @@ class TranslateIcProxyTest {
         val p = proxy(ed)
         assertNull(p.batch(ed) { TranslateRunner.prepare(this, "en", IcProxy.CONTEXT_CAP) })
     }
-
-    /** APK gốc KHÔNG phụ thuộc ML Kit (nằm ở module on-demand :translate) — classpath test = classpath app. */
-    @Test fun baseHasNoMlKit() {
-        for (cls in listOf("com.google.mlkit.nl.translate.Translation", "com.google.mlkit.common.MlKit")) {
-            val found = try { Class.forName(cls); true } catch (_: ClassNotFoundException) { false }
-            assertTrue("$cls lọt vào app gốc", !found)
-        }
-    }
 }

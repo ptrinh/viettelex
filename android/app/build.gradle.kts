@@ -57,8 +57,6 @@ android {
     // iOS (project.yml). Vào assets gốc: Tiny5-Regular.ttf + OFL-Tiny5-Regular.txt + README.txt (nguồn / giấy phép).
     sourceSets["main"].assets.srcDir(rootProject.file("../fonts"))
     testOptions { unitTests { isIncludeAndroidResources = true } }
-    // Module Play Feature Delivery (on-demand) — chỉ vào AAB; assembleRelease (APK GitHub) không có.
-    dynamicFeatures += setOf(":translate")
 }
 dependencies {
     implementation(project(":telexcore")); implementation(project(":keyboard"))
@@ -82,9 +80,10 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling-preview")   // không có @Preview trong main ⇒ chỉ bản debug
     // VietTelex Plus + ủng hộ: Google Play Billing (thư viện chính chủ của Google).
     implementation("com.android.billingclient:billing:8.0.0")
-    // Dịch trên máy (Plus): ML Kit nằm ở module on-demand :translate (APK gốc không có);
-    // Play Feature Delivery tải module khi người dùng bấm trong app.
-    implementation("com.google.android.play:feature-delivery:2.1.0")
+    // Dịch trên máy (Plus): ML Kit Translation nằm thẳng trong app (bỏ module Play Feature Delivery
+    // từ #162 — SplitInstall báo APP_NOT_OWNED cả với bản cài từ Play). Gói ngôn ngữ (~30 MB/thứ tiếng)
+    // vẫn tải khi người dùng bấm, qua RemoteModelManager của ML Kit. ML Kit mang sẵn consumer R8 rules.
+    implementation("com.google.mlkit:translate:17.0.3")
     // Billing kéo vài androidx cũ (livedata 2.8.3, fragment 1.1.0) — nâng lên bản mới hơn
     // (đã có sẵn trong cache Gradle) để build --offline chạy được; chỉ là ràng buộc
     // phiên bản, không thêm thư viện mới.

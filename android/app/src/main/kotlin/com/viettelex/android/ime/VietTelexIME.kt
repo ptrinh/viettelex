@@ -901,9 +901,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         // Plus + công tắc "Công cụ văn bản" (mặc định bật) + không phải ô mật khẩu.
         kb.textToolsEnabled = settings.textToolsActive(PlusGate.isUnlocked(PlusFeature.TEXT_TOOLS), field.isSecure)
         // Dịch nằm trong Công cụ ⇒ tắt Công cụ là tắt luôn Dịch.
-        // APK ngoài Play (không tải được module :translate) ⇒ ẩn hẳn Dịch.
-        kb.translateEnabled = kb.textToolsEnabled && PlusGate.isUnlocked(PlusFeature.TRANSLATE) &&
-            com.viettelex.android.translate.TranslateFeature.offered(this)
+        kb.translateEnabled = kb.textToolsEnabled && PlusGate.isUnlocked(PlusFeature.TRANSLATE)
         st.toolsEnabled = kb.textToolsEnabled || kb.translateEnabled   // ☰ khi Mẫu câu tắt
         st.setPlane(kb.plane)
         // Giữ lâu "," = gõ giọng nói: chỉ khi máy có IME giọng nói (đọc lại khi vào ô mới —
@@ -1618,7 +1616,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         refreshBar()
     }
 
-    // MARK: dịch trên máy (Plus) — logic thuần ở keyboard/Translate.kt, ML Kit ở translate/
+    // MARK: dịch trên máy (Plus) — logic thuần ở keyboard/Translate.kt, ML Kit ở app/…/translate/MlKitBackend.kt
 
     /**
      * Dịch vùng chọn / đoạn trước con trỏ (giống công cụ văn bản) sang ngôn ngữ đích đã chọn
