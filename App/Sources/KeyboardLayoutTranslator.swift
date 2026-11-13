@@ -41,6 +41,12 @@ struct KeyboardLayoutTranslator {
     /// ahead of the numeric keypad (keycodes 82…92).
     private let reverse: [UInt16]
 
+    /// [keyCode * 2 + (shift ? 1 : 0)] → true when that key is a DEAD key on this
+    /// layout (' " ` ~ ^ on U.S. International – PC). Spotlight (#161 follow-up) does
+    /// not hand the input method an empty event for it, so "empty characters" alone
+    /// cannot identify a dead key there — the layout itself has to say.
+    private let dead: [Bool]
+
     private static let keyCodeCount = 128
     private static let asciiCount = 128
 
@@ -56,6 +62,7 @@ struct KeyboardLayoutTranslator {
 
         var built = [UInt8](repeating: 0, count: Self.keyCodeCount * 2)
         var inverse = [UInt16](repeating: 0, count: Self.asciiCount * 2)
+        var deadKeys = [Bool](repeating: false, count: Self.keyCodeCount * 2)
         let ok = data.withUnsafeBytes { buf -> Bool in
             guard let layout = buf.baseAddress?.assumingMemoryBound(to: UCKeyboardLayout.self)
             else { return false }
@@ -65,10 +72,11 @@ struct KeyboardLayoutTranslator {
                     // the same shift the Carbon docs specify (`modifierKeyState =
                     // (EventRecord.modifiers >> 8) & 0xFF`).
                     let modifiers = UInt32(shift == 1 ? (shiftKey >> 8) : 0)
-                    guard let ascii = Self.resolve(layout, code: UInt16(code), modifiers: modifiers,
-                                                   kbdType: kbdType)
+                    guard let (ascii, isDead) = Self.resolve(layout, code: UInt16(code),
+                                                             modifiers: modifiers, kbdType: kbdType)
                     else { continue }
                     built[code * 2 + shift] = ascii
+                    deadKeys[code * 2 + shift] = isDead
                     let slot = Int(ascii) * 2 + shift
                     if inverse[slot] == 0 { inverse[slot] = UInt16(code) + 1 }
                 }
@@ -79,6 +87,7 @@ struct KeyboardLayoutTranslator {
         self.layoutID = layoutID
         self.table = built
         self.reverse = inverse
+        self.dead = deadKeys
     }
 
     /// One key, one plane → its ASCII character, or nil.
@@ -93,7 +102,7 @@ struct KeyboardLayoutTranslator {
     /// gets a second try: the dead key followed by Space, i.e. what typing it alone
     /// produces on that layout (~ ^). Still nil when even that is not ASCII (´ ¨).
     private static func resolve(_ layout: UnsafePointer<UCKeyboardLayout>, code: UInt16,
-                                modifiers: UInt32, kbdType: UInt32) -> UInt8? {
+                                modifiers: UInt32, kbdType: UInt32) -> (UInt8, Bool)? {
         func translate(_ key: UInt16, _ mods: UInt32, _ options: OptionBits,
                        _ state: inout UInt32) -> UniChar? {
             var length = 0
@@ -112,12 +121,13 @@ struct KeyboardLayoutTranslator {
         }
         var state: UInt32 = 0
         let plain = translate(code, modifiers, OptionBits(kUCKeyTranslateNoDeadKeysMask), &state)
-        if let ascii = printable(plain) { return ascii }
         guard plain != nil else { return nil }   // nothing at all: not a dead-key question
         // Was it a dead key? With dead keys ON it produces nothing and sets a state.
-        state = 0
-        guard translate(code, modifiers, 0, &state) == nil, state != 0 else { return nil }
-        return printable(translate(UInt16(kVK_Space), 0, 0, &state))
+        var deadState: UInt32 = 0
+        let isDead = translate(code, modifiers, 0, &deadState) == nil && deadState != 0
+        if let ascii = printable(plain) { return (ascii, isDead) }
+        guard isDead else { return nil }
+        return printable(translate(UInt16(kVK_Space), 0, 0, &deadState)).map { ($0, true) }
     }
 
     /// The character `keyCode` produces on this layout, or nil to defer to whatever
@@ -158,6 +168,15 @@ struct KeyboardLayoutTranslator {
         return ascii == 0 ? nil : ascii
     }
 
+    /// Is `keyCode` a dead key on this layout (in the plane Shift / Caps Lock select)?
+    /// Only keys whose own character is in the table can be true. One array read.
+    func isDeadKey(keyCode: UInt16, shift: Bool, capsLock: Bool) -> Bool {
+        let effective = Self.effectiveShift(
+            shift: shift, capsLock: capsLock, plainASCII: ascii(keyCode: keyCode, shift: false))
+        let index = Int(keyCode) * 2 + (effective ? 1 : 0)
+        return index < dead.count && dead[index]
+    }
+
     /// The keyCode that produces `ascii` on this layout, or nil when none does.
     func keyCode(forASCII ascii: UInt8, shift: Bool) -> UInt16? {
         let index = Int(ascii) * 2 + (shift ? 1 : 0)
@@ -187,10 +206,13 @@ enum DeadKeyLiteral {
     ///   anyway, this key arrives composed ("é", or "'x" for a key with no
     ///   composition) although its ' was already typed — so it reads as the plain
     ///   key instead.
-    static func resolve(eventCharacters: String?, afterDeadKey: Bool,
+    /// - deadOnLayout: the live layout says THIS key is a dead key. Spotlight's search
+    ///   field (com.apple.campo / com.apple.Spotlight) does not deliver it as an empty
+    ///   event, so the key resolves to its own character whatever macOS put in it.
+    static func resolve(eventCharacters: String?, afterDeadKey: Bool, deadOnLayout: Bool = false,
                         live: () -> Character?) -> String? {
         let empty = eventCharacters?.isEmpty ?? true
-        guard empty || afterDeadKey, let c = live() else { return eventCharacters }
+        guard empty || afterDeadKey || deadOnLayout, let c = live() else { return eventCharacters }
         return String(c)
     }
 
@@ -198,5 +220,29 @@ enum DeadKeyLiteral {
     /// here; a function key carries U+F7xx, never "".)
     static func isDeadKeyEvent(_ characters: String?) -> Bool {
         characters?.isEmpty ?? false
+    }
+
+    /// Worth asking the layout whether this key is dead? Letters and digits never are
+    /// on any layout Telex can run on, so the common keystroke skips the table read;
+    /// "" (the usual dead-key event), punctuation and accents (´ ¨ ˆ) are asked.
+    static func mayBeDeadKey(_ characters: String?) -> Bool {
+        guard let c = characters?.first else { return true }
+        if let a = c.asciiValue {
+            return !((a >= 0x30 && a <= 0x39) || (a | 0x20 >= 0x61 && a | 0x20 <= 0x7A))
+        }
+        return true
+    }
+
+    /// What a non-word key must be INSERTED as by VietTelex (handle() returns true),
+    /// or nil to let macOS type the event itself.
+    /// - ours: effectiveCharacters (already resolved through `resolve`).
+    /// - deadOnLayout: a layout dead key is ALWAYS inserted, even when the event
+    ///   already carries that very character: handed back to the client, Spotlight
+    ///   runs the layout's dead-key composition on it and types nothing (#161,
+    ///   reporter: ' " work everywhere after 1.9.9 except the Spotlight field).
+    static func insertion(ours: String?, eventCharacters: String?, deadOnLayout: Bool) -> String? {
+        guard let ours, TelexInputController.insertsOneCharacter(ours),
+              ours != eventCharacters || deadOnLayout else { return nil }
+        return ours
     }
 }

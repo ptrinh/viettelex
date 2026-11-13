@@ -346,9 +346,20 @@ final class TelexInputController: IMKInputController {
         // ghi lại để effectiveCharacters gõ ra ký tự của chính phím đó và đọc phím kế
         // như phím thường. Dead key kèm ⌥ (⌥e trên ABC) không tính: tổ hợp đi nguyên
         // cho macOS như trước. Hai phép gán bool, mọi phím.
+        // Spotlight (com.apple.campo) không đưa dead key tới dưới dạng characters rỗng ⇒
+        // hỏi chính layout (bảng cache, chỉ cho phím không phải chữ/số).
         keyFollowsDeadKey = lastKeyWasDead
-        lastKeyWasDead = DeadKeyLiteral.isDeadKeyEvent(event.characters)
-            && event.modifierFlags.intersection([.command, .control, .option]).isEmpty
+        let plainKey = event.modifierFlags.intersection([.command, .control, .option]).isEmpty
+        keyIsLayoutDead = plainKey && DeadKeyLiteral.mayBeDeadKey(event.characters)
+            && KeyboardLayoutOverride.liveIsDeadKey(keyCode: event.keyCode,
+                                                    shift: event.modifierFlags.contains(.shift),
+                                                    capsLock: event.modifierFlags.contains(.capsLock))
+        lastKeyWasDead = plainKey && (DeadKeyLiteral.isDeadKeyEvent(event.characters) || keyIsLayoutDead)
+        if lastKeyWasDead {
+            logDecision("dead key: client=\(AppState.shared.currentBundleID ?? "nil") keyCode=\(event.keyCode) "
+                + "chars=\((event.characters ?? "nil").unicodeScalars.map { String(format: "U+%04X", $0.value) }) "
+                + "layoutDead=\(keyIsLayoutDead) live=\(KeyboardLayoutOverride.liveTable?.layoutID ?? "nil")")
+        }
 
         // Issue #156 (TapWordBreak): client vừa activate đã nhận phím ⇒ một
         // activateServer tới SAU phím đầu của ô mới (#110) không được làm tap bỏ từ.
@@ -1367,7 +1378,8 @@ final class TelexInputController: IMKInputController {
               let ch = translator.character(keyCode: event.keyCode, shift: shift, capsLock: caps)
         else {
             return DeadKeyLiteral.resolve(eventCharacters: event.characters,
-                                          afterDeadKey: keyFollowsDeadKey) {
+                                          afterDeadKey: keyFollowsDeadKey,
+                                          deadOnLayout: keyIsLayoutDead) {
                 KeyboardLayoutOverride.liveCharacter(keyCode: event.keyCode, shift: shift, capsLock: caps)
             }
         }
@@ -1384,12 +1396,10 @@ final class TelexInputController: IMKInputController {
     /// Also the dead-key case (#161): the event carries no characters, so passing it
     /// through types nothing — insert the key's own character instead.
     private func remappedInsert(_ event: NSEvent) -> String? {
-        guard KeyboardLayoutOverride.translator != nil || lastKeyWasDead || keyFollowsDeadKey,
-              let ours = effectiveCharacters(event),
-              ours != event.characters,
-              Self.insertsOneCharacter(ours)
+        guard KeyboardLayoutOverride.translator != nil || lastKeyWasDead || keyFollowsDeadKey
         else { return nil }
-        return ours
+        return DeadKeyLiteral.insertion(ours: effectiveCharacters(event), eventCharacters: event.characters,
+                                        deadOnLayout: keyIsLayoutDead)
     }
 
     static func insertsOneCharacter(_ characters: String?) -> Bool {
@@ -2660,6 +2670,9 @@ final class TelexInputController: IMKInputController {
     /// dead key — xem DeadKeyLiteral.
     private var lastKeyWasDead = false
     private var keyFollowsDeadKey = false
+    /// Phím ĐANG xử lý là dead key theo layout đang dùng (kể cả khi macOS đưa kèm ký tự
+    /// — Spotlight, #161).
+    private var keyIsLayoutDead = false
     /// Dấu câu vừa dời dấu cách ra sau ("." + " ") — phím cách kế bị nuốt (không thành 2 dấu cách).
     private var carriedSpace: String?
 
