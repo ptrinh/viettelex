@@ -979,6 +979,18 @@ void Session::hidePreedit(InputContext &ic) {
     ic.setPreedit("", false);
 }
 
+const char *Session::noEditsReason(bool reopen) const {
+    if (distrusted_)
+        return reopen ? "⌫ re-open: skipped (surrounding text distrusted for this focus)"
+                      : "re-edit: skipped (surrounding text distrusted for this focus)";
+    if (mode_ == DisplayMode::Direct)
+        return reopen ? "⌫ re-open: skipped (Direct mode)" : "re-edit: skipped (Direct mode reads nothing back)";
+    // resolveAppPolicy: forced-preedit app, terminal field, forward-keys, or the client has
+    // not delivered surrounding text for this focus yet.
+    return reopen ? "⌫ re-open: skipped (app policy: no surrounding edits here)"
+                  : "re-edit: skipped (app policy: no surrounding edits here)";
+}
+
 void Session::focusIn() {
     vt_reset_context(e_);
     deadKeys_.reset();  // a dead key pressed in the previous field never lands here
@@ -1216,6 +1228,7 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
 }
 
 bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
+    reachBackNote_ = nullptr;  // per key event, releases and echoes included
     if (ev.forwarded) return false;  // our own forwarded key: the app must get it untouched
     if (ev.release) {
         // Double-space period: a held space (autorepeat — frameworks send no repeat flag)
@@ -1478,31 +1491,52 @@ bool Session::handleLetter(uint32_t ch, InputContext &ic) {
     // Never with a selection at the caret (Ctrl+A / double-click, then a tone key): the key
     // replaces the selection like any letter — the delete would eat the wrong text. Asked
     // last, only when a word really sits before the caret.
-    if (vt_is_empty(e_) && reEdit_ && surroundingEdits_ && caretMoved_ && isDiacriticOnlyKey(ch, vni_) &&
-        !ic.hasSelection()) {
-        std::string before;
-        if (ic.textBeforeCursorTail(14, before)) {
-            std::string word, c;
-            size_t n = 0;
-            bool tooLong = false, decomposed = false;
-            while (popChar(before, c)) {
-                uint32_t cp = decodeOne(c);
-                if (!isWordLetter(cp)) {
-                    // NFD host ("toa" U+0300 "n"): the scan would stop inside the word and the
-                    // delete count (in characters) would not match what is shown.
-                    decomposed = isCombiningMark(cp);
-                    break;
+    // Issue #163: every refusal of a CANDIDATE (empty engine, feature on, tone key) names its
+    // reason (reachBackNote); every other key stops at the first three tests, as before.
+    if (vt_is_empty(e_) && reEdit_ && isDiacriticOnlyKey(ch, vni_)) {
+        if (!surroundingEdits_) {
+            reachBackNote_ = noEditsReason(false);
+        } else if (!caretMoved_) {
+            reachBackNote_ = "re-edit: skipped (previous key ended a word, caret not moved)";
+        } else if (ic.hasSelection()) {
+            reachBackNote_ = "re-edit: skipped (selection)";
+        } else {
+            std::string before;
+            if (!ic.textBeforeCursorTail(14, before)) {
+                reachBackNote_ = "re-edit: skipped (text before the caret unreadable)";
+            } else {
+                std::string word, c;
+                size_t n = 0;
+                bool tooLong = false, decomposed = false;
+                while (popChar(before, c)) {
+                    uint32_t cp = decodeOne(c);
+                    if (!isWordLetter(cp)) {
+                        // NFD host ("toa" U+0300 "n"): the scan would stop inside the word and the
+                        // delete count (in characters) would not match what is shown.
+                        decomposed = isCombiningMark(cp);
+                        break;
+                    }
+                    word.insert(0, c);
+                    if (++n > 12) { tooLong = true; break; }
                 }
-                word.insert(0, c);
-                if (++n > 12) { tooLong = true; break; }
-            }
-            if (decomposed) {
-                distrust();
-            } else if (!word.empty() && !tooLong && !selectionAtCaret(ic) && vt_seed(e_, word.c_str())) {
-                if (hintsOn_) tailPop(n);  // the word is being edited again (back in the engine)
-                if (mode_ == DisplayMode::Preedit) {
-                    ic.deleteBeforeCursor(int(n));
-                    preedit_.clear();
+                if (decomposed) {
+                    distrust();
+                    reachBackNote_ = "re-edit: skipped (decomposed text before the caret, distrusted)";
+                } else if (word.empty()) {
+                    reachBackNote_ = "re-edit: skipped (no word right before the caret)";
+                } else if (tooLong) {
+                    reachBackNote_ = "re-edit: skipped (word before the caret too long)";
+                } else if (selectionAtCaret(ic)) {
+                    reachBackNote_ = "re-edit: skipped (selection at the caret)";
+                } else if (!vt_seed(e_, word.c_str())) {
+                    reachBackNote_ = "re-edit: skipped (word before the caret does not round-trip)";
+                } else {
+                    reachBackNote_ = "re-edit: seeded the word before the caret";
+                    if (hintsOn_) tailPop(n);  // the word is being edited again (back in the engine)
+                    if (mode_ == DisplayMode::Preedit) {
+                        ic.deleteBeforeCursor(int(n));
+                        preedit_.clear();
+                    }
                 }
             }
         }
@@ -1590,17 +1624,55 @@ bool Session::handleBackspace(InputContext &ic) {
         // Verify-before-delete: the host must show exactly the word AND the boundary we
         // typed. Stale (our commit / the boundary not applied yet) → plain ⌫, no reopen;
         // anything else → plain ⌫ and the surrounding text is distrusted for this focus.
-        if (vt_can_reopen(e_) && lastWasBoundaryChar_ && lastBoundary_ && surroundingEdits_ &&
-            !ic.hasSelection()) {
+        const bool candidate = vt_can_reopen(e_) && lastWasBoundaryChar_ && lastBoundary_;
+        // Issue #163 RC2 (macOS ReopenKeystreamTrust): Direct mode (terminals) can read
+        // nothing back, but its OWN keystream proves the screen — the word was typed through
+        // the ordered forwarded-key channel, then ONE printable ASCII boundary passed, and this
+        // ⌫ is the very next key (any other key, a chord, a click / caret move (finish) or a
+        // focus change clears lastWasBoundaryChar_ / the engine's re-open snapshot; a shortcut
+        // expansion or auto-restore never leaves a snapshot). The ⌫ itself goes to the app and
+        // deletes that boundary; the next keys edit the word with forwarded BackSpaces, the
+        // same blind trust Direct already gives the word in progress.
+        // Accepted risk (as on macOS): a shell that rewrites the word on space by itself
+        // (fish abbreviations) gets the next tone key's BackSpaces in the wrong place.
+        if (candidate && mode_ == DisplayMode::Direct) {
+            if (!reEdit_) {
+                vt_forget_last_commit(e_);
+                if (hintsOn_) tailPop(1);
+                return false;
+            }
+            char buf[256];
+            long n = vt_reopen(e_, buf, sizeof buf);
+            if (n > 0 && size_t(n) < sizeof buf) {
+                reachBackNote_ = "⌫ re-open: word back in the engine (Direct, keystream trust)";
+                if (hintsOn_) tailPop(1 + utf8Chars(std::string(buf, size_t(n))));
+                gluedToDigit_ = false;
+            } else {
+                reachBackNote_ = "⌫ re-open: skipped (replay mismatch)";
+                vt_reset(e_);
+                if (hintsOn_) tailPop(1);
+            }
+            return false;  // the app's own ⌫ deletes the boundary
+        }
+        const bool selected = candidate && surroundingEdits_ && ic.hasSelection();
+        if (candidate && !surroundingEdits_) reachBackNote_ = noEditsReason(true);
+        else if (selected) reachBackNote_ = "⌫ re-open: skipped (selection)";
+        if (candidate && surroundingEdits_ && !selected) {
             std::string before;
+            reachBackNote_ = "⌫ re-open: skipped (text before the caret unreadable)";
             if (ic.textBeforeCursorTail(64, before)) {
+                reachBackNote_ = "⌫ re-open: skipped (replay mismatch)";
                 char buf[256];
                 long n = vt_reopen(e_, buf, sizeof buf);
                 if (n > 0 && size_t(n) < sizeof buf) {
                     std::string word(buf, size_t(n));
                     Screen v = checkScreen(before, word + lastBoundary_);
                     if (v == Screen::Mismatch) distrust();
+                    reachBackNote_ = v == Screen::Mismatch ? "⌫ re-open: skipped (screen is not the word + boundary, distrusted)"
+                                     : v == Screen::Stale  ? "⌫ re-open: skipped (host has not shown the boundary yet)"
+                                                           : "⌫ re-open: skipped (selection at the caret)";
                     if (v == Screen::Match && !selectionAtCaret(ic)) {
+                        reachBackNote_ = "⌫ re-open: word back in the engine";
                         if (hintsOn_) tailPop(1 + utf8Chars(word));  // boundary gone, word back in the engine
                         if (mode_ == DisplayMode::Surrounding) {
                             replaceBeforeCursor(ic, 1, std::string(), word + lastBoundary_);

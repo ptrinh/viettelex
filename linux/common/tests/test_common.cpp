@@ -2172,8 +2172,13 @@ void testDirectBackspaceMidWord() {
     for (const char *keys : {"thuwr<r", "tieengs<<a", "dduwowcj<<", "nguwowif<<<", "Vieejt<j"})
         CHECK_EQ(runDirect(keys), run(keys, DisplayMode::Preedit, defaults(), false));
     // Direct agrees with Preedit on random scripts (letters, tones, ⌫, space, punctuation)
+    // (Blind preedit never re-opens a word on ⌫; Direct does by keystream trust since #163 —
+    // compared with that switched off here, and against Surrounding in
+    // testIssue163DirectKeystreamReopen.)
     std::mt19937 rng(777);
     const std::string alphabet = "aeoudwsfrxjzntghiycqAEO  <<.";
+    Settings noReopen;
+    noReopen.reEditWord = false;
     for (int i = 0; i < 3000; ++i) {
         std::string keys;
         int n = 1 + int(rng() % 14);
@@ -2181,7 +2186,7 @@ void testDirectBackspaceMidWord() {
         std::string p = run(keys, DisplayMode::Preedit, defaults(), false);  // blind preedit
         Session s;
         BlindTerminal t;
-        enterDirect(s, t);
+        enterDirect(s, t, noReopen);
         typeT(s, t, keys);
         std::string d = t.doc;
         if (p != d) {
@@ -2201,7 +2206,10 @@ void testDirectResets() {
     CHECK_EQ(t.forwardedBs, 0);
     CHECK_EQ(runDirect("vie\ne", &t), std::string("vie\ne"));
     CHECK_EQ(t.forwardedBs, 0);
-    CHECK_EQ(runDirect("thays <a", &t), std::string("tháya"));  // ⌫ never reopens a word
+    // ⌫ right after the boundary re-opens the word by keystream trust (#163, testIssue163...);
+    // a key in between (or Enter) ends it for good.
+    CHECK_EQ(runDirect("thays .<<a", &t), std::string("tháya"));
+    CHECK_EQ(runDirect("thays\n<a", &t), std::string("tháya"));
     // paste / click (the frontend's reset) in the middle of a word: next key starts afresh
     {
         Session s;
@@ -2241,6 +2249,180 @@ void testDirectResets() {
         CHECK(w.pending.empty());
         typeT(s, w, "e");
         CHECK_EQ(w.doc, std::string("viê"));
+    }
+}
+
+// MARK: - Issue #163 (macOS c805edce): reach-back decisions, ported
+
+// The note of ONE key event (press only; a release resets it).
+template <class IC>
+std::string noteOf(Session &s, IC &ic, uint32_t keysym, uint32_t unicode) {
+    KeyEvent ev;
+    ev.keysym = keysym;
+    ev.unicode = unicode;
+    s.processKey(ev, ic);
+    const char *n = s.reachBackNote();
+    return n ? n : "";
+}
+
+bool has(const std::string &note, const char *what) { return note.find(what) != std::string::npos; }
+
+// RC2: Direct (terminals) cannot read anything back, but its own keystream proves
+// "<word><one boundary>" when ⌫ is the very next key after that boundary.
+void testIssue163DirectKeystreamReopen() {
+    BlindTerminal t;
+    CHECK_EQ(runDirect("thays <a", &t), std::string("thấy"));
+    CHECK_EQ(t.deletes, 0);  // never delete-surrounding: the ⌫ is the app's, the edit forwarded
+    CHECK_EQ(t.commits, 0);
+    CHECK_EQ(runDirect("toan <s"), std::string("toán"));
+    CHECK_EQ(runDirect("thays <a "), std::string("thấy "));
+    // Anything between the boundary and ⌫ disarms it: another key, Enter, a chord.
+    CHECK_EQ(runDirect("thays x<a"), std::string("tháy a"));
+    CHECK_EQ(runDirect("thays .<<a"), std::string("tháya"));
+    CHECK_EQ(runDirect("thays\n<a"), std::string("tháya"));
+    CHECK_EQ(runDirect("thays>  <a"), std::string("tháy a"));
+    // Blind Direct ends up exactly where Surrounding (which verifies the screen) does.
+    for (const char *keys : {"thays <a", "toan <<s", "hoc <j", "dduwowc <j", "vieet, <j", "thays,<a", "tien <s",
+                             "thays x<a", "thays .<<a", "thays\n<a", "toan <s<<f", "a <b <c"})
+        CHECK_EQ(runDirect(keys), run(keys, DisplayMode::Surrounding));
+    {
+        Session s;
+        BlindTerminal u;
+        enterDirect(s, u);
+        typeT(s, u, "thays ");
+        pressT(s, u, 'c', 'c', VT_MOD_CTRL);  // Ctrl+C: the shell may print anything
+        typeT(s, u, "<a");
+        CHECK_EQ(u.doc, std::string("tháya"));
+    }
+    // A click / caret move (the frontend's reset) or a focus change in between.
+    for (int i = 0; i < 2; ++i) {
+        Session s;
+        BlindTerminal u;
+        enterDirect(s, u);
+        typeT(s, u, "thays ");
+        if (i == 0) s.finish(u);
+        else s.focusIn();
+        typeT(s, u, "<a");
+        CHECK_EQ(u.doc, std::string("tháya"));
+    }
+    // A word the boundary rewrote (auto-restore) leaves nothing to reopen.
+    CHECK_EQ(runDirect("google <s"), std::string("googles"));
+    // "Sửa dấu từ đã gõ" off: plain ⌫.
+    {
+        Settings st;
+        st.reEditWord = false;
+        Session s;
+        BlindTerminal u;
+        enterDirect(s, u, st);
+        typeT(s, u, "thays <a");
+        CHECK_EQ(u.doc, std::string("tháya"));
+    }
+    // The decision is named for the debug log.
+    {
+        Session s;
+        BlindTerminal u;
+        enterDirect(s, u);
+        typeT(s, u, "thays ");
+        CHECK(has(noteOf(s, u, ks::BackSpace, 0), "keystream trust"));
+    }
+}
+
+// RC1: every refused re-edit / ⌫ re-open candidate names its reason; other keys none.
+void testIssue163ReachBackNotes() {
+    // Forced-preedit app / unproven surrounding (resolveAppPolicy → no surrounding edits).
+    {
+        Session s;
+        Mock m;
+        s.setSurroundingEdits(false);
+        type(s, m, "toan>");
+        CHECK(has(noteOf(s, m, 's', 's'), "re-edit: skipped (app policy"));
+        Session r;
+        Mock n;
+        r.setSurroundingEdits(false);
+        type(r, n, "thays ");
+        CHECK(has(noteOf(r, n, ks::BackSpace, 0), "⌫ re-open: skipped (app policy"));
+    }
+    for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
+        {   // a tone key starting a new word after a space
+            Session s;
+            Mock m;
+            s.setDisplayMode(mode, m);
+            type(s, m, "toan ");
+            CHECK(has(noteOf(s, m, 's', 's'), "previous key ended a word"));
+            CHECK_EQ(noteOf(s, m, 'a', 'a'), std::string());  // plain letter: no candidate
+        }
+        {   // nothing readable before the caret
+            Session s;
+            Mock m;
+            s.setDisplayMode(mode, m);
+            m.doc = "toan";
+            type(s, m, ">");
+            m.surrounding = false;
+            CHECK(has(noteOf(s, m, 's', 's'), "re-edit: skipped (text before the caret unreadable)"));
+        }
+        {   // no word before the caret
+            Session s;
+            Mock m;
+            s.setDisplayMode(mode, m);
+            m.doc = "toan, ";
+            type(s, m, ">");
+            CHECK(has(noteOf(s, m, 's', 's'), "no word right before the caret"));
+        }
+        {   // success is named too
+            Session s;
+            Mock m;
+            s.setDisplayMode(mode, m);
+            m.doc = "toan";
+            type(s, m, ">");
+            CHECK(has(noteOf(s, m, 's', 's'), "re-edit: seeded"));
+        }
+        {   // ⌫ re-open: the word changed under us → distrusted, named
+            Session s;
+            Mock m;
+            s.setDisplayMode(mode, m);
+            type(s, m, "thays ");
+            m.doc = "thay ";
+            CHECK(has(noteOf(s, m, ks::BackSpace, 0), "distrusted"));
+        }
+        {   // ⌫ re-open: the host has not shown the boundary yet
+            Session s;
+            Mock m;
+            s.setDisplayMode(mode, m);
+            type(s, m, "thays ");
+            m.hasReported = true;
+            m.reported = "tháy";
+            CHECK(has(noteOf(s, m, ks::BackSpace, 0), "has not shown the boundary yet"));
+        }
+        {   // ⌫ re-open succeeded
+            Session s;
+            Mock m;
+            s.setDisplayMode(mode, m);
+            type(s, m, "thays ");
+            CHECK(has(noteOf(s, m, ks::BackSpace, 0), "⌫ re-open: word back in the engine"));
+        }
+        {   // distrusted focus: named as such
+            Session s;
+            Mock m;
+            s.setDisplayMode(mode, m);
+            type(s, m, "thays ");
+            m.doc = "thay ";
+            type(s, m, "<");  // mismatch → distrusted
+            CHECK(s.surroundingDistrusted());
+            type(s, m, "toan>");
+            CHECK(has(noteOf(s, m, 's', 's'), "distrusted for this focus"));
+        }
+    }
+    // A release resets it: the note belongs to one key event.
+    {
+        Session s;
+        Mock m;
+        type(s, m, "toan ");
+        CHECK(!noteOf(s, m, 's', 's').empty());
+        KeyEvent rel;
+        rel.keysym = rel.unicode = 's';
+        rel.release = true;
+        s.processKey(rel, m);
+        CHECK(s.reachBackNote() == nullptr);
     }
 }
 
@@ -3618,6 +3800,8 @@ int main() {
     testDirectBlindTerminal();
     testDirectBackspaceMidWord();
     testDirectResets();
+    testIssue163DirectKeystreamReopen();
+    testIssue163ReachBackNotes();
     testDirectPolicyTable();
     testUnderlineAndDirectSettings();
     testUnderlineMisspelledOffByDefault();

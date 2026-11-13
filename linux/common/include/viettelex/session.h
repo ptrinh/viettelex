@@ -209,7 +209,18 @@ public:
     bool restoreUndoArmed() const { return retroUndo_.armed() && undoIsRestore_; }
     bool retroOffering() const { return retroMode_ == retro::Mode::Offer; }
 
+    // Issue #163 (macOS c805edce): what the LAST key event decided about reaching back into
+    // a word already on screen — a re-edit candidate (tone key on an empty engine) or a ⌫
+    // re-open candidate (⌫ right after the boundary that committed a word). A refusal names
+    // its reason ("re-edit: skipped (…)"); nullptr = the key was no such candidate. Static
+    // strings: kinds and reasons only, NEVER typed text. Frontends append it to their
+    // VIETTELEX_DEBUG key line, so a tester's log shows why the feature did nothing.
+    const char *reachBackNote() const { return reachBackNote_; }
+
 private:
+    const char *reachBackNote_ = nullptr;
+    // A re-edit / ⌫ re-open candidate refused by policy: why (surroundingEdits_ is false).
+    const char *noEditsReason(bool reopen) const;
     bool handleLetter(uint32_t ch, InputContext &ic);
     // Dead keys / Compose (dead_keys.h, #161): the composed text (or the pending accent) is
     // typed like keys of its own — each character a boundary, never a Telex key — and

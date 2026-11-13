@@ -485,6 +485,8 @@ public:
                                 std::to_string(int(st->session.displayMode())) +
                                 " dist=" + std::to_string(int(st->session.surroundingDistrusted())) +
                                 " before=" + (ok ? std::to_string(before.size()) : std::string("?")));
+                // #163: why a re-edit / ⌫ re-open candidate did (not) reach back (no text).
+                if (const char *note = st->session.reachBackNote()) debugLog().line(note);
             }
         } catch (...) {
             // never take fcitx5 down with us: the key simply reaches the app
