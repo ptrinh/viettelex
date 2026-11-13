@@ -7,6 +7,7 @@
 
 #include "viettelex/auto_text.h"
 #include "viettelex/caret_hints.h"
+#include "viettelex/dead_keys.h"
 #include "viettelex/keys.h"
 #include "viettelex/retro_english.h"
 #include "viettelex/settings.h"
@@ -210,6 +211,11 @@ public:
 
 private:
     bool handleLetter(uint32_t ch, InputContext &ic);
+    // Dead keys / Compose (dead_keys.h, #161): the composed text (or the pending accent) is
+    // typed like keys of its own — each character a boundary, never a Telex key — and
+    // committed by us when the Session lets it through (the app never saw a key for it).
+    void typeLiteral(const std::string &text, InputContext &ic);
+    DeadKeys deadKeys_;
     bool handleBackspace(InputContext &ic);
     // `endChar` = the typed character ending the word (0 = none): an apostrophe keeps an
     // English contraction stem as typed ("doesn't", not "doén't").

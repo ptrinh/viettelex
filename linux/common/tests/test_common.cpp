@@ -3,6 +3,7 @@
 // Links the real libtelexcore, so these are end-to-end through the C ABI.
 
 #include "viettelex/app.h"
+#include "viettelex/dead_keys.h"
 #include "viettelex/gnome.h"
 #include "viettelex/keys.h"
 #include "viettelex/retro_english.h"
@@ -333,6 +334,63 @@ void testPasswordLiteral() {
     s.setPassthrough(false, m);
     type(s, m, "vieejt");
     CHECK_EQ(m.screen(), std::string("vieejt việt"));
+}
+
+// Dead keys (#161, U.S. International ' " ` ~ ^): composed by the Session — exactly one
+// output per sequence, the composed letter is a literal (never a Telex key), in every mode.
+// Built-in table here (deterministic); test_dead_keys covers the locale Compose table.
+void testDeadKeys() {
+    DeadKeys::setBuiltinOnly(true);
+    constexpr uint32_t acute = 0xfe51, diaeresis = 0xfe57;
+    for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
+        Session s;
+        Mock m;
+        s.setDisplayMode(mode, m);
+        type(s, m, "vieejt ");
+        press(s, m, acute, 0);
+        CHECK_EQ(m.screen(), std::string("việt "));  // pending: nothing shown, nothing lost
+        press(s, m, 'e', 'e');
+        CHECK_EQ(m.screen(), std::string("việt é"));
+        press(s, m, acute, 0);
+        press(s, m, ks::space, ' ');
+        CHECK_EQ(m.screen(), std::string("việt é'"));  // dead + Space → the accent alone
+        press(s, m, diaeresis, 0);
+        press(s, m, 'u', 'u');
+        CHECK_EQ(m.screen(), std::string("việt é'ü"));
+        press(s, m, acute, 0);
+        type(s, m, "x ");
+        CHECK_EQ(m.screen(), std::string("việt é'ü'x "));  // not composable: accent + key
+        press(s, m, acute, 0);
+        press(s, m, ks::Escape, 0x1b);
+        type(s, m, "a ");
+        CHECK_EQ(m.screen(), std::string("việt é'ü'x a "));  // Esc cancelled it
+        // In a word: the word ends, é is a literal and "s" after it is a new word, not a tone.
+        type(s, m, "vieej");
+        press(s, m, acute, 0);
+        press(s, m, 'e', 'e');
+        type(s, m, "s");
+        CHECK_EQ(m.screen(), std::string("việt é'ü'x a việés"));
+        // Focus change drops a pending dead key.
+        type(s, m, " ");
+        press(s, m, acute, 0);
+        s.finish(m);
+        s.focusIn();
+        type(s, m, "a");
+        CHECK_EQ(m.screen(), std::string("việt é'ü'x a việés a"));
+    }
+    // English (toggle) and passthrough (password) fields compose too.
+    {
+        Session s;
+        Mock m;
+        s.setVietnamese(false, m);
+        press(s, m, acute, 0);
+        press(s, m, 'e', 'e');
+        s.setPassthrough(true, m);
+        press(s, m, diaeresis, 0);
+        press(s, m, 'u', 'u');
+        CHECK_EQ(m.screen(), std::string("éü"));
+    }
+    DeadKeys::setBuiltinOnly(false);
 }
 
 void testReopenAfterBoundary() {
@@ -3516,6 +3574,7 @@ int main() {
     testCtrlChordCommits();
     testToggleHotkey();
     testPasswordLiteral();
+    testDeadKeys();
     testReopenAfterBoundary();
     testReEditAfterCaretMove();
     testVerifyBeforeDelete();

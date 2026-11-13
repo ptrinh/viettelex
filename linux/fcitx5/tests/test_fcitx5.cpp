@@ -91,6 +91,31 @@ void scheduleEvent(EventDispatcher *dispatcher, Instance *instance) {
         tf->call<ITestFrontend::pushCommitExpectation>("google");
         type(tf, uuid, "google ");
 
+        // 2b. dead keys (#161, U.S. International): no keyboard engine composes them while
+        //     VietTelex is active — VietTelex does, exactly one output per sequence.
+        auto press = [tf, uuid](const char *k) {
+            tf->call<ITestFrontend::keyEvent>(uuid, Key(k), false);
+            tf->call<ITestFrontend::keyEvent>(uuid, Key(k), true);
+        };
+        press("dead_acute");
+        EXPECT(preeditOf(ic).empty());
+        tf->call<ITestFrontend::pushCommitExpectation>("é");
+        press("e");
+        tf->call<ITestFrontend::pushCommitExpectation>("'");
+        press("dead_acute");
+        press("space");
+        tf->call<ITestFrontend::pushCommitExpectation>("ü");
+        press("dead_diaeresis");
+        press("u");
+        tf->call<ITestFrontend::pushCommitExpectation>("'");  // not composable: accent, then x
+        press("dead_acute");
+        tf->call<ITestFrontend::pushCommitExpectation>("x");
+        type(tf, uuid, "x ");
+        press("dead_acute");
+        press("Escape");                                     // cancelled: nothing typed
+        tf->call<ITestFrontend::pushCommitExpectation>("a");  // a plain a, not á
+        type(tf, uuid, "a ");
+
         // 3. … and once active, Ctrl+Space is VietTelex's Việt/Anh toggle: keys pass through.
         //    The tray icon follows it (Vᴛ ↔ E, like the macOS menu bar).
         EXPECT(instance->inputMethodIcon(ic) == "viettelex");
@@ -336,6 +361,7 @@ int main() {
     g_cfgDir = root + "/config";
     setenv("XDG_CONFIG_HOME", g_cfgDir.c_str(), 1);
     setenv("XDG_STATE_HOME", (root + "/state").c_str(), 1);
+    setenv("LC_CTYPE", "en_US.UTF-8", 1);  // dead keys: en_US Compose rules (or the built-in table)
     setupTestingEnvironment(VT_FCITX5_BUILD_DIR, {"."}, {VT_FCITX5_TEST_DATA});
     char arg0[] = "test_fcitx5";
     char arg1[] = "--disable=all";
