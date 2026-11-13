@@ -17,8 +17,9 @@
 // free at that cadence.
 //
 // ASCII ONLY. A Telex key must be a bare Latin letter, digit or punctuation mark;
-// anything a layout produces outside that (dead keys, accented output, multi-char
-// sequences) is stored as nil and the caller falls back to the OS's own characters.
+// a dead key is stored as the character it types on its own (' on U.S. International
+// – PC), and anything else outside ASCII (accented output, multi-char sequences, a
+// dead key whose own character is ´ or ¨) is stored as nil and the caller falls back to the OS's own characters.
 // That keeps exotic layouts from silently mangling input instead of degrading to
 // today's behaviour.
 
@@ -64,21 +65,9 @@ struct KeyboardLayoutTranslator {
                     // the same shift the Carbon docs specify (`modifierKeyState =
                     // (EventRecord.modifiers >> 8) & 0xFF`).
                     let modifiers = UInt32(shift == 1 ? (shiftKey >> 8) : 0)
-                    var deadKeyState: UInt32 = 0
-                    var length = 0
-                    var chars = [UniChar](repeating: 0, count: 4)
-                    let status = UCKeyTranslate(
-                        layout, UInt16(code), UInt16(kUCKeyActionDown), modifiers, kbdType,
-                        // No dead keys: a layout where a Telex key is dead (´ on some
-                        // European layouts) cannot carry Telex anyway, and asking for
-                        // the resolved character keeps the table one-to-one.
-                        OptionBits(kUCKeyTranslateNoDeadKeysBit),
-                        &deadKeyState, 4, &length, &chars)
-                    guard status == noErr, length == 1, chars[0] < 128 else { continue }
-                    let ascii = UInt8(chars[0])
-                    // Control characters (Return, Tab, Esc, ⌫) are handled by keyCode
-                    // upstream of any translation and must not be re-derived here.
-                    guard ascii >= 0x20, ascii != 0x7F else { continue }
+                    guard let ascii = Self.resolve(layout, code: UInt16(code), modifiers: modifiers,
+                                                   kbdType: kbdType)
+                    else { continue }
                     built[code * 2 + shift] = ascii
                     let slot = Int(ascii) * 2 + shift
                     if inverse[slot] == 0 { inverse[slot] = UInt16(code) + 1 }
@@ -90,6 +79,45 @@ struct KeyboardLayoutTranslator {
         self.layoutID = layoutID
         self.table = built
         self.reverse = inverse
+    }
+
+    /// One key, one plane → its ASCII character, or nil.
+    ///
+    /// Dead keys OFF first: a layout where a Telex key is dead (´ on some European
+    /// layouts) cannot carry Telex anyway, and asking for the resolved character keeps
+    /// the table one-to-one. MASK, not BIT: kUCKeyTranslateNoDeadKeysBit is the bit
+    /// INDEX (0), so passing it (as this did until #161) asked for dead-key processing
+    /// and every dead key (' " ` ~ ^ on U.S. International – PC) came out nil.
+    ///
+    /// A dead key whose own character is not ASCII (˜ ˆ on U.S. International – PC)
+    /// gets a second try: the dead key followed by Space, i.e. what typing it alone
+    /// produces on that layout (~ ^). Still nil when even that is not ASCII (´ ¨).
+    private static func resolve(_ layout: UnsafePointer<UCKeyboardLayout>, code: UInt16,
+                                modifiers: UInt32, kbdType: UInt32) -> UInt8? {
+        func translate(_ key: UInt16, _ mods: UInt32, _ options: OptionBits,
+                       _ state: inout UInt32) -> UniChar? {
+            var length = 0
+            var chars: (UniChar, UniChar, UniChar, UniChar) = (0, 0, 0, 0)
+            let status = withUnsafeMutableBytes(of: &chars) { raw in
+                UCKeyTranslate(layout, key, UInt16(kUCKeyActionDown), mods, kbdType, options,
+                               &state, 4, &length, raw.bindMemory(to: UniChar.self).baseAddress)
+            }
+            return status == noErr && length == 1 ? chars.0 : nil
+        }
+        func printable(_ c: UniChar?) -> UInt8? {
+            // Control characters (Return, Tab, Esc, ⌫) are handled by keyCode upstream
+            // of any translation and must not be re-derived here.
+            guard let c, c >= 0x20, c < 0x7F else { return nil }
+            return UInt8(c)
+        }
+        var state: UInt32 = 0
+        let plain = translate(code, modifiers, OptionBits(kUCKeyTranslateNoDeadKeysMask), &state)
+        if let ascii = printable(plain) { return ascii }
+        guard plain != nil else { return nil }   // nothing at all: not a dead-key question
+        // Was it a dead key? With dead keys ON it produces nothing and sets a state.
+        state = 0
+        guard translate(code, modifiers, 0, &state) == nil, state != 0 else { return nil }
+        return printable(translate(UInt16(kVK_Space), 0, 0, &state))
     }
 
     /// The character `keyCode` produces on this layout, or nil to defer to whatever
@@ -136,5 +164,39 @@ struct KeyboardLayoutTranslator {
         guard index < reverse.count else { return nil }
         let code = reverse[index]
         return code == 0 ? nil : code - 1
+    }
+}
+
+/// Dead keys while VietTelex is the input source (#161).
+///
+/// On a layout where ' " ` ~ ^ are dead keys (U.S. International – PC, several
+/// European and Brazilian layouts) macOS hands the input method an event with EMPTY
+/// characters for them: the dead-key composition ("'" then "e" → "é") is the work of
+/// the layout's own input source, which is not running while an input method is.
+/// Passing such a key through therefore typed nothing — the reporter's "không viết
+/// được dấu ' và \"". Vietnamese typing has no use for that composition, so the key
+/// types its own character, literally, the way it would on ABC.
+///
+/// Pure, so the rule is pinned by tests; `live` is the dead-keys-off lookup of the
+/// same key on the live layout (KeyboardLayoutOverride.liveCharacter), evaluated only
+/// when needed.
+enum DeadKeyLiteral {
+    /// The text this key should count as.
+    /// - eventCharacters: what macOS put in the event ("" for a dead key).
+    /// - afterDeadKey: the PREVIOUS key was a dead key. If macOS kept the dead state
+    ///   anyway, this key arrives composed ("é", or "'x" for a key with no
+    ///   composition) although its ' was already typed — so it reads as the plain
+    ///   key instead.
+    static func resolve(eventCharacters: String?, afterDeadKey: Bool,
+                        live: () -> Character?) -> String? {
+        let empty = eventCharacters?.isEmpty ?? true
+        guard empty || afterDeadKey, let c = live() else { return eventCharacters }
+        return String(c)
+    }
+
+    /// Is this the empty-characters event of a dead key? (Modifier chords never get
+    /// here; a function key carries U+F7xx, never "".)
+    static func isDeadKeyEvent(_ characters: String?) -> Bool {
+        characters?.isEmpty ?? false
     }
 }

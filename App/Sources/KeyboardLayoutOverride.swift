@@ -156,6 +156,7 @@ enum KeyboardLayoutOverride {
     @discardableResult
     static func apply(_ id: String) -> Bool {
         let live = liveLayoutID()
+        refreshLiveTable(live)
         // Nothing pinned, or macOS already happens to be on the pinned layout: leave
         // the event untouched. This is the common case and it must stay free — it is
         // also what keeps a QWERTY user on exactly the 1.5.7 code path.
@@ -200,6 +201,38 @@ enum KeyboardLayoutOverride {
             _translator = new
             _chordRemap = chord
         }
+    }
+
+    // MARK: - Dead keys of the LIVE layout (#161)
+
+    /// The live layout's own table, kept for ONE purpose: a dead key. On U.S.
+    /// International – PC (and many European layouts) ' " ` ~ ^ are dead keys, so the
+    /// event an input method gets for them carries NO characters — the system's
+    /// dead-key composition belongs to the layout's own input source, which is not
+    /// running while VietTelex is. Passed through, such a key typed nothing at all.
+    /// This table (built with dead keys off) names the character the key types on its
+    /// own, which VietTelex then inserts literally. See DeadKeyLiteral.
+    ///
+    /// Built here, on main, once per layout change: the tap thread must not call TIS
+    /// (macOS asserts it is on main), so it only ever reads this cache.
+    private static var _liveTable: KeyboardLayoutTranslator?
+
+    static var liveTable: KeyboardLayoutTranslator? {
+        translatorLock.withLock { _liveTable }
+    }
+
+    /// Rebuild the live table when macOS's layout changed. No-op (one string compare)
+    /// otherwise. Main thread only.
+    static func refreshLiveTable(_ live: String) {
+        if translatorLock.withLock({ _liveTable?.layoutID == live }) { return }
+        let built = source(for: live).flatMap { KeyboardLayoutTranslator(layoutID: live, source: $0) }
+        translatorLock.withLock { _liveTable = built }
+    }
+
+    /// The character `keyCode` types on the live layout with dead keys off, or nil.
+    /// Callable from any thread: reads the cache only.
+    static func liveCharacter(keyCode: UInt16, shift: Bool, capsLock: Bool) -> Character? {
+        liveTable?.character(keyCode: keyCode, shift: shift, capsLock: capsLock)
     }
 
     /// Also read by QtKeymapFix (#131) — the layout to name in a Qt client's override.

@@ -342,6 +342,14 @@ final class TelexInputController: IMKInputController {
         guard event.type == .keyDown,
               let client = sender as? IMKTextInput else { return false }
 
+        // #161: dead key (' " trên U.S. International – PC) tới với characters rỗng —
+        // ghi lại để effectiveCharacters gõ ra ký tự của chính phím đó và đọc phím kế
+        // như phím thường. Dead key kèm ⌥ (⌥e trên ABC) không tính: tổ hợp đi nguyên
+        // cho macOS như trước. Hai phép gán bool, mọi phím.
+        keyFollowsDeadKey = lastKeyWasDead
+        lastKeyWasDead = DeadKeyLiteral.isDeadKeyEvent(event.characters)
+            && event.modifierFlags.intersection([.command, .control, .option]).isEmpty
+
         // Issue #156 (TapWordBreak): client vừa activate đã nhận phím ⇒ một
         // activateServer tới SAU phím đầu của ô mới (#110) không được làm tap bỏ từ.
         // Không lọc burst synthetic của mình: giữa activateServer và phím vật lý đầu
@@ -1217,12 +1225,13 @@ final class TelexInputController: IMKInputController {
         if markedNow { updateMarked(client); return true }
         switch action {
         case .passthrough:
-            if edgeTapWord, KeyboardLayoutOverride.translator == nil {
+            if edgeTapWord, KeyboardLayoutOverride.translator == nil, !keyFollowsDeadKey {
                 // Edge word: the app inserts the raw key natively — same CGEvent
                 // queue as the synthetic replaces below, so ordering holds. A
                 // selection at offset 0 (⌘A) is overwritten by the native key.
                 // (With a layout pinned, "natively" would type the WRONG letter —
-                // fall through to the insertText path, which carries our character.)
+                // fall through to the insertText path, which carries our character.
+                // Same right after a dead key: native could arrive composed, #161.)
                 selToClear = 0
                 onLen += 1
                 return false
@@ -1347,12 +1356,21 @@ final class TelexInputController: IMKInputController {
     /// `event.characters` — the pre-pin behaviour — whenever no remapping is in force,
     /// which is every case except "pinned a layout AND macOS is on a different one".
     /// Modifier combos never reach here: handle() passes ⌘⌃⌥ through before this.
+    ///
+    /// Dead key (#161): no remapping in force and macOS sent EMPTY characters ⇒ the
+    /// key's own character on the live layout (' on U.S. International – PC), which
+    /// the boundary path then inserts — see DeadKeyLiteral.
     private func effectiveCharacters(_ event: NSEvent) -> String? {
+        let shift = event.modifierFlags.contains(.shift)
+        let caps = event.modifierFlags.contains(.capsLock)
         guard let translator = KeyboardLayoutOverride.translator,
-              let ch = translator.character(keyCode: event.keyCode,
-                                            shift: event.modifierFlags.contains(.shift),
-                                            capsLock: event.modifierFlags.contains(.capsLock))
-        else { return event.characters }
+              let ch = translator.character(keyCode: event.keyCode, shift: shift, capsLock: caps)
+        else {
+            return DeadKeyLiteral.resolve(eventCharacters: event.characters,
+                                          afterDeadKey: keyFollowsDeadKey) {
+                KeyboardLayoutOverride.liveCharacter(keyCode: event.keyCode, shift: shift, capsLock: caps)
+            }
+        }
         return String(ch)
     }
 
@@ -1362,8 +1380,11 @@ final class TelexInputController: IMKInputController {
     /// Returning false from handle() means "macOS, type this key" — and macOS types
     /// it with the layout we are overriding. So wherever a pass-through would now
     /// produce the wrong letter, we have to insert ours and swallow the key instead.
+    ///
+    /// Also the dead-key case (#161): the event carries no characters, so passing it
+    /// through types nothing — insert the key's own character instead.
     private func remappedInsert(_ event: NSEvent) -> String? {
-        guard KeyboardLayoutOverride.translator != nil,
+        guard KeyboardLayoutOverride.translator != nil || lastKeyWasDead || keyFollowsDeadKey,
               let ours = effectiveCharacters(event),
               ours != event.characters,
               Self.insertsOneCharacter(ours)
@@ -2635,6 +2656,10 @@ final class TelexInputController: IMKInputController {
     private var acceptedSpace: String?
     /// Vừa chèn nguyên văn đuôi email — phím KẾ không được re-edit (bỏ dấu ngược) chữ đó.
     private var rawInsertedTail = false
+    /// Phím dead key (#161): phím VỪA RỒI là dead key / phím ĐANG xử lý đi ngay sau một
+    /// dead key — xem DeadKeyLiteral.
+    private var lastKeyWasDead = false
+    private var keyFollowsDeadKey = false
     /// Dấu câu vừa dời dấu cách ra sau ("." + " ") — phím cách kế bị nuốt (không thành 2 dấu cách).
     private var carriedSpace: String?
 
