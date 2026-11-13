@@ -94,4 +94,68 @@ final class DeadKeyLiteralTests: XCTestCase {
         XCTAssertTrue(TelexInputController.insertsOneCharacter("\""))
         XCTAssertFalse(TelexInputController.insertsOneCharacter(""))
     }
+
+    // MARK: - Spotlight (#161 follow-up): dead key NOT delivered as an empty event
+
+    /// The layout table itself must know which keys are dead — Spotlight's event does
+    /// not say so.
+    func testTableFlagsDeadKeysOnUSInternational() throws {
+        let t = try translator(Self.usIntlPC)
+        XCTAssertTrue(t.isDeadKey(keyCode: UInt16(kVK_ANSI_Quote), shift: false, capsLock: false))
+        XCTAssertTrue(t.isDeadKey(keyCode: UInt16(kVK_ANSI_Quote), shift: true, capsLock: false))
+        XCTAssertTrue(t.isDeadKey(keyCode: UInt16(kVK_ANSI_Grave), shift: false, capsLock: false))
+        XCTAssertTrue(t.isDeadKey(keyCode: UInt16(kVK_ANSI_6), shift: true, capsLock: false))
+        XCTAssertFalse(t.isDeadKey(keyCode: UInt16(kVK_ANSI_6), shift: false, capsLock: false))
+        XCTAssertFalse(t.isDeadKey(keyCode: UInt16(kVK_ANSI_S), shift: false, capsLock: false))
+        XCTAssertFalse(t.isDeadKey(keyCode: UInt16(kVK_ANSI_Semicolon), shift: false, capsLock: false))
+    }
+
+    func testABCHasNoDeadQuote() throws {
+        let t = try translator("com.apple.keylayout.ABC")
+        XCTAssertFalse(t.isDeadKey(keyCode: UInt16(kVK_ANSI_Quote), shift: false, capsLock: false))
+        XCTAssertFalse(t.isDeadKey(keyCode: UInt16(kVK_ANSI_Quote), shift: true, capsLock: false))
+    }
+
+    /// Spotlight hands the input method ' WITH its character. The old rule ("insert
+    /// only when ours differs from the event") passed it back, and Spotlight then ran
+    /// the layout's dead-key composition on it → nothing typed. A layout dead key must
+    /// always be inserted by VietTelex.
+    func testSpotlightDeadKeyWithCharactersIsStillInserted() {
+        let ours = DeadKeyLiteral.resolve(eventCharacters: "'", afterDeadKey: false, deadOnLayout: true) { "'" }
+        XCTAssertEqual(ours, "'")
+        XCTAssertEqual(DeadKeyLiteral.insertion(ours: ours, eventCharacters: "'", deadOnLayout: true), "'")
+        let dq = DeadKeyLiteral.resolve(eventCharacters: "\"", afterDeadKey: false, deadOnLayout: true) { "\"" }
+        XCTAssertEqual(DeadKeyLiteral.insertion(ours: dq, eventCharacters: "\"", deadOnLayout: true), "\"")
+    }
+
+    /// Spotlight variant carrying the layout's spacing accent (´ ¨) instead: the key
+    /// still types its own ASCII character.
+    func testSpotlightDeadKeyWithAccentResolvesToLiteral() {
+        let ours = DeadKeyLiteral.resolve(eventCharacters: "\u{B4}", afterDeadKey: false, deadOnLayout: true) { "'" }
+        XCTAssertEqual(ours, "'")
+        XCTAssertEqual(DeadKeyLiteral.insertion(ours: ours, eventCharacters: "\u{B4}", deadOnLayout: true), "'")
+    }
+
+    /// Empty-event apps keep the 1.9.9 behaviour.
+    func testEmptyEventStillInserted() {
+        let ours = DeadKeyLiteral.resolve(eventCharacters: "", afterDeadKey: false, deadOnLayout: true) { "'" }
+        XCTAssertEqual(DeadKeyLiteral.insertion(ours: ours, eventCharacters: "", deadOnLayout: true), "'")
+        XCTAssertEqual(DeadKeyLiteral.insertion(ours: "'", eventCharacters: "", deadOnLayout: false), "'")
+    }
+
+    /// ABC (no dead keys): ' carries "'" and is NOT dead → passthrough, as always.
+    func testNonDeadQuotePassesThrough() {
+        XCTAssertNil(DeadKeyLiteral.insertion(ours: "'", eventCharacters: "'", deadOnLayout: false))
+        XCTAssertNil(DeadKeyLiteral.insertion(ours: nil, eventCharacters: "", deadOnLayout: true))
+        XCTAssertNil(DeadKeyLiteral.insertion(ours: "", eventCharacters: "", deadOnLayout: true))
+    }
+
+    /// Hot path: letters and digits never read the layout table.
+    func testMayBeDeadKeyPrefilter() {
+        for c in ["a", "Z", "s", "5", "0"] { XCTAssertFalse(DeadKeyLiteral.mayBeDeadKey(c), c) }
+        for c in ["", "'", "\"", "`", "~", "^", "\u{B4}", "\u{A8}"] {
+            XCTAssertTrue(DeadKeyLiteral.mayBeDeadKey(c), c)
+        }
+        XCTAssertTrue(DeadKeyLiteral.mayBeDeadKey(nil))
+    }
 }

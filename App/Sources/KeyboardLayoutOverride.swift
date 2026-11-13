@@ -235,6 +235,11 @@ enum KeyboardLayoutOverride {
         liveTable?.character(keyCode: keyCode, shift: shift, capsLock: capsLock)
     }
 
+    /// Is `keyCode` a dead key on the live layout? Any thread: reads the cache only.
+    static func liveIsDeadKey(keyCode: UInt16, shift: Bool, capsLock: Bool) -> Bool {
+        liveTable?.isDeadKey(keyCode: keyCode, shift: shift, capsLock: capsLock) ?? false
+    }
+
     /// Also read by QtKeymapFix (#131) — the layout to name in a Qt client's override.
     static func liveLayoutID() -> String {
         property(TISCopyCurrentKeyboardLayoutInputSource().takeRetainedValue(),
