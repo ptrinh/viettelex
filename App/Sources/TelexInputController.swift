@@ -1265,9 +1265,14 @@ final class TelexInputController: IMKInputController {
         // RE-EDIT ("Fix tones of typed words", default ON): a tone/mark key on an EMPTY engine right after a
         // word means "add this diacritic to that word" ("toan" + s → toán). Seed the
         // engine from the text on screen so the normal replace machinery does the edit.
-        if engine.isEmpty, tracking, selToClear == 0, !afterRawInsert,
-           AppState.shared.reEditWord, Self.isDiacriticOnlyKey(ascii, vni: engine.vniMode) {
-            tryReEditWord(caret: anchor, client, id: id)
+        if engine.isEmpty, AppState.shared.reEditWord, Self.isDiacriticOnlyKey(ascii, vni: engine.vniMode) {
+            if tracking, selToClear == 0, !afterRawInsert {
+                tryReEditWord(caret: anchor, client, id: id)
+            } else {
+                // #163: name the exit (no caret / live selection / raw insert just before).
+                DebugLog.log("re-edit \(id ?? "?"): skipped ("
+                    + (!tracking ? "no caret at word start" : selToClear > 0 ? "live selection" : "after raw insert") + ")")
+            }
         }
 
         // Re-edit/handoff vừa seed engine ⇒ phím này không còn là chữ đầu từ.
@@ -1596,8 +1601,25 @@ final class TelexInputController: IMKInputController {
     ///    arithmetic cut into combining marks;
     ///  • only when `engine.seed` ROUND-TRIPS the word, which is what rejects English
     ///    words, other tone-placement styles and anything untypable.
+    ///  #163 RC4: "proven" now also covers apps the user pinned to In-place and WebKit
+    ///  page content — see ReEditIMKAcceptance.appAllowed for why the edit channel
+    ///  (insertText(replacementRange:)) is the trusted one there.
     private func tryReEditWord(caret: Int, _ client: IMKTextInput, id: String?) {
-        guard caret > 0, AppState.shared.isLearnedInPlace(id), !usesMarkedNow(id) else { return }
+        guard caret > 0 else {
+            DebugLog.log("re-edit \(id ?? "?"): skipped (caret at 0)")
+            return
+        }
+        let manualInPlace = AppState.shared.manualMode(id) == .inPlace
+        guard ReEditIMKAcceptance.appAllowed(learnedInPlace: AppState.shared.isLearnedInPlace(id),
+                                             manualInPlace: manualInPlace,
+                                             webKitPage: AppState.isWebKitPageClient(id)) else {
+            DebugLog.log("re-edit \(id ?? "?"): skipped (app not learned/pinned in-place, not WebKit page)")
+            return
+        }
+        guard !usesMarkedNow(id) else {
+            DebugLog.log("re-edit \(id ?? "?"): skipped (marked-text field)")
+            return
+        }
         // Browsers are excluded PER FIELD, not per app: only the address/search bar has the
         // inline autocomplete that makes re-editing unsafe, and blanket-excluding every
         // browser turned the feature off exactly where people type most — inside the page
@@ -1608,7 +1630,10 @@ final class TelexInputController: IMKInputController {
         }
         let window = min(caret, 24)
         guard let sub = client.attributedSubstring(from: NSRange(location: caret - window,
-                                                                 length: window)) else { return }
+                                                                 length: window)) else {
+            DebugLog.log("re-edit \(id ?? "?"): skipped (client text unreadable)")
+            return
+        }
         let text = sub.string
         // Exact UTF-16 compare, NOT `==`: Swift String equality is canonical-equivalence,
         // so an NFD field ("ta\u{302}n") would pass `==` against its NFC form and the
@@ -1617,9 +1642,20 @@ final class TelexInputController: IMKInputController {
             DebugLog.log("re-edit \(id ?? "?"): skipped (field text is not precomposed)")
             return
         }
-        guard let word = Self.trailingWord(text) else { return }
+        guard let word = Self.trailingWord(text) else {
+            DebugLog.log("re-edit \(id ?? "?"): skipped (no word right before caret)")
+            return
+        }
         let wordLen = (word as NSString).length
-        guard wordLen <= caret, engine.seed(word) else { return }
+        if ReEditIMKAcceptance.edgeZoneBlocks(offset0AppendApp: AppState.offset0AppendApps.contains(id ?? ""),
+                                              manualInPlace: manualInPlace, wordStart: caret - wordLen) {
+            DebugLog.log("re-edit \(id ?? "?"): skipped (word at field start in an offset-0 append app)")
+            return
+        }
+        guard wordLen <= caret, engine.seed(word) else {
+            DebugLog.log("re-edit \(id ?? "?"): skipped (seed did not round-trip, \(wordLen) chars)")
+            return
+        }
         // The composition now IS that on-screen word: point the tracking window at it so
         // the next replace lands on the word's own characters. `anchorVerified` is set —
         // the anchor came from a caret read taken one line ago, not a stale word start.
@@ -1682,7 +1718,11 @@ final class TelexInputController: IMKInputController {
         guard AppState.shared.reEditWord else { return false }
         // Marked-text apps commit through setMarkedText/insertText, so the word on
         // screen is finalized text no composition can reclaim.
-        guard engine.canReopenLastCommit, !usesMarkedNow(id) else { return false }
+        guard engine.canReopenLastCommit else { return false }
+        guard !usesMarkedNow(id) else {
+            DebugLog.log("⌫ re-open \(id ?? "?"): skipped (marked-text field)")
+            return false
+        }
         // Same per-FIELD exclusion as `tryReEditWord`: an omnibox/search bar rewrites
         // text underneath us via inline autocomplete, so the replace that follows a
         // re-open would land in a field that is editing itself. (Reachable from here
@@ -1700,9 +1740,13 @@ final class TelexInputController: IMKInputController {
         // resurrect it.
         guard sel.location != NSNotFound, sel.length == 0 else {
             engine.forgetLastCommit()
+            DebugLog.log("⌫ re-open \(id ?? "?"): skipped (" + (sel.location == NSNotFound ? "no caret" : "live selection") + ")")
             return false
         }
-        guard let word = engine.reopenLastCommit() else { return false }
+        guard let word = engine.reopenLastCommit() else {
+            DebugLog.log("⌫ re-open \(id ?? "?"): skipped (replay mismatch)")
+            return false
+        }
         let wordLen = (word as NSString).length
         let start = sel.location - 1 - wordLen          // this ⌫ removes the boundary char
         guard start >= 0,

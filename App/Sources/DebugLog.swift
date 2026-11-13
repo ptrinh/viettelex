@@ -31,7 +31,11 @@ enum DebugLog {
     /// logging is off (the common case). Never pass user-typed text.
     static func log(_ message: @autoclosure () -> String) {
         guard AppState.shared.debugLogging else { return }
-        let ms = Double(DispatchTime.now().uptimeNanoseconds &- startNs) / 1_000_000
+        // Read `startNs` FIRST: it is a lazy static, so on the very first line it was
+        // initialised AFTER `now` was taken and the unsigned subtraction wrapped
+        // (first line 18446744073709.6 — issue #163). elapsedMs also saturates.
+        let start = startNs
+        let ms = elapsedMs(now: DispatchTime.now().uptimeNanoseconds, start: start)
         let text = message()
         let line = String(format: "%10.1f  %@", ms, text)
         lock.lock()
@@ -51,6 +55,11 @@ enum DebugLog {
     }
 
     static func clear() { lock.lock(); lines = []; head = 0; lock.unlock() }
+
+    /// ms since `start`, 0 when `now` is earlier (never an unsigned wrap). Pure.
+    static func elapsedMs(now: UInt64, start: UInt64) -> Double {
+        now >= start ? Double(now - start) / 1_000_000 : 0
+    }
 
     // "⌫ undo after English restore" counters — local, in memory, this app session only;
     // counts, never text. Always on (two integer bumps per event, not per keystroke).
