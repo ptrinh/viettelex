@@ -194,6 +194,7 @@ enum SettingsIndex {
             E(viTitle: LK("Bàn phím tách đôi"), keywords: "split tách chia hai nửa gập ngang", location: .page(.giaoDien)),
             // Riêng tư & sao lưu
             E(viTitle: LK("Lịch sử clipboard"), keywords: "copy dán clipboard giữ lịch sử 24 giờ 7 ngày keep history", location: .page(.riengTu), key: "clipboardHistory"),
+            E(viTitle: LK("Tự lưu khi sao chép"), keywords: "clipboard copy sao chép tự động lưu auto save đã dán từ pasted from thông báo banner", location: .page(.riengTu), key: "clipboardAutoSave"),
             E(viTitle: LK("Chế độ ẩn danh"), keywords: "incognito riêng tư", location: .page(.riengTu), key: "incognitoMode"),
             E(viTitle: LK("Xuất / nhập file sao lưu"), keywords: "backup export import restore sao lưu", location: .page(.riengTu)),
             E(viTitle: LK("Đồng bộ iCloud"), keywords: "sync icloud đồng bộ", location: .page(.riengTu), condition: .iCloud),
@@ -315,6 +316,7 @@ enum SettingCaption {
     static let fontScaleIos = LK("Phím hẹp tự thu nhỏ chữ cho vừa, dấu không bị cắt.")
     // Riêng tư & sao lưu
     static let clipboardHistory = LK("Nút clipboard trên thanh gợi ý mở 20 mục vừa copy; ghim để giữ. Chỉ lưu trên máy.")
+    static let clipboardAutoSave = LK("Lưu vào lịch sử ngay khi bạn sao chép. iOS sẽ hiện thông báo \"VietTelex đã dán từ…\" mỗi lần.")
     static let clipboardTTL = LK("Mục trông như mật khẩu/OTP vẫn tự xoá sau 2 phút; ghim để giữ lâu.")
     static let clipboardPasteAllowIos = LK("Để tự ghi mục mới không bị hỏi: Cài đặt → VietTelex → Dán từ ứng dụng khác → Cho phép.")
     static let clipboardIosLimit = LK("iOS chỉ cho đọc clipboard khi bàn phím hiện: copy lúc ẩn chỉ ghi được mục cuối.")
@@ -348,7 +350,7 @@ enum SettingCaption {
         keyPreview, keyPressHighlight, hapticFeedback, keySound, plusThemes, systemBackdrop,
         moleGame, spotlightPhoto, wallpaper, transparency, rowHeightIos, keyboardRaise, suggestionBarHeight,
         suggestionInk, spaceLogo, splitKeyboardIos, resetAppearance, advancedStyle, fontScaleIos,
-        clipboardHistory, clipboardTTL, clipboardPasteAllowIos, clipboardIosLimit, clipboardOffClears, incognitoIos,
+        clipboardHistory, clipboardAutoSave, clipboardTTL, clipboardPasteAllowIos, clipboardIosLimit, clipboardOffClears, incognitoIos,
         iCloudSync, includeLearned, backupFile, debugLogIos, showLog, clearLog,
         swipeDataCredit,
     ]
