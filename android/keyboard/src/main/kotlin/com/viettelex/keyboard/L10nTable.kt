@@ -204,7 +204,7 @@ object L10nTable {
         put("Roi vụt", "Whip")
         put("Đũa phép", "Magic wand")
         put("Nốt nhạc theo phím", "Key melody")
-        put("Sáo trúc", "Bamboo flute")
+        put("Sáo trúc", "Vietnamese flute")
         put("Sóng biển", "Waves")
         put("Mèo kêu", "Meow")
         put("Chim hót", "Birdsong")
@@ -214,7 +214,7 @@ object L10nTable {
         put("Âm dài hơn 3 giây nên chỉ dùng 3 giây đầu.", "The sound is longer than 3 seconds, so only the first 3 seconds are used.")
         put("Bỏ lặng đầu/cuối, nối đuôi vào đầu cho liền, chỉnh độ to như các kiểu khác. File chỉ trên máy này (không tải lên, không sao lưu); thiếu file ⇒ phát Bút chì.", "Silence at both ends is trimmed, the end is blended into the start so it loops smoothly, and the loudness matches the other styles. The file stays on this device (never uploaded, not backed up); if it is missing, Pencil plays instead.")
         put("Tiếng khẽ khi ngón đang vuốt một từ: to hơn khi vuốt nhanh, im khi ngón dừng. Nốt nhạc theo phím: mỗi phím ngón đi qua gảy một nốt, mỗi từ thành một giai điệu nhỏ (nhạc cụ theo Âm thanh phím nếu là Piano, Đàn tranh hay Ghi-ta mộc, không thì Đàn tranh). Sáo trúc: cao độ theo vị trí ngón. Roi vụt, Tia sét, Plasma, Đũa phép, Sóng biển, Mèo kêu và Chim hót thêm một tiếng ngắn lúc nhấc tay. Tắt: không phát gì. Bút chì miễn phí, các kiểu còn lại thuộc VietTelex Plus.",
-            "A soft sound while your finger swipes a word: louder when you swipe fast, silent when your finger stops. Key melody: every key your finger passes plucks a note, so each word becomes a little tune (played on your Key sound instrument if it is Piano, Đàn tranh or Acoustic guitar, otherwise Đàn tranh). Bamboo flute: the pitch follows your finger. Whip, Lightning, Plasma, Magic wand, Waves, Meow and Birdsong add a short sound when you lift your finger. Off: no sound. Pencil is free, the other styles are part of VietTelex Plus.")
+            "A soft sound while your finger swipes a word: louder when you swipe fast, silent when your finger stops. Key melody: every key your finger passes plucks a note, so each word becomes a little tune (played on your Key sound instrument if it is Piano, Đàn tranh or Acoustic guitar, otherwise Đàn tranh). Vietnamese flute: the pitch follows your finger. Whip, Lightning, Plasma, Magic wand, Waves, Meow and Birdsong add a short sound when you lift your finger. Off: no sound. Pencil is free, the other styles are part of VietTelex Plus.")
         put("Theo âm lượng của Âm thanh phím; im khi máy để Rung/Im lặng. Tự về Bút chì khi bật Trình tiết kiệm pin.",
             "Uses the Key sound volume; silent when the phone is on Vibrate/Silent. Falls back to Pencil with Battery Saver on.")
         // Hiệu ứng nét vuốt (SwipeTrailStyle)

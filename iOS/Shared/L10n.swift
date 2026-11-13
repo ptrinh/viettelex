@@ -361,7 +361,7 @@ enum L10n {
         "Roi vụt": "Whip",
         "Đũa phép": "Magic wand",
         "Nốt nhạc theo phím": "Key melody",
-        "Sáo trúc": "Bamboo flute",
+        "Sáo trúc": "Vietnamese flute",
         "Sóng biển": "Waves",
         "Mèo kêu": "Meow",
         "Chim hót": "Birdsong",
@@ -370,7 +370,7 @@ enum L10n {
         "Chưa có âm — chọn một file âm thanh (m4a, mp3, wav, caf, aiff); dùng tối đa 3 giây đầu làm vòng lặp.": "No sound yet — choose an audio file (m4a, mp3, wav, caf, aiff); up to the first 3 seconds become the loop.",
         "Âm dài hơn 3 giây nên chỉ dùng 3 giây đầu.": "The sound is longer than 3 seconds, so only the first 3 seconds are used.",
         "Bỏ lặng đầu/cuối, nối đuôi vào đầu cho liền, chỉnh độ to như các kiểu khác. File chỉ trên máy này (không tải lên, không sao lưu); thiếu file ⇒ phát Bút chì.": "Silence at both ends is trimmed, the end is blended into the start so it loops smoothly, and the loudness matches the other styles. The file stays on this device (never uploaded, not backed up); if it is missing, Pencil plays instead.",
-        "Tiếng khẽ khi ngón đang vuốt một từ: to hơn khi vuốt nhanh, im khi ngón dừng. Nốt nhạc theo phím: mỗi phím ngón đi qua gảy một nốt, mỗi từ thành một giai điệu nhỏ (nhạc cụ theo Âm thanh phím nếu là Piano, Đàn tranh hay Ghi-ta mộc, không thì Đàn tranh). Sáo trúc: cao độ theo vị trí ngón. Roi vụt, Tia sét, Plasma, Đũa phép, Sóng biển, Mèo kêu và Chim hót thêm một tiếng ngắn lúc nhấc tay. Tắt: không phát gì. Bút chì miễn phí, các kiểu còn lại thuộc VietTelex Plus.": "A soft sound while your finger swipes a word: louder when you swipe fast, silent when your finger stops. Key melody: every key your finger passes plucks a note, so each word becomes a little tune (played on your Key sound instrument if it is Piano, Đàn tranh or Acoustic guitar, otherwise Đàn tranh). Bamboo flute: the pitch follows your finger. Whip, Lightning, Plasma, Magic wand, Waves, Meow and Birdsong add a short sound when you lift your finger. Off: no sound. Pencil is free, the other styles are part of VietTelex Plus.",
+        "Tiếng khẽ khi ngón đang vuốt một từ: to hơn khi vuốt nhanh, im khi ngón dừng. Nốt nhạc theo phím: mỗi phím ngón đi qua gảy một nốt, mỗi từ thành một giai điệu nhỏ (nhạc cụ theo Âm thanh phím nếu là Piano, Đàn tranh hay Ghi-ta mộc, không thì Đàn tranh). Sáo trúc: cao độ theo vị trí ngón. Roi vụt, Tia sét, Plasma, Đũa phép, Sóng biển, Mèo kêu và Chim hót thêm một tiếng ngắn lúc nhấc tay. Tắt: không phát gì. Bút chì miễn phí, các kiểu còn lại thuộc VietTelex Plus.": "A soft sound while your finger swipes a word: louder when you swipe fast, silent when your finger stops. Key melody: every key your finger passes plucks a note, so each word becomes a little tune (played on your Key sound instrument if it is Piano, Đàn tranh or Acoustic guitar, otherwise Đàn tranh). Vietnamese flute: the pitch follows your finger. Whip, Lightning, Plasma, Magic wand, Waves, Meow and Birdsong add a short sound when you lift your finger. Off: no sound. Pencil is free, the other styles are part of VietTelex Plus.",
         "Theo âm lượng của Âm thanh phím; im khi gạt im lặng. Cần Toàn quyền Truy cập; tự về Bút chì khi bật Chế độ nguồn điện thấp.": "Uses the Key sound volume; silent with the Silent switch on. Needs Full Access; falls back to Pencil in Low Power Mode.",
         // Hiệu ứng nét vuốt (SwipeTrailStyles.swift)
         "Hiệu ứng nét vuốt": "Swipe trail",

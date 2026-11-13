@@ -54,7 +54,7 @@ class SwipeSoundTests {
         assertEquals(listOf(SwipeSoundStyle.FLUTE), SwipeSoundStyle.entries.filter { it.followsX })
         assertEquals(listOf(SwipeSoundStyle.NOTES, SwipeSoundStyle.FLUTE), SwipeSoundStyle.entries.filter { it.needsLayout })
         assertEquals("Key melody", L10nTable.EN["Nốt nhạc theo phím"])
-        assertEquals("Bamboo flute", L10nTable.EN["Sáo trúc"])
+        assertEquals("Vietnamese flute", L10nTable.EN["Sáo trúc"])
         assertEquals(SwipeSoundStyle.BIRDS, SwipeSoundStyle.of("birds"))
         assertEquals(SwipeSoundStyle.WAND, SwipeSoundStyle.of("wand"))
         assertEquals(SwipeSoundStyle.CUSTOM, SwipeSoundStyle.of("custom"))

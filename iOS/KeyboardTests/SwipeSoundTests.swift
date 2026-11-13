@@ -55,7 +55,7 @@ final class SwipeSoundTests: XCTestCase {
         XCTAssertEqual([SwipeSoundStyle.notes, .flute, .waves, .cat, .birds].map(\.title),
                        [L("Nốt nhạc theo phím"), L("Sáo trúc"), L("Sóng biển"), L("Mèo kêu"), L("Chim hót")])
         XCTAssertEqual(L10n.en["Nốt nhạc theo phím"], "Key melody")
-        XCTAssertEqual(L10n.en["Sáo trúc"], "Bamboo flute")
+        XCTAssertEqual(L10n.en["Sáo trúc"], "Vietnamese flute")
         XCTAssertEqual(SwipeSoundStyle.parse("birds"), .birds)
         XCTAssertEqual(SwipeSoundStyle.parse("wand"), .wand)
         XCTAssertEqual(SwipeSoundStyle.parse("custom"), .custom)
