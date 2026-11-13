@@ -76,8 +76,8 @@
     "notes": "Bàn phím có phím ghép dấu (US International, Đức, Pháp…) và phím Compose gõ đúng khi đang bật VietTelex."
   },
   "android": {
-    "version": "1.6.7",
-    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.6.7/VietTelex-android-1.6.7.apk",
+    "version": "1.6.8",
+    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.6.8/VietTelex-android-1.6.8.apk",
     "play": "https://play.google.com/store/apps/details?id=com.viettelex.android"
   }
 }
