@@ -190,6 +190,27 @@ def main():
     a.ic.set_content_type(IBus.InputPurpose.FREE_FORM, 0)
     pump()
 
+    # 5b. dead keys (#161, U.S. International): no keyboard engine composes them while
+    #     VietTelex is active — VietTelex does, exactly one output per sequence.
+    a.type(" ")
+    expect(a.key(IBus.KEY_dead_acute), "dead key not consumed")
+    expect(a.pre == "" and a.doc.endswith(" "), f"dead key pending {a.doc!r} {a.pre!r}")
+    a.key(IBus.KEY_e, "e")
+    expect(a.doc.endswith(" é"), f"dead acute + e {a.doc!r}")
+    a.key(IBus.KEY_dead_acute)
+    a.key(IBus.KEY_space, " ")
+    expect(a.doc.endswith(" é'"), f"dead acute + space {a.doc!r}")
+    a.key(IBus.KEY_dead_diaeresis)
+    a.key(IBus.KEY_u, "u")
+    expect(a.doc.endswith(" é'ü"), f"dead diaeresis + u {a.doc!r}")
+    a.key(IBus.KEY_dead_acute)
+    a.type("x ")
+    expect(a.doc.endswith(" é'ü'x "), f"dead acute + x {a.doc!r}")
+    a.key(IBus.KEY_dead_acute)
+    expect(a.key(IBus.KEY_Escape), "Esc after a dead key not consumed")
+    a.type("a ")
+    expect(a.doc.endswith(" é'ü'x a "), f"dead acute + Esc {a.doc!r}")
+
     # 6. live settings: VNI + shortcut + "no underline" (surrounding) without restart
     os.makedirs(CFG, exist_ok=True)
     with open(CFG + "/shortcuts.yml.tmp", "w") as f:

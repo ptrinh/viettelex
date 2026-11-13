@@ -25,6 +25,7 @@ XML
 export IBUS_COMPONENT_PATH="$work/component"
 export XDG_CONFIG_HOME="$work/config" XDG_STATE_HOME="$work/state" XDG_CACHE_HOME="$work/cache"
 export HOME="$work"
+export LC_CTYPE=en_US.UTF-8  # dead keys: en_US Compose rules (or the built-in table)
 exec dbus-run-session -- sh -c '
   ibus-daemon --panel=disable --emoji-extension=disable --config=disable --cache=none --replace --daemonize
   python3 "'"$here"'/smoke_ibus.py"; rc=$?

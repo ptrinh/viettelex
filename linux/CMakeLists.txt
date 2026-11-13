@@ -115,10 +115,12 @@ add_library(viettelex-common STATIC
   common/src/retro_english.cpp
   common/src/auto_text.cpp
   common/src/debug_log.cpp
-  common/src/switch_sound.cpp)
+  common/src/switch_sound.cpp
+  common/src/dead_keys.cpp)
 target_include_directories(viettelex-common PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/common/include")
 target_compile_definitions(viettelex-common PRIVATE VT_TEXT_TOOL_PATH="${VT_TEXT_TOOL_INSTALLED}")
-target_link_libraries(viettelex-common PUBLIC telexcore PkgConfig::GIO Threads::Threads)
+# dead_keys.cpp dlopen()s libxkbcommon for the locale Compose table (no build dependency).
+target_link_libraries(viettelex-common PUBLIC telexcore PkgConfig::GIO Threads::Threads ${CMAKE_DL_LIBS})
 target_compile_options(viettelex-common PRIVATE -Wall -Wextra)
 
 if(VT_BUILD_TESTS)
@@ -156,6 +158,10 @@ if(VT_BUILD_TESTS)
   add_executable(test_debug_log common/tests/test_debug_log.cpp)
   target_link_libraries(test_debug_log PRIVATE viettelex-common)
   add_test(NAME debug_log COMMAND test_debug_log)
+  # Dead keys / Compose key (#161): built-in table + the locale Compose table when present.
+  add_executable(test_dead_keys common/tests/test_dead_keys.cpp)
+  target_link_libraries(test_dead_keys PRIVATE viettelex-common)
+  add_test(NAME dead_keys COMMAND test_dead_keys)
   add_executable(test_switch_sound common/tests/test_switch_sound.cpp)
   target_link_libraries(test_switch_sound PRIVATE viettelex-common)
   add_test(NAME switch_sound COMMAND test_switch_sound)

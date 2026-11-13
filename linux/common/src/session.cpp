@@ -981,6 +981,7 @@ void Session::hidePreedit(InputContext &ic) {
 
 void Session::focusIn() {
     vt_reset_context(e_);
+    deadKeys_.reset();  // a dead key pressed in the previous field never lands here
     if (distrusted_) {
         distrusted_ = false;
         surroundingEdits_ = requestedEdits_;
@@ -1006,6 +1007,7 @@ void Session::focusIn() {
 
 void Session::finish(InputContext &ic, bool commitPreedit) {
     dismissHint(ic);
+    deadKeys_.reset();  // focus left / caret moved: a pending dead key is dropped
     learnFlush();  // caret moved / focus left: the held word is final, the context ends
     if (hintsOn_) keyGen_->fetch_add(1);  // answers still on their way are stale now
     tailReset();
@@ -1222,6 +1224,18 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
         return false;
     }
     if (ks::isModifierOnly(ev.keysym)) return false;
+    // Dead keys / Compose key (#161): the framework's keyboard engine that would compose them
+    // does not run while we are the input method — compose here, in every mode (English and
+    // passthrough too), exactly one output per sequence. Ordinary keys: one range check.
+    if (deadKeys_.wants(ev.keysym)) {
+        std::string lit;
+        switch (deadKeys_.feed(ev.keysym, ev.unicode, ev.mods, lit)) {
+        case DeadKeys::Step::Consumed: return true;
+        case DeadKeys::Step::Commit: typeLiteral(lit, ic); return true;
+        case DeadKeys::Step::CommitThenKey: typeLiteral(lit, ic); break;
+        case DeadKeys::Step::Pass: break;
+        }
+    }
     selectionMemo_ = -1;
     // A retro rewrite can be reverted by the very next key only.
     const retro::Undo undo = std::move(retroUndo_);
@@ -1416,6 +1430,30 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
         caretMoved_ = (ch == 0);  // navigation / Delete / Esc: caret may now sit after a word
     }
     return false;
+}
+
+void Session::typeLiteral(const std::string &text, InputContext &ic) {
+    for (size_t i = 0; i < text.size();) {
+        // UTF-8 → code point (the compose table's output is valid UTF-8).
+        const unsigned char c = static_cast<unsigned char>(text[i]);
+        const size_t n = c < 0x80 ? 1 : c < 0xe0 ? 2 : c < 0xf0 ? 3 : 4;
+        uint32_t cp = n == 1 ? c : n == 2 ? (c & 0x1f) : n == 3 ? (c & 0x0f) : (c & 0x07);
+        for (size_t k = 1; k < n && i + k < text.size(); ++k)
+            cp = (cp << 6) | (static_cast<unsigned char>(text[i + k]) & 0x3f);
+        const std::string one = text.substr(i, n);
+        i += n;
+        KeyEvent k;
+        // Latin-1 keysyms are the code point; the rest use the Unicode keysym range.
+        k.keysym = (cp >= 0x20 && cp < 0x7f) || (cp >= 0xa0 && cp < 0x100) ? cp : 0x1000000 | cp;
+        // Never a Telex/VNI key: a composed letter (é) is a literal, and an ASCII result
+        // (´ Space → ') is punctuation — an ASCII letter/digit only comes from a Multi_key
+        // sequence, and it must not start a Telex word either.
+        const bool alnum = (cp >= 'a' && cp <= 'z') || (cp >= 'A' && cp <= 'Z') || (cp >= '0' && cp <= '9');
+        k.unicode = alnum ? 0 : cp;  // 0 = a plain boundary
+        if (processKey(k, ic)) continue;  // the Session typed it (smart quote…)
+        if (mode_ == DisplayMode::Direct) ic.directReplace(0, one);
+        else ic.commit(one);
+    }
 }
 
 bool Session::isToggleHotkey(const KeyEvent &ev) const {
