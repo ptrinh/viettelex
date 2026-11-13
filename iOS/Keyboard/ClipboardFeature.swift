@@ -17,9 +17,14 @@ final class ClipboardFeature {
     static let historyKey = "clipboardHistory"   // mặc định TẮT
     static let incognitoKey = "incognitoMode"    // mặc định TẮT
     static let ttlKey = ClipboardTTL.key         // "1h" (mặc định) / "24h" / "7d"
+    /// "Tự lưu khi sao chép" — mặc định TẮT. Mỗi lần đọc `UIPasteboard.string` iOS hiện
+    /// banner "VietTelex đã dán từ…" (kể cả khi đã Cho phép dán) ⇒ tắt thì CHỈ đọc khi
+    /// user chủ động: mở bảng clipboard, chạm Dán / chip, vuốt dán.
+    static let autoSaveKey = "clipboardAutoSave"
 
     private(set) var historyEnabled = false
     private(set) var incognito = false
+    private(set) var autoSave = false
     /// Chỉ tạo khi bật (0 RAM khi tắt).
     private(set) var history: ClipboardHistory?
     private let fileURL: URL?
@@ -37,9 +42,10 @@ final class ClipboardFeature {
 
     /// Đọc công tắc mỗi lần bàn phím hiện. Tắt lịch sử → xoá file + bỏ RAM.
     /// `ttl` = "Giữ lịch sử clipboard" — áp ở lần prune kế tiếp (mở bảng / thêm mục).
-    func load(historyEnabled h: Bool, incognito i: Bool, ttl: ClipboardTTL = .default) {
+    func load(historyEnabled h: Bool, incognito i: Bool, ttl: ClipboardTTL = .default, autoSave a: Bool = false) {
         historyEnabled = h
         incognito = i
+        autoSave = a
         if h {
             if history == nil { history = ClipboardHistory(fileURL: fileURL, ttl: ttl.seconds) }
             history?.ttl = ttl.seconds
@@ -55,7 +61,8 @@ final class ClipboardFeature {
     func load(from defaults: UserDefaults?) {
         load(historyEnabled: defaults?.bool(forKey: Self.historyKey) ?? false,
              incognito: defaults?.bool(forKey: Self.incognitoKey) ?? false,
-             ttl: ClipboardTTL.parse(defaults?.string(forKey: Self.ttlKey)))
+             ttl: ClipboardTTL.parse(defaults?.string(forKey: Self.ttlKey)),
+             autoSave: defaults?.bool(forKey: Self.autoSaveKey) ?? false)
     }
 
     /// Được GHI vào lịch sử không (bật, không ẩn danh, ô không phải mật khẩu,
@@ -64,11 +71,12 @@ final class ClipboardFeature {
         historyEnabled && !incognito && !secureField && !concealed
     }
 
-    /// Tự đọc clipboard khi thấy changeCount mới? Chỉ khi được ghi VÀ iOS không hỏi
+    /// Tự đọc clipboard khi thấy changeCount mới? Chỉ khi user bật "Tự lưu khi sao chép"
+    /// (mỗi lần đọc iOS hiện banner "đã dán từ…"), được ghi, VÀ iOS không hỏi
     /// "Cho phép dán?" (user đã chọn Cho phép) — không thì mỗi lần hiện bàn phím
     /// sẽ bật hộp thoại.
     func shouldAutoRead(fullAccess: Bool, noPrompt: Bool, secureField: Bool, concealed: Bool) -> Bool {
-        fullAccess && noPrompt && canRecord(secureField: secureField, concealed: concealed)
+        autoSave && fullAccess && noPrompt && canRecord(secureField: secureField, concealed: concealed)
     }
 
     /// Nội dung clipboard vừa đọc được (tự đọc hoặc lúc chạm Dán).
@@ -79,6 +87,8 @@ final class ClipboardFeature {
     }
 
     /// Chip cho clipboard HIỆN TẠI (changeCount khớp nội dung đã biết, chưa dùng).
+    /// Tự lưu tắt ⇒ nội dung chỉ "biết" sau lần đọc chủ động (mở bảng clipboard) ⇒ chip
+    /// STK/OTP chỉ hiện từ lúc đó — chấp nhận, đổi lại không có banner "đã dán từ…".
     func chips(currentChange: Int, usedChange: Int) -> [ClipChip] {
         guard !incognito, chipsUnlocked(), let k = known, k.change == currentChange, k.change != usedChange else { return [] }
         return ClipDetect.detect(k.text)

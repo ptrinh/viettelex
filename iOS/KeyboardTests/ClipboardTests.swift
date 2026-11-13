@@ -231,12 +231,41 @@ final class ClipboardFeatureTests: XCTestCase {
 
     func testAutoReadNeedsNoPromptAndFullAccess() {
         let f = ClipboardFeature(fileURL: url)
-        f.load(historyEnabled: true, incognito: false)
+        f.load(historyEnabled: true, incognito: false, autoSave: true)
         XCTAssertTrue(f.shouldAutoRead(fullAccess: true, noPrompt: true, secureField: false, concealed: false))
         XCTAssertFalse(f.shouldAutoRead(fullAccess: true, noPrompt: false, secureField: false, concealed: false))
         XCTAssertFalse(f.shouldAutoRead(fullAccess: false, noPrompt: true, secureField: false, concealed: false))
         f.load(historyEnabled: false, incognito: false)
         XCTAssertFalse(f.shouldAutoRead(fullAccess: true, noPrompt: true, secureField: false, concealed: false))
+    }
+
+    /// "Tự lưu khi sao chép" mặc định TẮT: mỗi lần đọc `string` iOS hiện banner "VietTelex
+    /// đã dán từ…" ⇒ không tự đọc kể cả khi đã Cho phép dán (noPrompt) + Toàn quyền.
+    func testAutoReadOffByDefault() {
+        XCTAssertEqual(ClipboardFeature.autoSaveKey, "clipboardAutoSave")
+        let d = UserDefaults(suiteName: "clipauto-\(UUID().uuidString)")!
+        d.set(true, forKey: ClipboardFeature.historyKey)
+        let f = ClipboardFeature(fileURL: url)
+        f.load(from: d)
+        XCTAssertTrue(f.historyEnabled)
+        XCTAssertFalse(f.autoSave)
+        XCTAssertFalse(f.shouldAutoRead(fullAccess: true, noPrompt: true, secureField: false, concealed: false))
+        // Đọc chủ động (mở bảng / Dán) vẫn ghi được.
+        XCTAssertTrue(f.canRecord(secureField: false, concealed: false))
+        d.set(true, forKey: ClipboardFeature.autoSaveKey)
+        f.load(from: d)
+        XCTAssertTrue(f.shouldAutoRead(fullAccess: true, noPrompt: true, secureField: false, concealed: false))
+        // Bật tự lưu nhưng tắt lịch sử / ẩn danh ⇒ vẫn không đọc.
+        f.load(historyEnabled: false, incognito: false, autoSave: true)
+        XCTAssertFalse(f.shouldAutoRead(fullAccess: true, noPrompt: true, secureField: false, concealed: false))
+        f.load(historyEnabled: true, incognito: true, autoSave: true)
+        XCTAssertFalse(f.shouldAutoRead(fullAccess: true, noPrompt: true, secureField: false, concealed: false))
+    }
+
+    /// Như "Lịch sử clipboard": công tắc riêng từng máy, không đi theo file sao lưu / iCloud.
+    func testAutoSaveNotInBackupLikeHistory() {
+        XCTAssertNil(BackupSettings.byKey[ClipboardFeature.historyKey])
+        XCTAssertNil(BackupSettings.byKey[ClipboardFeature.autoSaveKey])
     }
 
     func testPinLimitFromPlus() {

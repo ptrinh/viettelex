@@ -5,6 +5,10 @@ import SwiftUI
 struct RiengTuSection: View {
     @AppStorage("clipboardHistory", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var clipboardHistory = false
+    /// "Tự lưu khi sao chép" (ClipboardFeature.autoSaveKey) — mặc định TẮT: mỗi lần bàn phím
+    /// tự đọc clipboard iOS hiện banner "VietTelex đã dán từ…".
+    @AppStorage("clipboardAutoSave", store: UserDefaults(suiteName: AppFlavor.appGroup))
+    private var clipboardAutoSave = false
     @AppStorage("incognitoMode", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var incognitoMode = false
     /// "Giữ lịch sử clipboard": "1h" (mặc định) / "24h" / "7d" — bàn phím đọc khi hiện
@@ -18,6 +22,9 @@ struct RiengTuSection: View {
                    L(SettingCaption.clipboardHistory),
                    isOn: $clipboardHistory)
             if clipboardHistory {
+                toggle(L("Tự lưu khi sao chép"),
+                       L(SettingCaption.clipboardAutoSave),
+                       isOn: $clipboardAutoSave)
                 VStack(alignment: .leading, spacing: 6) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(L("Giữ lịch sử clipboard"))

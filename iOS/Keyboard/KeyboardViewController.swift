@@ -2739,10 +2739,12 @@ extension KeyboardViewController {
         pb.types.contains { $0 == "org.nspasteboard.ConcealedType" || $0.hasPrefix("com.agilebits") }
     }
 
-    /// changeCount mới lúc bàn phím đang hiện: tự đọc + ghi CHỈ khi user đã chọn
-    /// "Cho phép dán" (pasteNoPrompt) — nếu iOS vẫn hỏi (đọc chậm) thì ghi nhận lại
-    /// pasteNoPrompt=false để lần sau không tự đọc nữa.
+    /// changeCount mới lúc bàn phím đang hiện: tự đọc + ghi CHỈ khi user bật "Tự lưu khi
+    /// sao chép" (mặc định TẮT — mỗi lần đọc iOS hiện banner "VietTelex đã dán từ…") VÀ đã
+    /// chọn "Cho phép dán" (pasteNoPrompt) — nếu iOS vẫn hỏi (đọc chậm) thì ghi nhận lại
+    /// pasteNoPrompt=false để lần sau không tự đọc nữa. Tắt ⇒ không đụng `string` ở đây.
     fileprivate func autoCaptureClipboard(_ pb: PasteboardSource, change: Int) {
+        guard clip.autoSave else { return }
         let group = UserDefaultsProvider.shared
         let secure = fieldTraits?.secure == true
         let concealed = clip.historyEnabled ? Self.isConcealed(pb) : false
