@@ -307,7 +307,50 @@ final class TelexInputController: IMKInputController {
 
     override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
         guard let event = event else { return false }
+        guard event.type == .keyDown, let client = sender as? IMKTextInput else {
+            return handleKey(event, client: sender)
+        }
 
+        // #161: dead key (' " trên U.S. International – PC, ´ ¨ trên layout Đức/Pháp)
+        // tới với characters rỗng — ghi lại để effectiveCharacters gõ ra ký tự của chính
+        // phím đó và đọc phím kế như phím thường. Dead key kèm ⌘⌃⌥ không tính (⌥e có
+        // đường riêng, xem optionDeadState). Tính TRƯỚC mọi nhánh (cả stall breaker) để
+        // lastKeyWasDead luôn đúng cho phím kế.
+        // Spotlight (com.apple.campo) không đưa dead key tới dưới dạng characters rỗng ⇒
+        // hỏi chính layout (bảng cache, chỉ cho phím không phải chữ/số).
+        keyFollowsDeadKey = lastKeyWasDead
+        let plainKey = event.modifierFlags.intersection([.command, .control, .option]).isEmpty
+        let mayBeDead = plainKey && DeadKeyLiteral.mayBeDeadKey(event.characters)
+        if mayBeDead { KeyboardLayoutOverride.ensureLiveTable() }   // một lần đọc bool sau lần đầu
+        keyIsLayoutDead = mayBeDead
+            && KeyboardLayoutOverride.liveIsDeadKey(keyCode: event.keyCode,
+                                                    shift: event.modifierFlags.contains(.shift),
+                                                    capsLock: event.modifierFlags.contains(.capsLock))
+        lastKeyWasDead = plainKey && (DeadKeyLiteral.isDeadKeyEvent(event.characters) || keyIsLayoutDead)
+        deadRescueKeepRaw = false
+        let handled = handleKey(event, client: sender)
+        // Phím thường: một phép thử bool, không gì thêm.
+        guard lastKeyWasDead else { return handled }
+        logDecision("dead key: client=\(AppState.shared.currentBundleID ?? "nil") keyCode=\(event.keyCode) "
+            + "chars=\((event.characters ?? "nil").unicodeScalars.map { String(format: "U+%04X", $0.value) }) "
+            + "layoutDead=\(keyIsLayoutDead) live=\(KeyboardLayoutOverride.liveTable?.layoutID ?? "nil") "
+            + "handled=\(handled) keepRaw=\(deadRescueKeepRaw)")
+        // BẤT BIẾN dead key (DeadKeyLiteral.rescue): nhánh nào cũng vậy (ô mật khẩu,
+        // tap-defer khi tap chết, app Tắt, stall, machine typing…) — dead key nhường cho
+        // app là MẤT, nên chèn đúng một ký tự ở đây và nuốt phím.
+        guard let text = DeadKeyLiteral.rescue(
+            handled: handled, deadKey: true, keepRaw: deadRescueKeepRaw,
+            tapOwned: event.cgEvent.map {
+                DeadKeyHandoff.consumeTapOwned(keyCode: event.keyCode, timestamp: $0.timestamp)
+            } ?? false,
+            literal: { self.effectiveCharacters(event) })
+        else { return handled }
+        client.insertText(text, replacementRange: kNoRange)
+        logDecision("dead key rescue → inserted \(text.unicodeScalars.map { String(format: "U+%04X", $0.value) })")
+        return true
+    }
+
+    private func handleKey(_ event: NSEvent, client sender: Any!) -> Bool {
         // Stall breaker (#118): handle() runs on MAIN, the one queue every app's keys
         // share, and calls back into the client over synchronous XPC that has no
         // timeout we can set. A client that made recent keys stall is passthrough for
@@ -316,6 +359,8 @@ final class TelexInputController: IMKInputController {
         let stallID = AppState.shared.currentBundleID ?? FrontmostApp.shared.bundleID
         if ClientStallBreaker.shared.isDegraded(stallID) {
             if !engine.isEmpty { dropComposition(cause: "client-stall") }
+            optionDeadState = 0
+            if lastKeyWasDead { deadRescueKeepRaw = SyntheticKeyboard.isSyntheticMagic(event) }
             return false
         }
         let stallT0 = DispatchTime.now().uptimeNanoseconds
@@ -341,25 +386,6 @@ final class TelexInputController: IMKInputController {
 
         guard event.type == .keyDown,
               let client = sender as? IMKTextInput else { return false }
-
-        // #161: dead key (' " trên U.S. International – PC) tới với characters rỗng —
-        // ghi lại để effectiveCharacters gõ ra ký tự của chính phím đó và đọc phím kế
-        // như phím thường. Dead key kèm ⌥ (⌥e trên ABC) không tính: tổ hợp đi nguyên
-        // cho macOS như trước. Hai phép gán bool, mọi phím.
-        // Spotlight (com.apple.campo) không đưa dead key tới dưới dạng characters rỗng ⇒
-        // hỏi chính layout (bảng cache, chỉ cho phím không phải chữ/số).
-        keyFollowsDeadKey = lastKeyWasDead
-        let plainKey = event.modifierFlags.intersection([.command, .control, .option]).isEmpty
-        keyIsLayoutDead = plainKey && DeadKeyLiteral.mayBeDeadKey(event.characters)
-            && KeyboardLayoutOverride.liveIsDeadKey(keyCode: event.keyCode,
-                                                    shift: event.modifierFlags.contains(.shift),
-                                                    capsLock: event.modifierFlags.contains(.capsLock))
-        lastKeyWasDead = plainKey && (DeadKeyLiteral.isDeadKeyEvent(event.characters) || keyIsLayoutDead)
-        if lastKeyWasDead {
-            logDecision("dead key: client=\(AppState.shared.currentBundleID ?? "nil") keyCode=\(event.keyCode) "
-                + "chars=\((event.characters ?? "nil").unicodeScalars.map { String(format: "U+%04X", $0.value) }) "
-                + "layoutDead=\(keyIsLayoutDead) live=\(KeyboardLayoutOverride.liveTable?.layoutID ?? "nil")")
-        }
 
         // Issue #156 (TapWordBreak): client vừa activate đã nhận phím ⇒ một
         // activateServer tới SAU phím đầu của ô mới (#110) không được làm tap bỏ từ.
@@ -450,6 +476,7 @@ final class TelexInputController: IMKInputController {
         }
 
         if synth, !repostedUserKey {
+            deadRescueKeepRaw = true   // our own output — never "rescue" it
             // An edge-burst echo that arrived with its magic INTACT (older macOS)
             // must still spend its slot, or the budget wedges and eats a real key.
             if event.keyCode == kDelete, edgeEchoBackspaces > 0 { edgeEchoBackspaces -= 1 }
@@ -472,6 +499,7 @@ final class TelexInputController: IMKInputController {
                 logDecision("edge-echo ⌫ swallowed, bs left=\(edgeEchoBackspaces)")
                 return false
             } else if let chars = event.characters, chars == edgeEchoChunks.first {
+                deadRescueKeepRaw = true
                 edgeEchoChunks.removeFirst()
                 logDecision("edge-echo chunk swallowed, chunks left=\(edgeEchoChunks.count)")
                 return false
@@ -565,6 +593,8 @@ final class TelexInputController: IMKInputController {
         let earlyManual = AppState.shared.manualMode(earlyID)
         if earlyManual == .passthrough {
             logDecision("handle \(earlyID ?? "?"): manual passthrough → discard (raw)")
+            optionDeadState = 0
+            if lastKeyWasDead { deadRescueKeepRaw = Self.deadKeyStaysRaw(earlyID) }
             discardComposition(); return false
         }
         if earlyManual == nil,
@@ -572,8 +602,14 @@ final class TelexInputController: IMKInputController {
                || earlyID.map({ AppState.isBuiltInPassthrough($0) }) == true,
            !(Accessibility.isTrusted && FocusedFieldDetector.isTextInput) {
             logDecision("handle \(earlyID ?? "?"): remote-desktop → discard (raw passthrough)")
+            optionDeadState = 0
+            if lastKeyWasDead { deadRescueKeepRaw = Self.deadKeyStaysRaw(earlyID) }
             discardComposition(); return false
         }
+
+        // ⌥ dead key (⌥e ⌥u ⌥i ⌥n ⌥` trên ABC) đang chờ: phím này hoàn tất nó (é ü î ñ è).
+        // Không chờ ⇒ một phép so UInt32.
+        if optionDeadState != 0, let r = finishOptionDead(event, client) { return r }
 
         // EXPERIMENT (log-only): deferred re-probe of the previous keystroke's edit,
         // now that the app's AX tree has had time to settle. See `pendingReprobe`.
@@ -604,6 +640,20 @@ final class TelexInputController: IMKInputController {
             }
             endComposition(client)
             learn.discard()   // Học từ bạn gõ: ⌘/⌃/⌥-tổ hợp có thể hoàn tác/xoá chữ (⌘Z) — bỏ lượt chờ
+            // ⌥ dead key: phần ghép dead key của layout không chạy khi VietTelex là nguồn
+            // nhập (cùng cơ chế #161) ⇒ ⌥e rồi e không ra é. Tự giữ trạng thái dead key
+            // của layout và ghép ở phím kế (finishOptionDead). Chỉ tổ hợp ⌥ (±Shift).
+            if mods == .option { KeyboardLayoutOverride.ensureLiveTable() }
+            if mods == .option,
+               let state = Self.optionDeadStart(
+                   table: KeyboardLayoutOverride.liveTable, keyCode: event.keyCode,
+                   shift: event.modifierFlags.contains(.shift),
+                   capsLock: event.modifierFlags.contains(.capsLock)) {
+                optionDeadState = state
+                shortcutTail.reset()
+                logDecision("option dead key keyCode=\(event.keyCode) → pending")
+                return true
+            }
             // ⌥+phím gõ ra KÝ TỰ ("√", "≠" — khoá gõ tắt như "√√") vẫn là chữ nằm trước
             // con trỏ; mọi tổ hợp khác (⌘/⌃, ⌥⌫, ⌥←) dời/xoá chữ ⇒ cụm không còn biết.
             if mods == .option, event.keyCode != kDelete,
@@ -657,6 +707,7 @@ final class TelexInputController: IMKInputController {
         // the local/guest fight.
         if (AppState.shared.usesAxDetect(id) || AppState.shared.usesAxDetect(frontID)),
            FocusedFieldDetector.wantsPassthroughField {
+            deadRescueKeepRaw = true   // web remote desktop: the guest composes from the keycode
             logDecision("handle \(id ?? "?")/front=\(frontID ?? "?"): web remote-desktop → discard (raw passthrough)")
             discardComposition(); return false
         }
@@ -1124,6 +1175,15 @@ final class TelexInputController: IMKInputController {
                 return true
             }
             if let remapped = remappedInsert(event) {
+                // Edge word (Slate class, manual In-place): the word's synthetic burst may
+                // still be draining — insertText would overtake it. Same cure as the
+                // rewrite case above: re-post the key so it lands after the burst; the
+                // copy comes back here (engine empty, no edge word) and is inserted then.
+                if wasEdge, lastKeyWasDead, !SyntheticKeyboard.queueDrained(),
+                   Accessibility.isTrusted, let cg = event.cgEvent {
+                    SyntheticKeyboard.postBoundaryCopy(of: cg)
+                    return true
+                }
                 client.insertText(remapped, replacementRange: kNoRange)
                 return true
             }
@@ -1400,6 +1460,93 @@ final class TelexInputController: IMKInputController {
         else { return nil }
         return DeadKeyLiteral.insertion(ours: effectiveCharacters(event), eventCharacters: event.characters,
                                         deadOnLayout: keyIsLayoutDead)
+    }
+
+    /// Passthrough app where a dead key must stay a raw keycode (remote desktop / VM).
+    static func deadKeyStaysRaw(_ id: String?) -> Bool {
+        DeadKeyLiteral.passthroughKeepsRaw(
+            remoteDesktop: ClientPolicy.isRemoteDesktop(id),
+            builtInPassthrough: id.map { AppState.isBuiltInPassthrough($0) } ?? false,
+            bundleID: id)
+    }
+
+    /// ⌥(+Shift)+key starts a dead key on the live layout? Its dead state, else nil.
+    /// One array read for every other ⌥ chord.
+    static func optionDeadStart(table: KeyboardLayoutTranslator?, keyCode: UInt16,
+                                shift: Bool, capsLock: Bool) -> UInt32? {
+        guard let t = table, t.isOptionDeadKey(keyCode: keyCode, shift: shift) else { return nil }
+        let st = t.optionDeadState(keyCode: keyCode, shift: shift, capsLock: capsLock)
+        return st == 0 ? nil : st
+    }
+
+    /// What finishing a pending ⌥ dead key with this key does. Pure — pinned by tests.
+    enum OptionDeadOutcome: Equatable {
+        /// Pending state dropped, key handled as usual (Esc, ⌘/⌃ chords).
+        case cancel
+        /// Pending state dropped and the key consumed (⌫ deletes the pending accent).
+        case cancelConsume
+        /// Insert `text`, consume the key; `state` ≠ 0 keeps a chained dead key pending.
+        case insert(String, state: UInt32)
+        /// Insert `text` (the spacing accent), then handle the key as usual (Return, Tab,
+        /// arrows: the layout gives "´" + the key's own control output).
+        case insertThenContinue(String)
+    }
+
+    static func optionDeadOutcome(keyCode: UInt16, commandOrControl: Bool,
+                                  composed: () -> (text: String, state: UInt32)) -> OptionDeadOutcome {
+        if commandOrControl || keyCode == 53 { return .cancel }          // Esc
+        if keyCode == 51 { return .cancelConsume }                       // ⌫
+        let (text, state) = composed()
+        // Keep the printable head; a control / function-key tail is the key's own work.
+        var head = ""
+        for ch in text {
+            guard DeadKeyLiteral.isLiteral(String(ch)) else {
+                return head.isEmpty ? .cancel : .insertThenContinue(head)
+            }
+            head.append(ch)
+        }
+        if head.isEmpty { return state != 0 ? .insert("", state: state) : .cancel }
+        return .insert(head, state: state)
+    }
+
+    /// Finish the pending ⌥ dead key with `event`. nil = carry on with the normal
+    /// decision tree for this key; true/false = handled here.
+    private func finishOptionDead(_ event: NSEvent, _ client: IMKTextInput) -> Bool? {
+        let pending = optionDeadState
+        optionDeadState = 0
+        guard let table = KeyboardLayoutOverride.liveTable else { return nil }
+        let flags = event.modifierFlags
+        let outcome = Self.optionDeadOutcome(
+            keyCode: event.keyCode,
+            commandOrControl: !flags.intersection([.command, .control]).isEmpty) {
+                table.compose(state: pending, keyCode: event.keyCode,
+                              modifiers: KeyboardLayoutTranslator.carbonModifiers(
+                                  shift: flags.contains(.shift), option: flags.contains(.option),
+                                  capsLock: flags.contains(.capsLock)))
+            }
+        logDecision("option dead key finish keyCode=\(event.keyCode) → \(outcome)")
+        switch outcome {
+        case .cancel:
+            return nil
+        case .cancelConsume:
+            return true
+        case let .insert(text, state):
+            optionDeadState = state
+            if !text.isEmpty {
+                // é/ü/ñ… là ký tự ngoài Telex: ranh giới từ, không ghép vào engine.
+                if !engine.isEmpty { endComposition(client) }
+                client.insertText(text, replacementRange: kNoRange)
+                shortcutTail.reset()
+                engine.forgetLastCommit()
+            }
+            return true
+        case let .insertThenContinue(text):
+            if !engine.isEmpty { endComposition(client) }
+            client.insertText(text, replacementRange: kNoRange)
+            shortcutTail.reset()
+            engine.forgetLastCommit()
+            return nil
+        }
     }
 
     static func insertsOneCharacter(_ characters: String?) -> Bool {
@@ -2673,6 +2820,11 @@ final class TelexInputController: IMKInputController {
     /// Phím ĐANG xử lý là dead key theo layout đang dùng (kể cả khi macOS đưa kèm ký tự
     /// — Spotlight, #161).
     private var keyIsLayoutDead = false
+    /// Nhánh vừa nhường phím phải giữ phím THÔ (remote desktop/VM, echo của mình) —
+    /// rescue dead key không được chèn. Đặt lại mỗi keyDown.
+    private var deadRescueKeepRaw = false
+    /// Trạng thái dead key của layout sau ⌥e/⌥u/… (UCKeyTranslate deadKeyState), 0 = không chờ.
+    private var optionDeadState: UInt32 = 0
     /// Dấu câu vừa dời dấu cách ra sau ("." + " ") — phím cách kế bị nuốt (không thành 2 dấu cách).
     private var carriedSpace: String?
 
@@ -2822,6 +2974,7 @@ final class TelexInputController: IMKInputController {
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
         Self.activeController = self
+        optionDeadState = 0   // ⌥ dead key đang chờ không theo sang ô khác
         // Pin the layout Telex composes on BEFORE anything reads a key. Without this
         // the layout is whatever the previously selected input source happened to be
         // (ABC → QWERTY, Colemak → Colemak), so the same input method typed two
@@ -2985,6 +3138,7 @@ final class TelexInputController: IMKInputController {
     }
 
     override func deactivateServer(_ sender: Any!) {
+        optionDeadState = 0
         dropComposition(cause: "deactivateServer")
         CaretHint.shared.dismiss()
         learnFlush()   // Học từ bạn gõ: rời ô — lượt chờ được học, ngữ cảnh cắt

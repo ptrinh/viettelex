@@ -2928,6 +2928,13 @@ final class TerminalTapController {
     /// Dead key (#161) — same bookkeeping as the IMKit path: the previous key was a dead
     /// key, so this one may arrive composed. See DeadKeyLiteral.
     private var tapLastKeyWasDead = false
+    /// The key being handled is a dead key (empty characters, or the live layout says
+    /// so) — read by modifyInPlace to tell the IMK rescue the tap typed it.
+    private var tapCurrentKeyDead = false
+    /// ⌥e/⌥u/… (a live-layout ⌥ dead key) just went to the IMK controller, which holds
+    /// the dead state and composes with the NEXT key (TelexInputController
+    /// .finishOptionDead) — so that key must reach it, not be composed here.
+    private var tapOptionDeadPending = false
     // Thời điểm ⌫ vật lý gần nhất — gate của re-edit(tap), xem reEditGateOpen.
     private var lastDeleteNs: UInt64 = 0
     /// Neo focus cho re-edit(tap) — issue #111, xem FocusAnchor. `reEditFocusStable`:
@@ -3521,6 +3528,13 @@ final class TerminalTapController {
             // QWERTY fired ⌘P while macOS sat on Colemak (VTX fork's measurement).
             // Re-address the event here, the one place that sees every chord.
             remapChordKeyCode(event, shift: flags.contains(.maskShift))
+            // ⌥ dead key (⌥e ⌥u ⌥i ⌥n ⌥` on ABC): the IMK controller composes it with the
+            // next key — hand that key over. One array read, ⌥ chords only.
+            tapOptionDeadPending = !flags.contains(.maskCommand) && !flags.contains(.maskControl)
+                && flags.contains(.maskAlternate)
+                && (KeyboardLayoutOverride.liveTable?.isOptionDeadKey(
+                        keyCode: UInt16(event.getIntegerValueField(.keyboardEventKeycode)),
+                        shift: flags.contains(.maskShift)) ?? false)
             // Sticky-source: chord = có thể là hotkey đổi input source (⌃Space/custom)
             // — dấu vết để KHÔNG giành lại (StickyInputSource).
             StickyInputSource.shared.noteUserModifierChord()
@@ -3533,6 +3547,21 @@ final class TerminalTapController {
         // ⌘/⌃/⌥ chords returned above and never stamp; stamp() itself ignores
         // non-navigation keycodes.
         NavKeyWitness.stamp(keycode: event.getIntegerValueField(.keyboardEventKeycode))
+
+        // Dead-key bookkeeping (#161) BEFORE any pass branch: a key passed below (stall,
+        // machine typing, secure field, guard…) still ends the dead-key sequence — a
+        // stale flag would misread the key after it. A dead key passed there reaches the
+        // IMK controller, whose rescue types it (DeadKeyLiteral.rescue).
+        let followsDeadKey = tapLastKeyWasDead
+        tapLastKeyWasDead = false   // set again below when THIS key is a dead key
+        tapCurrentKeyDead = false
+        // ⌥ dead key pending in the IMK controller: this key completes it there (é ü ñ).
+        if tapOptionDeadPending {
+            tapOptionDeadPending = false
+            if !engine.isEmpty || engine.canReopenLastCommit { engine.reset() }
+            shortcutTail.reset()
+            return pass
+        }
 
         // Decide whether the tap handles this app, and with which emit mode:
         //  - Spotlight (window-list) / Chromium → Shift+Left selection-replace.
@@ -3665,8 +3694,6 @@ final class TerminalTapController {
         }
 
         let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
-        let followsDeadKey = tapLastKeyWasDead
-        tapLastKeyWasDead = false   // set again below when THIS key is a dead key
 
         // Gợi ý cạnh con trỏ (CaretHint — MathHint.swift), ô nổi của đường tap: Tab (phép
         // tính: cả Enter) áp dụng, Esc tắt + nuốt, phím khác tắt rồi đi tiếp. Phím "="
@@ -3798,18 +3825,29 @@ final class TerminalTapController {
         // running while VietTelex is the input source). Type the key's own character
         // instead, through the same re-emit a pinned layout uses. Off the dead-key path
         // this is one bool test per key.
+        // Also a dead key that arrives WITH a character (Spotlight-style, 242c375b) —
+        // the live layout says so; letters/digits never ask (one compare per key).
+        // A pinned layout (translator ≠ nil) still resolves the live dead key: the
+        // character then comes from the pinned table, as for every other key.
         var deadRemap: Character?
-        if len == 0 || followsDeadKey {
-            tapLastKeyWasDead = len == 0
+        let shift = flags.contains(.maskShift), caps = flags.contains(.maskAlphaShift)
+        let layoutDead = DeadKeyLiteral.mayBeDeadKey(unit: len == 0 ? nil : first)
+            && KeyboardLayoutOverride.liveIsDeadKey(keyCode: UInt16(keyCode), shift: shift, capsLock: caps)
+        if len == 0 || followsDeadKey || layoutDead {
+            tapLastKeyWasDead = len == 0 || layoutDead
+            tapCurrentKeyDead = tapLastKeyWasDead
+            // Never built yet (tap thread may not call TIS): have main build it; this key
+            // falls through to the pass below and the IMK controller rescues it.
+            if len == 0, KeyboardLayoutOverride.liveTable == nil { KeyboardLayoutOverride.requestLiveTable() }
             let native = len == 0 ? "" : withUnsafeBytes(of: &slots) { raw in
                 String(utf16CodeUnits: Array(raw.bindMemory(to: UniChar.self).prefix(min(len, 4))),
                        count: min(len, 4))
             }
-            let shift = flags.contains(.maskShift), caps = flags.contains(.maskAlphaShift)
-            if KeyboardLayoutOverride.translator == nil,
-               let r = DeadKeyLiteral.resolve(eventCharacters: native, afterDeadKey: followsDeadKey, live: {
-                   KeyboardLayoutOverride.liveCharacter(keyCode: UInt16(keyCode), shift: shift, capsLock: caps)
-               }), r != native, let c = r.first {
+            if let r = DeadKeyLiteral.resolve(eventCharacters: native, afterDeadKey: followsDeadKey,
+                                              deadOnLayout: layoutDead, live: {
+                   KeyboardLayoutOverride.translator?.character(keyCode: UInt16(keyCode), shift: shift, capsLock: caps)
+                       ?? KeyboardLayoutOverride.liveCharacter(keyCode: UInt16(keyCode), shift: shift, capsLock: caps)
+               }), r != native || layoutDead, let c = r.first {
                 deadRemap = c
             }
         }
@@ -4088,6 +4126,13 @@ final class TerminalTapController {
         let utf16 = Array(insert.utf16)
         utf16.withUnsafeBufferPointer { buf in
             event.keyboardSetUnicodeString(stringLength: buf.count, unicodeString: buf.baseAddress)
+        }
+        // The physical dead key now carries OUR text and still reaches the IMK
+        // controller — tell its rescue this keystroke is already typed.
+        if tapCurrentKeyDead {
+            DeadKeyHandoff.markTapOwned(
+                keyCode: UInt16(event.getIntegerValueField(.keyboardEventKeycode)),
+                timestamp: UInt64(event.timestamp))
         }
         return true
     }

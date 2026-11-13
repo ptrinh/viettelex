@@ -68,6 +68,8 @@ inputSourceObserver = DistributedNotificationCenter.default().addObserver(
     object: nil, queue: .main) { _ in
     let isVietTelex = TelexInputController.isVietTelexSelected()
     TerminalTapController.shared.selectionChanged(isVietTelex: isVietTelex)
+    // #161: layout bound to VietTelex may have changed — dead-key table follows it.
+    if isVietTelex { KeyboardLayoutOverride.inputSourceChanged() }
     // Secure input bật thường kèm macOS đá selection sang ABC — đây là đường
     // phát hiện NHANH; poll 5s của monitor chỉ là lưới an toàn.
     SecureInputMonitor.shared.check(reason: "input-source-changed")
