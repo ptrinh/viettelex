@@ -541,6 +541,8 @@ gboolean processKeyEvent(IBusEngine *engine, guint keyval, guint keycode, guint 
                             " mode=" + std::to_string(int(self->session->displayMode())) +
                             " dist=" + std::to_string(int(self->session->surroundingDistrusted())) +
                             " before=" + (ok ? std::to_string(before.size()) : std::string("?")));
+            // #163: why a re-edit / ⌫ re-open candidate did (not) reach back (no text).
+            if (const char *note = self->session->reachBackNote()) debugLog().line(note);
         }
         return handled ? TRUE : FALSE;
     } catch (...) {

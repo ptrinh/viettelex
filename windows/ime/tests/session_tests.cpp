@@ -2835,3 +2835,118 @@ TEST(punctuation_after_word_still_commits_first) {
         CHECK(r.s.wantsKey(KeyInput{KeyKind::Char, U'j'}));  // tone key after a word
     }
 }
+
+// #163 (ported from macOS c805edce): every refusal of a re-edit / ⌫ re-open CANDIDATE names
+// its reason in the debug log — silent exits made "Sửa dấu từ đã gõ" look dead in the field.
+// Lengths and kinds only, never typed text.
+namespace {
+std::string* g163Log = nullptr;
+void log163(const char* m) {
+    if (g163Log) *g163Log += std::string(m) + "\n";
+}
+struct LogRig : Rig {
+    std::string log;
+    explicit LogRig(OutputMode m) : Rig(m) {
+        SessionOptions o;
+        o.engineFlags = settings.engineFlags();
+        o.autoRestore = settings.autoRestore;
+        o.reEditWord = settings.reEditWord;
+        o.shortcuts = &settings.shortcuts;
+        o.log = log163;
+        o.verboseLog = true;
+        s.configure(o);
+        g163Log = &log;
+    }
+    ~LogRig() { g163Log = nullptr; }
+    bool has(const char* what) const { return log.find(what) != std::string::npos; }
+};
+}  // namespace
+
+TEST(issue163_reedit_refusals_are_logged) {
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        {  // a tone key starting a word after a space: nothing to reach back into
+            LogRig r(m);
+            r.type("toan s");
+            CHECK(r.has("re-edit: skipped (no word right before the caret)"));
+        }
+        {  // caret inside a word ("toa|n")
+            LogRig r(m);
+            r.doc.text = u"toan";
+            r.doc.caret = r.doc.anchor = 3;
+            r.type("s");
+            CHECK(r.has("re-edit: skipped (caret inside a word)"));
+        }
+        {  // glued to a token opener ("#toan")
+            LogRig r(m);
+            r.doc.text = u"#toan";
+            r.doc.caret = r.doc.anchor = 5;
+            r.type("s");
+            CHECK(r.has("re-edit: skipped (word glued to a token opener)"));
+        }
+        {  // re-edit itself still works and logs what it did
+            LogRig r(m);
+            r.doc.text = u"toan";
+            r.doc.caret = r.doc.anchor = 4;
+            r.type("s ");
+            CHECK_EQ(r.text(), std::string("toán "));
+            CHECK(r.has("re-edit: a tone key reached back"));
+        }
+        // Never typed text in the log.
+        LogRig r(m);
+        r.type("toan s");
+        CHECK(r.log.find("toan") == std::string::npos);
+    }
+}
+
+TEST(issue163_reopen_refusals_are_logged) {
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        {  // the screen no longer shows "<word><boundary>" (edited outside the TIP)
+            LogRig r(m);
+            r.type("thays ");
+            r.doc.text = u"thay ";
+            r.doc.caret = r.doc.anchor = 5;
+            r.type("\b");
+            CHECK_EQ(r.text(), std::string("thay"));
+            CHECK(!r.s.wordActive());
+            CHECK(r.has("⌫ re-open: skipped (text before the caret is not the word + boundary)"));
+        }
+        {  // a selection: ⌫ deletes it, nothing re-opened
+            LogRig r(m);
+            r.type("thays ");
+            r.doc.anchor = 0;
+            KeyInput bs{KeyKind::Backspace, 0};
+            CHECK(!(r.s.wantsKey(bs) && r.s.handleKey(bs, r.doc)));
+            CHECK(!r.s.wordActive());
+            CHECK(r.has("⌫ re-open: skipped (selection)"));
+        }
+        {  // success is logged too (lengths only)
+            LogRig r(m);
+            r.type("thays \ba");
+            CHECK_EQ(r.text(), std::string("thấy"));
+            CHECK(r.has("⌫ re-open: 4 chars back in the engine"));
+            CHECK(r.log.find("thay") == std::string::npos);
+        }
+    }
+}
+
+TEST(issue163_reopen_refused_in_console_is_logged) {
+    Settings st;
+    TypingSession s;
+    std::string log;
+    g163Log = &log;
+    SessionOptions o;
+    o.engineFlags = st.engineFlags();
+    o.autoRestore = st.autoRestore;
+    o.reEditWord = st.reEditWord;
+    o.log = log163;
+    s.configure(o);
+    s.setCompositionOnlyContext(true);
+    ConsoleDoc d;
+    typeConsole(s, d, "thays ");
+    KeyInput bs;
+    bs.kind = KeyKind::Backspace;
+    CHECK(!(s.wantsKey(bs) && s.handleKey(bs, d)));
+    CHECK(!s.wordActive());
+    CHECK(log.find("⌫ re-open: skipped (composition-only context") != std::string::npos);
+    g163Log = nullptr;
+}

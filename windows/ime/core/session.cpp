@@ -630,21 +630,39 @@ bool TypingSession::tryReEdit(char32_t c, TextSink& sink) {
     // the word before the caret (s f r x j z w; VNI digits). Doubling letters (a e o d)
     // are ordinary letters too — "ca" + "a" must stay "caa".
     if (!isDiacriticOnlyKey(c, (opt_.engineFlags & VTX_VNI) != 0)) return false;
+    // From here on the key IS a re-edit candidate: every refusal names its reason in the
+    // debug log (#163 — silent exits made the feature look dead; lengths only, never text).
     // Caret inside a word ("việ|t"): seeding the left half would rewrite half a word.
-    if (isWordCharForReEdit(sink.charAfterCaret())) return false;
+    if (isWordCharForReEdit(sink.charAfterCaret())) {
+        note("re-edit: skipped (caret inside a word) -> new word");
+        return false;
+    }
     std::u16string before = sink.textBeforeCaret(kMaxReEditWord + 1);
     size_t start = before.size();
     while (start > 0 && isWordCharForReEdit(before[start - 1])) --start;
     const size_t len = before.size() - start;
-    if (len == 0 || len > static_cast<size_t>(kMaxReEditWord)) return false;
+    if (len == 0) {
+        note("re-edit: skipped (no word right before the caret) -> new word");
+        return false;
+    }
     // Word longer than what we read (no separator found) -> could be a longer token.
-    if (start == 0 && before.size() == static_cast<size_t>(kMaxReEditWord + 1)) return false;
+    if (len > static_cast<size_t>(kMaxReEditWord) ||
+        (start == 0 && before.size() == static_cast<size_t>(kMaxReEditWord + 1))) {
+        note("re-edit: skipped (word before the caret too long) -> new word");
+        return false;
+    }
     // Glued to a token opener ("5h", "#tag") -> not a standalone word.
-    if (start > 0 && gluesShortcutToken(before[start - 1])) return false;
+    if (start > 0 && gluesShortcutToken(before[start - 1])) {
+        note("re-edit: skipped (word glued to a token opener) -> new word");
+        return false;
+    }
     const std::u16string word = before.substr(start);
 
     vtx_engine* t = vtx_clone(engine_);
-    if (!t) return false;
+    if (!t) {
+        note("re-edit: skipped (engine clone failed) -> new word");
+        return false;
+    }
     if (!vtx_seed(t, reinterpret_cast<const uint16_t*>(word.data()), static_cast<int32_t>(word.size()))) {
         vtx_destroy(t);
         note(("re-edit: the word before the caret does not round-trip (len " + std::to_string(len) + ") -> new word")
@@ -656,6 +674,9 @@ bool TypingSession::tryReEdit(char32_t c, TextSink& sink) {
     std::u16string now = composedOf(t);
     if (a.kind == VTX_PASSTHROUGH || now == word + static_cast<char16_t>(c)) {
         vtx_destroy(t);  // the key does not transform the word: ordinary new word
+        note(("re-edit: skipped (the key does not change the word before the caret, len " + std::to_string(len) +
+              ") -> new word")
+                 .c_str());
         return false;
     }
     bool ok;
@@ -690,7 +711,13 @@ bool TypingSession::handleBackspace(TextSink& sink) {
         return false;
     }
     if (vtx_is_empty(engine_)) {
-        if (mayReadBack() && reopenArmed_ && vtx_can_reopen_last_commit(engine_)) return tryReopen(sink);
+        if (reopenArmed_ && vtx_can_reopen_last_commit(engine_)) {
+            if (mayReadBack()) return tryReopen(sink);
+            // #163: a candidate refused by policy names its reason (lengths / kinds only).
+            if (opt_.reEditWord)
+                note(compositionOnly_ ? "⌫ re-open: skipped (composition-only context: text not readable)"
+                                      : "⌫ re-open: skipped (IMM host: text not readable)");
+        }
         reopenArmed_ = false;
         return false;
     }
@@ -746,38 +773,42 @@ bool TypingSession::handleBackspace(TextSink& sink) {
 
 bool TypingSession::tryReopen(TextSink& sink) {
     reopenArmed_ = false;
+    // Every exit names its reason in the debug log (#163; lengths only, never text).
+    auto refuse = [&](vtx_engine* t, const char* why) {
+        if (t) vtx_destroy(t);
+        vtx_forget_last_commit(engine_);
+        note(why);
+        return false;
+    };
+    // A blind sink (the hook) reads nothing back: its own trail decides (reopenCommitted).
+    if (sink.blind()) return refuse(nullptr, "⌫ re-open: skipped (blind sink: the hook's trail decides)");
     vtx_engine* t = vtx_clone(engine_);
-    if (!t) return false;
+    if (!t) return refuse(nullptr, "⌫ re-open: skipped (engine clone failed)");
     uint16_t buf[VTX_MAX_TEXT + 1];
     int32_t n = vtx_reopen_last_commit(t, buf, VTX_MAX_TEXT + 1);
-    if (n <= 0) {
-        vtx_destroy(t);
-        vtx_forget_last_commit(engine_);
-        return false;
-    }
+    if (n <= 0) return refuse(t, "⌫ re-open: skipped (replay mismatch)");
     std::u16string word = toU16(buf, n);
+    if (sink.hasSelection()) return refuse(t, "⌫ re-open: skipped (selection)");
+    if (sink.compositionActive()) return refuse(t, "⌫ re-open: skipped (a composition is open)");
     std::u16string before = sink.textBeforeCaret(n + 1);
     // Screen must read exactly "<word><one boundary char>".
-    if (before.size() != static_cast<size_t>(n) + 1 || before.compare(0, word.size(), word) != 0 ||
-        sink.hasSelection() || sink.compositionActive()) {
-        vtx_destroy(t);
-        vtx_forget_last_commit(engine_);
-        return false;
-    }
-    if (!sink.replaceBeforeCaret(before.substr(word.size()), std::u16string())) {
-        vtx_destroy(t);
-        vtx_forget_last_commit(engine_);
-        return false;
-    }
+    if (before.size() != static_cast<size_t>(n) + 1 || before.compare(0, word.size(), word) != 0)
+        return refuse(t, before.empty() ? "⌫ re-open: skipped (text before the caret unreadable)"
+                                        : "⌫ re-open: skipped (text before the caret is not the word + boundary)");
+    if (!sink.replaceBeforeCaret(before.substr(word.size()), std::u16string()))
+        return refuse(t, "⌫ re-open: skipped (the field refused deleting the boundary)");
     if (wordMode_ == OutputMode::Composition && !sink.setComposition(word, n, misspelled(t))) {
         // Boundary char is gone but the composition failed: the word is plain text
         // now, which is exactly what a normal ⌫ would have left.
         vtx_destroy(t);
         reset();
+        note("⌫ re-open: boundary deleted, the field refused the composition -> word left as text");
         return true;
     }
     swapEngine(t);
     shown_ = word;
+    if (opt_.verboseLog)
+        note(("⌫ re-open: " + std::to_string(n) + " chars back in the engine").c_str());
     return true;
 }
 
