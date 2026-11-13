@@ -695,9 +695,16 @@ enum ReEditClickCheck {
     /// `click`: vị trí click gần nhất kể từ phím chữ/ranh giới gần nhất (nil = không có
     /// click ⇒ không áp luật này). `fieldFrame`: khung AX của ô đang focus lúc gõ phím.
     static func allows(click: CGPoint?, fieldFrame: CGRect?) -> Bool {
-        guard let click else { return true }
-        guard let f = fieldFrame, f.width > 0, f.height > 0 else { return false }
-        return f.insetBy(dx: -slop, dy: -slop).contains(click)
+        verdict(click: click, fieldFrame: fieldFrame) == .allowed
+    }
+
+    /// #163: the two refusals log differently — "frame unreadable" is an AX-blind
+    /// editor (Codex), "outside frame" is the #135 Reply/Send-button case.
+    enum Verdict: Equatable { case allowed, frameUnreadable, outsideFrame }
+    static func verdict(click: CGPoint?, fieldFrame: CGRect?) -> Verdict {
+        guard let click else { return .allowed }
+        guard let f = fieldFrame, f.width > 0, f.height > 0 else { return .frameUnreadable }
+        return f.insetBy(dx: -slop, dy: -slop).contains(click) ? .allowed : .outsideFrame
     }
 }
 
@@ -1228,7 +1235,11 @@ enum FocusedFieldDetector {
         guard lock.withLock({ pokedPids.insert(pid).inserted }) else { return }
         let el = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(el, 0.05)
-        AXUIElementSetAttributeValue(el, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        let err = AXUIElementSetAttributeValue(el, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        // #163: once per pid (the insert above), so it cannot spam. An error is normal
+        // for apps that don't know the attribute — the line tells a field log whether
+        // the poke ran at all and what the app answered.
+        DebugLog.log("AX poke \(app.bundleIdentifier ?? "?"): AXManualAccessibility → \(err == .success ? "ok" : "error \(err.rawValue)")")
     }
 
     /// Pure gate for the markActive poke: only when a reach-back feature (re-edit /
@@ -2937,6 +2948,17 @@ final class TerminalTapController {
     private var tapOptionDeadPending = false
     // Thời điểm ⌫ vật lý gần nhất — gate của re-edit(tap), xem reEditGateOpen.
     private var lastDeleteNs: UInt64 = 0
+    /// #163 RC2: the previous physical key was the plain boundary that committed the
+    /// engine's re-open snapshot (ReopenKeystreamTrust.arms). Cleared at the top of
+    /// EVERY physical keyDown and on click, so only the very next ⌫ can use it.
+    /// TAP-thread confined.
+    private var reopenKeystreamArmed = false
+    /// #163 RC5: the previous physical key was ←/→/Home/End (ReEditTapGate
+    /// .navigationRearms) — the next tone key may re-edit via the AX-verified seed,
+    /// like after a click. Cleared at the top of every physical keyDown / click.
+    private var tapLastKeyWasNav = false
+    /// Arrival time of the previous physical keyDown (navigation settle, RC5).
+    private var lastPhysicalKeyNs: UInt64 = 0
     /// Neo focus cho re-edit(tap) — issue #111, xem FocusAnchor. `reEditFocusStable`:
     /// phím ĐANG xử lý tới khi chưa có activateServer nào kể từ phím/click trước.
     /// TAP-thread confined.
@@ -3354,6 +3376,7 @@ final class TerminalTapController {
             CaretHint.shared.dismissForClick(at: event.location)
             lastTapKeyWasBoundary = false   // click at a word's end re-arms re-edit
             reEditClickPoint = event.location   // …nhưng chỉ khi click trong ô (#135)
+            reopenKeystreamArmed = false; tapLastKeyWasNav = false   // #163
             let focus = ClientFocus.snapshot
             _ = reEditFocus.observe(focus.epoch)          // click = neo focus mới (#111)
             _ = wordFocus.observe(focus.controller)       // …và neo ô cho TapWordBreak (#156)
@@ -3375,6 +3398,16 @@ final class TerminalTapController {
             SyntheticKeyboard.noteObservedSynthetic()
             return pass
         }
+
+        // #163: one-key memories — consumed by THIS key, so any key in between
+        // (whatever branch it takes below, pass-throughs included) disarms them.
+        let reopenArmed = reopenKeystreamArmed
+        reopenKeystreamArmed = false
+        let afterNavKey = tapLastKeyWasNav
+        tapLastKeyWasNav = false
+        let keyArrivalNs = DispatchTime.now().uptimeNanoseconds
+        let msSincePrevKey = msElapsed(now: keyArrivalNs, since: lastPhysicalKeyNs)
+        lastPhysicalKeyNs = keyArrivalNs
 
         // Mọi phím vật lý (cả chord ⌘K đổi hội thoại) neo focus cho re-edit (#111).
         let focus = ClientFocus.snapshot
@@ -3735,7 +3768,7 @@ final class TerminalTapController {
                 // ⌫ on the boundary character the last word ended with re-opens that
                 // word ("tháy" ␣ ⌫ then `a` → "thấy" — issue #40); the ⌫ still goes
                 // through and deletes the boundary character either way.
-                if !tryReopenLastCommitTap(id: id) {
+                if !tryReopenLastCommitTap(id: id, keystreamArmed: reopenArmed) {
                     // Deleting previously-committed text: the "previous word" is now unclear,
                     // so drop the English context (undetermined → Vietnamese). In-word
                     // backspace (buffer non-empty, below) keeps it — prev word unchanged.
@@ -3869,6 +3902,10 @@ final class TerminalTapController {
         // (re-emitting arrows as 0x1C killed arrow-key navigation).
         if unit < 0x20 || (unit >= 0xF700 && unit <= 0xF8FF) {
             lastTapKeyWasBoundary = true
+            // #163 RC5: ←/→/Home/End still forget the last commit and still count as a
+            // boundary for the keystream (#38), but may re-arm the AX-verified re-edit
+            // seed for the next tone key, like a click (ReEditTapGate.verdict).
+            tapLastKeyWasNav = ReEditTapGate.navigationRearms(keyCode: keyCode)
             let rewrote = emitBoundary(suppressAutoRestore: false, allowShortcuts: false)
             engine.forgetLastCommit()      // navigation: the caret left the word behind
             shortcutTail.caretMoved()
@@ -3997,6 +4034,11 @@ final class TerminalTapController {
             // (issue #40). Anything else — an option-key symbol, a multi-scalar
             // sequence — is not worth reasoning about: forget the word.
             if !ch.isASCII { engine.forgetLastCommit() }
+            // #163 RC2: this boundary may back a keystream-trusted ⌫ re-open (only if
+            // the very next physical key is ⌫ — cleared at the top of every keyDown).
+            reopenKeystreamArmed = ReopenKeystreamTrust.arms(
+                emitMode: emitMode, boundary: ch, smartQuoted: smartQuote != nil,
+                rewrote: rewrote, canReopen: engine.canReopenLastCommit)
             if let q = smartQuote {
                 SyntheticKeyboard.apply(backspaces: 0, insert: q, mode: emitMode)
                 return nil
@@ -4014,19 +4056,31 @@ final class TerminalTapController {
         // RE-EDIT ("Fix tones of typed words", default ON): a tone/mark key on an EMPTY engine right
         // after a word means "add this diacritic to that word" — seed from the text
         // already on screen so the replace below edits IT instead of starting fresh.
-        if Self.reEditGateOpen(engineIsEmpty: engine.isEmpty, reEditEnabled: AppState.shared.reEditWord,
-                               isDiacriticKey: TelexInputController.isDiacriticOnlyKey(ascii, vni: engine.vniMode),
-                               emitMode: emitMode,
-                               lastKeyWasBoundary: lastTapKeyWasBoundary,
-                               queueDrained: SyntheticKeyboard.queueDrained(),
-                               msSinceDelete: (DispatchTime.now().uptimeNanoseconds &- lastDeleteNs) / 1_000_000) {
+        // Every refusal of a CANDIDATE (empty engine, feature on, tone key) logs its
+        // reason (#163: the silent exits made the feature look dead). Non-candidates —
+        // nearly every key — stop at .notCandidate: no log, no AX.
+        switch ReEditTapGate.verdict(
+            engineIsEmpty: engine.isEmpty, reEditEnabled: AppState.shared.reEditWord,
+            isDiacriticKey: TelexInputController.isDiacriticOnlyKey(ascii, vni: engine.vniMode),
+            emitMode: emitMode,
+            lastKeyWasBoundary: lastTapKeyWasBoundary,
+            afterNavigationKey: afterNavKey, msSinceNavigation: msSincePrevKey,
+            queueDrained: SyntheticKeyboard.queueDrained(),
+            msSinceDelete: msElapsed(now: keyArrivalNs, since: lastDeleteNs)) {
+        case .notCandidate:
+            break
+        case let .skip(why):
+            DebugLog.log("re-edit(tap) \(id ?? "?"): skipped (\(why.reason))")
+        case let .open(afterNavigation):
             if !reEditFocusStable {
                 DebugLog.log("re-edit(tap) \(id ?? "?"): skipped (focus changed since last key/click)")
-            } else if let click = reEditClickPoint,
-                      !ReEditClickCheck.allows(click: click, fieldFrame: AXTextEdit.focusedFrameCG()) {
-                DebugLog.log("re-edit(tap) \(id ?? "?"): skipped (click outside focused field)")
+            } else if let v = reEditClickPoint.map({
+                          ReEditClickCheck.verdict(click: $0, fieldFrame: AXTextEdit.focusedFrameCG()) }),
+                      v != .allowed {
+                DebugLog.log("re-edit(tap) \(id ?? "?"): skipped ("
+                    + (v == .frameUnreadable ? "click: focused field frame unreadable" : "click outside focused field") + ")")
             } else {
-                tryReEditWordTap(id: id)
+                tryReEditWordTap(id: id, afterNavigation: afterNavigation)
             }
         }
         lastTapKeyWasBoundary = false   // this key is a word key
@@ -4170,31 +4224,53 @@ final class TerminalTapController {
     /// queue synthetic phải drain hết, và không seed trong 500ms sau một ⌫ vật lý
     /// (sửa-dấu-sau-⌫ đã có đường reopen riêng; seed ở đó chỉ có thể dựa trên
     /// screen-state cũ).
-    static let reEditDeleteCooldownMs: UInt64 = 500
+    ///
+    /// Issue #163: the decision now lives in `ReEditTapGate.verdict`, which also names
+    /// the reason for every refusal (logged) and adds the ←/→/Home/End re-arm. This
+    /// Bool form is kept for the original tests.
+    static let reEditDeleteCooldownMs: UInt64 = ReEditTapGate.deleteCooldownMs
     static func reEditGateOpen(engineIsEmpty: Bool, reEditEnabled: Bool,
                               isDiacriticKey: Bool, emitMode: TapEmit,
                               lastKeyWasBoundary: Bool,
                               queueDrained: Bool = true,
                               msSinceDelete: UInt64 = .max) -> Bool {
-        engineIsEmpty && reEditEnabled && isDiacriticKey && emitMode == .backspace
-            && !lastKeyWasBoundary
-            && queueDrained
-            && msSinceDelete >= Self.reEditDeleteCooldownMs
+        if case .open = ReEditTapGate.verdict(
+            engineIsEmpty: engineIsEmpty, reEditEnabled: reEditEnabled, isDiacriticKey: isDiacriticKey,
+            emitMode: emitMode, lastKeyWasBoundary: lastKeyWasBoundary,
+            queueDrained: queueDrained, msSinceDelete: msSinceDelete) { return true }
+        return false
     }
 
-    private func tryReEditWordTap(id: String?) {
-        guard let caret = AXTextEdit.readCaret(), caret > 0 else { return }
+    private func tryReEditWordTap(id: String?, afterNavigation: Bool = false) {
+        let tag = afterNavigation ? ", after navigation" : ""
+        guard let caret = AXTextEdit.readCaret() else {
+            DebugLog.log("re-edit(tap) \(id ?? "?"): skipped (no AX caret\(tag))")
+            return
+        }
+        guard caret > 0 else {
+            DebugLog.log("re-edit(tap) \(id ?? "?"): skipped (caret at 0\(tag))")
+            return
+        }
         let window = min(caret, 24)
-        guard let text = AXTextEdit.readString(at: caret - window, length: window) else { return }
+        guard let text = AXTextEdit.readString(at: caret - window, length: window) else {
+            DebugLog.log("re-edit(tap) \(id ?? "?"): skipped (AX text unreadable\(tag))")
+            return
+        }
         // Exact UTF-16 compare — `==` is canonical-equivalence and would let NFD through
         // (see TelexInputController.tryReEditWord).
         guard text.utf16.elementsEqual(text.precomposedStringWithCanonicalMapping.utf16) else {
             DebugLog.log("re-edit(tap) \(id ?? "?"): skipped (field text is not precomposed)")
             return
         }
-        guard let word = TelexInputController.trailingWord(text) else { return }
-        guard (word as NSString).length <= caret, engine.seed(word) else { return }
-        DebugLog.log("re-edit(tap) \(id ?? "?"): seeded \((word as NSString).length) chars before caret")
+        guard let word = TelexInputController.trailingWord(text) else {
+            DebugLog.log("re-edit(tap) \(id ?? "?"): skipped (no word right before caret\(tag))")
+            return
+        }
+        guard (word as NSString).length <= caret, engine.seed(word) else {
+            DebugLog.log("re-edit(tap) \(id ?? "?"): skipped (seed did not round-trip, \((word as NSString).length) chars\(tag))")
+            return
+        }
+        DebugLog.log("re-edit(tap) \(id ?? "?"): seeded \((word as NSString).length) chars before caret\(tag)")
     }
 
     // MARK: - Re-open the last committed word on ⌫ (issue #40)
@@ -4209,7 +4285,7 @@ final class TerminalTapController {
     /// terminals) means no verification, hence no re-open.
     /// `.selection`/`.emptyReset` fields are excluded for the same reason re-edit
     /// excludes them: inline autocomplete rewrites text underneath us.
-    private func tryReopenLastCommitTap(id: String?) -> Bool {
+    private func tryReopenLastCommitTap(id: String?, keystreamArmed: Bool = false) -> Bool {
         // Same experimental gate as the IMKit side (and as re-edit): one opt-in for
         // every "reach back into the previous word" behavior. Checked before the
         // canReopen Int compare so an opted-out machine pays nothing extra.
@@ -4225,8 +4301,21 @@ final class TerminalTapController {
             return false
         }
         guard let caret = AXTextEdit.readCaret() else {
+            // #163 RC2: AX-blind editor (Codex composer). Trust the keystream only when
+            // this ⌫ is the very next key after the plain boundary that committed the
+            // word — see ReopenKeystreamTrust for the rules and the accepted risk.
+            let axDetect = AppState.shared.usesAxDetect(id)
+            if ReopenKeystreamTrust.allows(armed: keystreamArmed, emitMode: emitMode, axDetectApp: axDetect) {
+                guard let word = engine.reopenLastCommit() else {
+                    DebugLog.log("⌫ re-open(tap) \(id ?? "?"): skipped (no AX caret; replay mismatch)")
+                    return false
+                }
+                DebugLog.log("⌫ re-open(tap) \(id ?? "?"): \((word as NSString).length) chars back in the buffer (no AX caret → keystream trust)")
+                return true
+            }
             engine.forgetLastCommit()
-            DebugLog.log("⌫ re-open(tap) \(id ?? "?"): skipped (no AX caret)")
+            DebugLog.log("⌫ re-open(tap) \(id ?? "?"): skipped (no AX caret; "
+                + (axDetect ? "browser, keystream not trusted" : "⌫ not right after the word's boundary") + ")")
             return false
         }
         guard let word = engine.reopenLastCommit() else {

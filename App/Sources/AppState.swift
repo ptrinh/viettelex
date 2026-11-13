@@ -909,6 +909,18 @@ final class AppState: @unchecked Sendable {
         "com.apple.SafariTechnologyPreview",
     ]
 
+    /// Issue #163 RC4: IMKit client whose web content is WebKit typed in-place —
+    /// Safari / STP page content (#44 carve-out) or a Safari web app ("Add to Dock",
+    /// wildcard `com.apple.Safari.WebApp.*: inPlace`). Neither is ever "learned"
+    /// in-place (safe-unknown retired the probe), which kept re-edit off there.
+    /// Per-field exclusions (omnibox, marked fields) stay with the caller.
+    static func isWebKitPageClient(_ bundleID: String?) -> Bool {
+        guard let id = bundleID else { return false }
+        if webKitBrowsers.contains(id) { return true }
+        return id.hasPrefix("com.apple.Safari.WebApp.")
+            && exactRuleMode(id) == nil && wildcardMode(id) == .inPlace
+    }
+
     /// ONE lock acquisition + at most one trusted read + at most one detector read
     /// for the whole per-key routing decision. Replaces the 6-8 separate
     /// usesTapMode/usesSelectionReplace/usesEmptyReset round trips both hot paths
