@@ -15,6 +15,13 @@ ITfRange* TsfTextSink::selectionRange() {
     return sel.range;  // already AddRef'd
 }
 
+bool TsfTextSink::hasCaret() {
+    ITfRange* r = selectionRange();
+    if (!r) return false;
+    r->Release();
+    return true;
+}
+
 void TsfTextSink::setCaretAfter(ITfRange* r) {
     ITfRange* c = nullptr;
     if (FAILED(r->Clone(&c)) || !c) return;

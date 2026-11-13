@@ -751,3 +751,23 @@ TEST(hook_reach_cache_per_app_window_and_pid) {
     c.reset();  // focus change
     CHECK(!c.lookup(10, 101, r));
 }
+
+// 2026-11 (Gmail "#"): a browser context with no editable element claims no key until a
+// probe finds a caret again, a focus change or an edit report.
+TEST(no_editable_context_suspects_until_caret_or_focus) {
+    NoEditableContext n;
+    int a = 0, b = 0;
+    CHECK(!n.suspects(&a));
+    CHECK(n.afterProbe(&a, false));  // not suspected: claim as usual
+    n.note(&a);
+    CHECK(n.suspects(&a));
+    CHECK(!n.suspects(&b));          // another context is not
+    CHECK(!n.afterProbe(&a, false)); // still no caret: claim nothing
+    CHECK(n.suspects(&a));
+    CHECK(n.afterProbe(&a, true));   // a field got focus inside the page
+    CHECK(!n.suspects(&a));
+    n.note(&a);
+    n.clear();                       // focus change / the store reported an edit
+    CHECK(!n.suspects(&a));
+    CHECK(!n.suspects(nullptr));
+}

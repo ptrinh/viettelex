@@ -161,6 +161,31 @@ private:
     bool valid_ = false;
 };
 
+// (2026-11, Gmail's "#" = delete did nothing in V mode) A web page with no editable element
+// focused: Chromium's store refuses the edit session, or has no caret, at a word start. A
+// key the TIP claims there still reaches the page, but not as the genuine key event its
+// single-key shortcuts listen to (Gmail # j k x, GitHub / Jira ? / [ ]). While a context is
+// suspected, no key is claimed in it unless a read-only probe at a word start finds a caret
+// again (the page focused a field inside the same document). Forgotten at a focus change and
+// whenever the store reports an edit (it is alive). Context identity only: never
+// dereferenced.
+class NoEditableContext {
+public:
+    // A word start found no edit session / no caret in `ctx`.
+    void note(const void* ctx) { ctx_ = ctx; }
+    bool suspects(const void* ctx) const { return ctx_ != nullptr && ctx == ctx_; }
+    // Word start in a suspected context, after the probe: true = claim keys there again.
+    bool afterProbe(const void* ctx, bool caretFound) {
+        if (!suspects(ctx)) return true;
+        if (caretFound) ctx_ = nullptr;
+        return caretFound;
+    }
+    void clear() { ctx_ = nullptr; }
+
+private:
+    const void* ctx_ = nullptr;
+};
+
 // (M1) Chế độ game is VietTelex.exe's runtime state (cleared at its start). If the app is
 // gone (crashed, autostart off), a stale "on" in the snapshot must not leave every key
 // passing through forever. `appRunning` is only asked when the snapshot says on.

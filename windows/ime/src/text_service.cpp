@@ -915,6 +915,8 @@ STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr* focus, ITfDocumentMgr*) {
     contextLogged_ = false;
     keyRepeat_.reset();
     keyRepeatLogged_ = false;
+    noEdit_.clear();
+    noEditLogged_ = false;
     typedWord_.clear();  // a new element: its word starts afresh
     clearTypedWord();
     bool keptPassAsTyped = false;  // a WPF list handover kept: keys still pass as typed there
@@ -1005,6 +1007,7 @@ STDMETHODIMP TextService::OnPopContext(ITfContext* ctx) { return OnPushContext(c
 
 STDMETHODIMP TextService::OnEndEdit(ITfContext* ctx, TfEditCookie ecReadOnly, ITfEditRecord* record) {
     if (!ctx || !record) return S_OK;
+    if (noEdit_.suspects(ctx)) noEdit_.clear();  // the store reports an edit: it is alive
     if (composition_) {
         // The app emptied our composition (Excel cell autocomplete, app-side clear):
         // drop the word and end the composition (Mozc tip_edit_session_impl ~L565).
@@ -1207,6 +1210,21 @@ STDMETHODIMP TextService::OnSetFocus(BOOL foreground) {
     return S_OK;
 }
 
+bool TextService::noEditableHere(ITfContext* ctx) {
+    if (!ctx || !noEdit_.suspects(ctx)) return false;
+    // One read-only probe per word start while suspected (never elsewhere): the page may
+    // have focused a field inside the same document.
+    bool caret = false;
+    const HRESULT hr = RunEditSession(ctx, clientId_, TF_ES_SYNC | TF_ES_READ, [&](TfEditCookie ec) -> HRESULT {
+        TsfTextSink sink(this, ctx, ec);
+        caret = sink.hasCaret();
+        return S_OK;
+    });
+    const bool claim = noEdit_.afterProbe(ctx, hr == S_OK && caret);
+    if (claim && config::logging()) config::log("browser: a caret again -> typing resumes in this context");
+    return !claim;
+}
+
 void TextService::notePassedBy(const KeyInput& k) {
     session_.noteKeyPassedBy(k);
     passNoted_ = true;
@@ -1295,7 +1313,9 @@ HRESULT TextService::testKeyDownBody(ITfContext* ctx, WPARAM wp, BOOL* eaten) {
     // No focused context, keyboard disabled (games, canvases), read-only, ANSI window:
     // never eat a key there (SampleIME _IsKeyboardDisabled) — retypeAsUs only takes a
     // writable, keyboard-enabled context (password / PIN fields included).
-    if (host_ == HostText::Ignore || host_ == HostText::Literal) {
+    // A web page with no editable element focused (NoEditableContext): claim nothing — its
+    // single-key shortcuts must get the genuine key event (Gmail "#", j / k / x).
+    if (host_ == HostText::Ignore || host_ == HostText::Literal || (!session_.wordActive() && noEditableHere(ctx))) {
         notePassedBy(k);
         noteHintKey(k, ctx, false);
         *eaten = retypeAsUs(ctx, wp, false) ? TRUE : FALSE;
@@ -1358,7 +1378,8 @@ HRESULT TextService::keyDownBody(ITfContext* ctx, WPARAM wp, LPARAM lp, BOOL* ea
     }
     const bool evaluatedInTest = hostEval_.takeForKeyDown(keyGen_, ctx);
     if (!session_.wordActive() && !evaluatedInTest) evaluateHostAtWordStart(ctx);
-    if (directActive_ || host_ == HostText::Ignore || host_ == HostText::Literal || !session_.wantsKey(k)) {
+    if (directActive_ || host_ == HostText::Ignore || host_ == HostText::Literal || !session_.wantsKey(k) ||
+        (!session_.wordActive() && noEditableHere(ctx))) {
         if (!passNoted_) session_.noteKeyPassedBy(k);  // a host that skipped OnTestKeyDown
         passNoted_ = false;
         *eaten = retypeAsUs(ctx, wp, true) ? TRUE : FALSE;  // #121; else the key goes to the app
@@ -1368,9 +1389,18 @@ HRESULT TextService::keyDownBody(ITfContext* ctx, WPARAM wp, LPARAM lp, BOOL* ea
     // Classic Edit/RichEdit: read and edit through the full transitory-extension parent.
     ITfContext* target = (host_ == HostText::NormalViaParent && targetCtx_) ? targetCtx_ : ctx;
     BOOL result = FALSE;
+    // A browser store (async, keystroke context itself) at a word start: no edit session or
+    // no caret there = a page with no editable element focused (NoEditableContext).
+    const bool pageWordStart = !session_.wordActive() && k.kind == KeyKind::Char && host_ == HostText::Normal &&
+                               session_.asyncStore() && target == ctx;
+    bool noCaret = false;
     auto run = [&](ITfContext* tc) {
         return RunEditSession(tc, clientId_, TF_ES_SYNC | TF_ES_READWRITE, [&, tc](TfEditCookie ec) -> HRESULT {
             TsfTextSink sink(this, tc, ec);
+            if (pageWordStart && !sink.hasCaret()) {
+                noCaret = true;  // the key goes to the app as typed
+                return S_OK;
+            }
             // Literal fields (password, PIN, number, e-mail): checked where a word would
             // start, so a field switch inside one context is caught too.
             if (!session_.wordActive() && k.kind == KeyKind::Char && fieldPolicyAtWordStart(tc, ec)) return S_OK;
@@ -1391,6 +1421,16 @@ HRESULT TextService::keyDownBody(ITfContext* ctx, WPARAM wp, LPARAM lp, BOOL* ea
         hr = run(ctx);
     }
     ownKeyEdit_ = false;
+    if (pageWordStart && (noCaret || hr != S_OK)) {
+        noEdit_.note(ctx);
+        if (noCaret) session_.noteKeyPassedBy(k);  // the key goes to the app untouched
+        if (!noEditLogged_) {
+            noEditLogged_ = true;
+            config::log(noCaret ? "browser: no caret at a word start (no editable element) -> keys pass through"
+                                : "browser: edit session refused at a word start (no editable element) -> keys pass "
+                                  "through");
+        }
+    }
     noteUnreliableField();
     if (hr != S_OK) {
         // The app refused a synchronous edit session: type literally, never guess.
