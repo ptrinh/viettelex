@@ -2925,6 +2925,9 @@ final class TerminalTapController {
     /// end of an existing word then pressing a tone key is re-edit's main use.
     /// TAP-thread confined (mouse/key branches of the same serial callback).
     private var lastTapKeyWasBoundary = false
+    /// Dead key (#161) — same bookkeeping as the IMKit path: the previous key was a dead
+    /// key, so this one may arrive composed. See DeadKeyLiteral.
+    private var tapLastKeyWasDead = false
     // Thời điểm ⌫ vật lý gần nhất — gate của re-edit(tap), xem reEditGateOpen.
     private var lastDeleteNs: UInt64 = 0
     /// Neo focus cho re-edit(tap) — issue #111, xem FocusAnchor. `reEditFocusStable`:
@@ -3662,6 +3665,8 @@ final class TerminalTapController {
         }
 
         let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
+        let followsDeadKey = tapLastKeyWasDead
+        tapLastKeyWasDead = false   // set again below when THIS key is a dead key
 
         // Gợi ý cạnh con trỏ (CaretHint — MathHint.swift), ô nổi của đường tap: Tab (phép
         // tính: cả Enter) áp dụng, Esc tắt + nuốt, phím khác tắt rồi đi tiếp. Phím "="
@@ -3788,7 +3793,27 @@ final class TerminalTapController {
                                            unicodeString: buf.baseAddress)
             return len >= 1 ? buf[0] : nil
         }
-        guard let unit = first, let scalar = Unicode.Scalar(unit) else {
+        // Dead key (#161): ' " ` ~ ^ on U.S. International – PC carry NO characters here,
+        // and passed on they typed nothing (the layout's own dead-key composition is not
+        // running while VietTelex is the input source). Type the key's own character
+        // instead, through the same re-emit a pinned layout uses. Off the dead-key path
+        // this is one bool test per key.
+        var deadRemap: Character?
+        if len == 0 || followsDeadKey {
+            tapLastKeyWasDead = len == 0
+            let native = len == 0 ? "" : withUnsafeBytes(of: &slots) { raw in
+                String(utf16CodeUnits: Array(raw.bindMemory(to: UniChar.self).prefix(min(len, 4))),
+                       count: min(len, 4))
+            }
+            let shift = flags.contains(.maskShift), caps = flags.contains(.maskAlphaShift)
+            if KeyboardLayoutOverride.translator == nil,
+               let r = DeadKeyLiteral.resolve(eventCharacters: native, afterDeadKey: followsDeadKey, live: {
+                   KeyboardLayoutOverride.liveCharacter(keyCode: UInt16(keyCode), shift: shift, capsLock: caps)
+               }), r != native, let c = r.first {
+                deadRemap = c
+            }
+        }
+        guard let unit = first ?? deadRemap?.utf16.first, let scalar = Unicode.Scalar(unit) else {
             // Dead/function key: flush the word, let the odd key through.
             // (no shortcut expansion — not an explicit text boundary)
             lastTapKeyWasBoundary = true
@@ -3822,7 +3847,7 @@ final class TerminalTapController {
         // Modifier combos are excluded (they are shortcuts, not text) and an
         // unmappable key keeps the OS's character, so this can only ever narrow to
         // plain ASCII the pinned layout actually defines.
-        var ch = Character(scalar)
+        var ch = deadRemap ?? Character(scalar)
         if let translator = KeyboardLayoutOverride.translator,
            flags.intersection([.maskCommand, .maskControl, .maskAlternate]).isEmpty,
            let remapped = translator.character(keyCode: UInt16(keyCode),
@@ -3941,7 +3966,7 @@ final class TerminalTapController {
             // Layout pinned → the native pass-through would type the OS layout's
             // character, not ours: fall through to reemit, which carries String(ch).
             if !rewrote, AppState.shared.tapNativeFastPath, SyntheticKeyboard.queueDrained(),
-               KeyboardLayoutOverride.translator == nil {
+               KeyboardLayoutOverride.translator == nil, deadRemap == nil {
                 return pass
             }
             reemit(keyCode: keyCode, string: String(ch))
@@ -3992,7 +4017,7 @@ final class TerminalTapController {
         switch engine.feed(ch) {
         case .passthrough:
             if !autoCapped, AppState.shared.tapNativeFastPath, SyntheticKeyboard.queueDrained(),
-               KeyboardLayoutOverride.translator == nil {
+               KeyboardLayoutOverride.translator == nil, deadRemap == nil {
                 return pass                               // native: zero synthetic events
             }
             SyntheticKeyboard.apply(backspaces: 0, insert: String(ch), mode: emitMode)
