@@ -15,7 +15,7 @@ Tài liệu này ghi lại toàn bộ quy trình đưa bàn phím **VietTelex** 
 | Deployment target | iOS 16.0 |
 | Device family | iPhone + iPad (`1,2`) |
 | Tên hiển thị app | VietTelex |
-| Tên bàn phím | Tiếng Việt (VietTelex) |
+| Tên bàn phím | Tiếng Việt (hiện "Tiếng Việt — VietTelex") |
 | RequestsOpenAccess (Full Access) | **true** |
 
 > ⚠️ **Full Access = true** là điểm khiến review khắt khe hơn (cần privacy policy + giải trình rõ). Xem mục 3 và 8.
@@ -209,7 +209,7 @@ xcrun notarytool ... # KHÔNG dùng cho App Store; dùng altool/Transporter
 
    To test:
    1. Open the VietTelex app once (onboarding + settings).
-   2. Settings → General → Keyboard → Keyboards → Add New Keyboard → Tiếng Việt (VietTelex).
+   2. Settings → General → Keyboard → Keyboards → Add New Keyboard → VietTelex.
    3. (Optional) Enable "Allow Full Access" to test haptics and dynamic snippets.
    4. In any text field, tap the globe key to switch to VietTelex and type,
       e.g. "vieejt" -> "việt".

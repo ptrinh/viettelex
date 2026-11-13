@@ -155,11 +155,11 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Keyboard/Keyboard.entitlements
         SWIFT_OBJC_BRIDGING_HEADER: Keyboard/ObjC/VietTelexKeyboard-Bridging-Header.h
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: "Tiếng Việt (VietTelex)"
+        INFOPLIST_KEY_CFBundleDisplayName: "Tiếng Việt"
     info:
       path: Keyboard/Info.plist
       properties:
-        CFBundleDisplayName: "Tiếng Việt (VietTelex)"
+        CFBundleDisplayName: "Tiếng Việt"
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:

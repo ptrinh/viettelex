@@ -309,7 +309,7 @@ struct RootView: View {
                 }
                 #endif
         } header: { Text(L("Thử gõ")) } footer: {
-            Text(L("Bấm 🌐 dưới bàn phím để chuyển sang Tiếng Việt (VietTelex), rồi gõ thử: vieejt → việt."))
+            Text(L("Bấm 🌐 dưới bàn phím để chuyển sang VietTelex, rồi gõ thử: vieejt → việt."))
         }
         KieuGoSection()
         // Ngay sau Kiểu gõ — nhóm thu gọn (mặc định đóng), docs/ONBOARDING-SPEC.md §4.
@@ -821,7 +821,7 @@ struct OnboardingCard: View {
                     step(2, L("Thử gõ ngay bên dưới"), done: false)
                     VStack(alignment: .leading, spacing: 6) {
                         Text(L("Cài đặt → Cài đặt chung → Bàn phím → Bàn phím"))
-                        Text(L("Thêm bàn phím mới… → Tiếng Việt (VietTelex)"))
+                        Text(L("Thêm bàn phím mới… → VietTelex"))
                         Text(L("Khi gõ, bấm 🌐 để chuyển sang VietTelex"))
                     }
                     .font(.footnote).foregroundStyle(.secondary)
