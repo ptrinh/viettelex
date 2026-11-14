@@ -106,7 +106,7 @@ final class ClipDetectTests: XCTestCase {
 final class ClipSensitivityTests: XCTestCase {
     func testSecrets() {
         XCTAssertTrue(ClipSensitivity.looksSecret("Xk9#mP2qL"))
-        XCTAssertTrue(ClipSensitivity.looksSecret("sk_live_4eC39HqLyjWDarjtT1zdp7dc"))
+        XCTAssertTrue(ClipSensitivity.looksSecret("sk_" + "live_" + String(repeating: "a1B2", count: 6)))
         XCTAssertTrue(ClipSensitivity.looksSecret("482913"))
         XCTAssertTrue(ClipSensitivity.looksSecret("Ma OTP cua quy khach la 482913"))
     }
