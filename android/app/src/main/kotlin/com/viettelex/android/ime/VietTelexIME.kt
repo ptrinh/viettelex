@@ -346,6 +346,9 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         }
         syncClipHistory(prefs.getBoolean(Keys.CLIPBOARD_HISTORY, false), ClipboardTTL.of(prefs.getString(Keys.CLIPBOARD_TTL, null)))
         clipboard.onChanged = { onClipChanged() }
+        // Ô địa chỉ + luật không ra địa chỉ ⇒ Gemini Nano (client tạo lười ở lần gọi đầu).
+        session.clipAddressAI = com.viettelex.android.ai.GeminiNanoAddress()
+        session.onClipAddressReady = { if (inputShown) refreshBar() }
         // Mời dán một lần mỗi mục clipboard: chỉ lưu id (timestamp ClipDescription), không nội dung.
         session.pasteOnce.reload(stateStore().getLong(Keys.PASTE_OFFERED_ID, Long.MIN_VALUE).takeIf { it != Long.MIN_VALUE })
         session.pasteOnce.persist = { stateStore().edit().putLong(Keys.PASTE_OFFERED_ID, it).apply() }

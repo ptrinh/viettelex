@@ -1631,6 +1631,14 @@ class KeyboardSession(
     // MARK: chip số + lịch sử clipboard
 
     private var clipPreference: ClipChip.Kind? = null
+    /** Gemini Nano trích địa chỉ (app đặt; null = không có). */
+    var clipAddressAI: ClipAddressAI? = null
+    /** AI vừa trả địa chỉ ⇒ IME vẽ lại thanh. */
+    var onClipAddressReady: (() -> Unit)? = null
+    private var aiAddrFor = -1
+    private var aiAddr: String? = null
+    private var aiAddrInFlight = -1
+    private var chipsText: String? = null
     private var chipsForChange = -1
     private var chipsCached: List<ClipChip> = emptyList()
 
@@ -1640,10 +1648,34 @@ class KeyboardSession(
         val cc = cb.changeCount
         if (cc != chipsForChange) {
             chipsForChange = cc
-            chipsCached = if (cb.isSensitive()) emptyList()
-                else cb.readText()?.let { ClipDetect.detect(it) } ?: emptyList()
+            chipsText = if (cb.isSensitive()) null else cb.readText()
+            chipsCached = chipsText?.let { ClipDetect.detect(it) } ?: emptyList()
         }
-        return ClipDetect.prioritize(chipsCached, clipPreference)
+        var chips = chipsCached
+        if (clipPreference == ClipChip.Kind.ADDRESS && chips.none { it.kind == ClipChip.Kind.ADDRESS }) {
+            aiAddress(cc)?.let { chips = chips + ClipChip(ClipChip.Kind.ADDRESS, it, ClipDetect.label(ClipChip.Kind.ADDRESS, it)) }
+        }
+        return ClipDetect.prioritize(chips, clipPreference)
+    }
+
+    /**
+     * Ô địa chỉ mà luật không ra: hỏi Gemini Nano NỀN, một lần mỗi nội dung clipboard ([cc]); trả
+     * kết quả đã có hoặc null ngay (không chặn gõ). Xong ⇒ [onClipAddressReady] vẽ lại thanh.
+     */
+    private fun aiAddress(cc: Int): String? {
+        if (aiAddrFor == cc) return aiAddr
+        val ai = clipAddressAI ?: return null
+        val text = chipsText ?: return null
+        if (aiAddrInFlight == cc) return null
+        aiAddrInFlight = cc
+        ai.extract(AIAddress.INSTRUCTIONS, AIAddress.prompt(text)) { out ->
+            if (aiAddrInFlight != cc) return@extract
+            aiAddrInFlight = -1
+            aiAddrFor = cc
+            aiAddr = out?.let { AIAddress.validate(it, text) }
+            if (aiAddr != null) onClipAddressReady?.invoke()
+        }
+        return null
     }
 
     /**

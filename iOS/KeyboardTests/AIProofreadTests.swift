@@ -361,3 +361,25 @@ final class AIProofreadTests: XCTestCase {
         AIAssistLoader.debugReset()
     }
 }
+
+/// AI trích địa chỉ (ô địa chỉ) — kiểm chống bịa.
+final class AIAddressTests: XCTestCase {
+    private let src = "Gửi giúp chị Lan 0987654321\nnhà mình ở số 5 ngõ 10 láng hạ, đống đa hn nha"
+
+    func testAcceptsVerbatimAddress() {
+        XCTAssertEqual(AIAddress.validate("số 5 ngõ 10 láng hạ, đống đa hn", source: src), "số 5 ngõ 10 láng hạ, đống đa hn")
+        XCTAssertEqual(AIAddress.validate("  số 5  ngõ 10 láng hạ, đống đa hn. ", source: src), "số 5 ngõ 10 láng hạ, đống đa hn")
+    }
+    func testRejectsInventedWords() {
+        XCTAssertNil(AIAddress.validate("Số 5 ngõ 10 Láng Hạ, Đống Đa, Hà Nội", source: src))   // "noi" không có trong gốc
+        XCTAssertNil(AIAddress.validate("số 7 ngõ 10 láng hạ", source: src))                  // số nhà sai
+    }
+    func testRejectsPhoneEmptyAndTooShort() {
+        XCTAssertNil(AIAddress.validate("chị Lan 0987654321", source: src))
+        XCTAssertNil(AIAddress.validate("", source: src))
+        XCTAssertNil(AIAddress.validate("hn", source: src))
+    }
+    func testPromptCapsLength() {
+        XCTAssertLessThanOrEqual(AIAddress.prompt(String(repeating: "a", count: 2000)).count, ClipDetect.maxLength + 20)
+    }
+}

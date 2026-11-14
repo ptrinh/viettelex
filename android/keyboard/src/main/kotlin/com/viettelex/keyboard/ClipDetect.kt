@@ -442,3 +442,46 @@ object ClipSensitivity {
         return false
     }
 }
+
+/**
+ * AI trích địa chỉ trên máy (Gemini Nano — app cài, `null` = không có). Chỉ gọi khi ô đang điền là ô
+ * địa chỉ và luật [AddressDetect] không ra; một lần mỗi nội dung clipboard. [done] chạy trên main
+ * thread đúng một lần, `null` = không có / lỗi / máy không hỗ trợ. Song sinh iOS AIAssist.clipAddress.
+ */
+fun interface ClipAddressAI {
+    fun extract(instructions: String, prompt: String, done: (String?) -> Unit)
+}
+
+/** Prompt + kiểm chống bịa cho [ClipAddressAI] — port 1:1 iOS `AIAddress` (AIProofread.swift). */
+object AIAddress {
+    val INSTRUCTIONS = "You extract the postal address from text the user copied on a phone, usually Vietnamese " +
+        "shipping details (name, phone number, address, notes). Return the address exactly as written " +
+        "in the text: same words, tone marks and abbreviations, in the same order. Leave out person " +
+        "names, phone numbers, prices and notes. If the text contains no address, return an empty string. " +
+        "Reply with the address only."
+
+    fun prompt(text: String): String = "Copied text:\n" + text.take(ClipDetect.MAX_LEN)
+
+    /** Mọi từ (gập dấu) của kết quả phải có trong nội dung gốc; không chứa SĐT; độ dài hợp lý. */
+    fun validate(output: String, source: String): String? {
+        val out = output.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.joinToString(" ")
+            .trim(' ', '.', ',', ';', ':', '-', '"')
+        if (out.isEmpty() || out.length > AddressDetect.MAX_OUTPUT || out.count { it.isLetter() } < 4) return null
+        val src = tokens(source).toSet()
+        val toks = tokens(out)
+        if (toks.size < 2 || !toks.all { it in src }) return null
+        return if (ClipDetect.containsPhone(out)) null else out
+    }
+
+    fun tokens(s: String): List<String> {
+        val f = ClipDetect.fold(Normalizer.normalize(s, Normalizer.Form.NFC))
+        val out = ArrayList<String>()
+        val cur = StringBuilder()
+        for (ch in f) {
+            if (ch.isLetter() || ch in '0'..'9') cur.append(ch)
+            else if (cur.isNotEmpty()) { out += cur.toString(); cur.setLength(0) }
+        }
+        if (cur.isNotEmpty()) out += cur.toString()
+        return out
+    }
+}

@@ -448,3 +448,47 @@ enum AITimeout {
         return r
     }
 }
+
+
+// MARK: trích địa chỉ (ô địa chỉ, clipboard mà luật thuần AddressDetect không ra)
+
+/// Chỉ gọi khi: công tắc Apple Intelligence BẬT, ô đang điền là ô địa chỉ (trait), clipboard chưa
+/// có chip địa chỉ — một lần mỗi nội dung clipboard, chạy nền (AIAssist.clipAddress).
+enum AIAddress {
+    static let instructions = """
+    You extract the postal address from text the user copied on a phone, usually Vietnamese \
+    shipping details (name, phone number, address, notes). Return the address exactly as written \
+    in the text: same words, tone marks and abbreviations, in the same order. Leave out person \
+    names, phone numbers, prices and notes. If the text contains no address, return an empty string.
+    """
+
+    static func prompt(_ text: String) -> String {
+        "Copied text:\n" + String(text.prefix(ClipDetect.maxLength))
+    }
+
+    /// Chống bịa: mọi từ (gập dấu) của kết quả phải có trong nội dung gốc; không chứa SĐT; độ dài
+    /// hợp lý. Trả bản đã gọn khoảng trắng, nil nếu không đạt.
+    static func validate(_ output: String, source: String) -> String? {
+        let out = output.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            .trimmingCharacters(in: CharacterSet(charactersIn: " .,;:-"))
+        guard !out.isEmpty, out.count <= AddressDetect.maxOutput, out.filter(\.isLetter).count >= 4 else { return nil }
+        let src = Set(tokens(source))
+        let toks = tokens(out)
+        guard toks.count >= 2, toks.allSatisfy(src.contains) else { return nil }
+        let c = Array(out)
+        let hasPhone = ClipDetect.runs(c, seps: [" ", ".", "-"], allowPlus: true)
+            .contains { ClipDetect.bounded(c, $0) && ClipDetect.phonePrefix($0) != nil }
+        return hasPhone ? nil : out
+    }
+
+    /// Từ (chữ hoặc số liền nhau) đã gập dấu, chữ thường.
+    static func tokens(_ s: String) -> [String] {
+        let f = ClipDetect.fold(Array(s.precomposedStringWithCanonicalMapping))
+        var out: [String] = [], cur = ""
+        for ch in f {
+            if ch.isLetter || ch.isASCIIDigit { cur.append(ch) } else if !cur.isEmpty { out.append(cur); cur = "" }
+        }
+        if !cur.isEmpty { out.append(cur) }
+        return out
+    }
+}

@@ -2199,8 +2199,7 @@ final class KeyboardViewController: UIInputViewController {
         if composed.isEmpty, pasteOffer() {
             // Nút Dán tắt: vẫn ghi lịch sử + chip tách số (thuộc Lịch sử clipboard).
             set.paste = pasteButtonSetting; set.pasteIsImage = pasteIsImage
-            let chips = ClipDetect.prioritize(clip.chips(currentChange: pasteSeenChange, usedChange: pasteUsedChange),
-                                              for: fieldTraits?.preferredClipKind)
+            let chips = fieldClipChips()
             // Chip tách số (≤2) + ô "Dán" nguyên văn ở cuối: SuggestionSlots.arrange.
             set.clipChips = chips.map { ($0.label, KeyboardView.clipTokenPrefix + $0.value) }
         }
@@ -2650,8 +2649,7 @@ extension KeyboardViewController {
             keyboard.hidePasteCard()
         } else if pasteOffer() {
             set.paste = pasteButtonSetting; set.pasteIsImage = pasteIsImage
-            let chips = ClipDetect.prioritize(clip.chips(currentChange: pasteSeenChange, usedChange: pasteUsedChange),
-                                              for: fieldTraits?.preferredClipKind)
+            let chips = fieldClipChips()
             set.clipChips = chips.map { ($0.label, KeyboardView.clipTokenPrefix + $0.value) }
         }
         if fieldTraits?.wantsURLChips == true {
@@ -3627,6 +3625,19 @@ extension KeyboardViewController {
 
 // MARK: Apple Intelligence (Plus, iOS 26+) — logic: AIAssist.swift / AIProofread.swift.
 extension KeyboardViewController {
+    /// Chip clipboard xếp theo ô. Ô địa chỉ mà luật không ra địa chỉ ⇒ hỏi Apple Intelligence
+    /// (chỉ khi công tắc bật — `ai` nil thì 0 chi phí), nền, một lần mỗi nội dung clipboard.
+    fileprivate func fieldClipChips() -> [ClipChip] {
+        var chips = clip.chips(currentChange: pasteSeenChange, usedChange: pasteUsedChange)
+        let pref = fieldTraits?.preferredClipKind
+        if pref == .address, let ai, !chips.contains(where: { $0.kind == .address }),
+           let text = clip.chipSource(currentChange: pasteSeenChange, usedChange: pasteUsedChange),
+           let a = ai.clipAddress(text: text, change: pasteSeenChange) {
+            chips.append(ClipChip(kind: .address, value: a, label: L("Dán địa chỉ")))
+        }
+        return ClipDetect.prioritize(chips, for: pref)
+    }
+
     fileprivate func makeAIAssist() -> AIAssist? {
         guard #available(iOS 26.0, *) else { return nil }
         return AIAssist(host: .init(
