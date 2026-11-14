@@ -44,6 +44,8 @@ enum IntelligenceKind {
     static let alternatives: Int32 = 1
     /// Trích địa chỉ từ nội dung clipboard (ô địa chỉ, luật thuần không ra — AIAddress).
     static let address: Int32 = 2
+    /// Dịch (thử nghiệm — AITranslate); Apple Translation là dự phòng.
+    static let translate: Int32 = 3
 }
 
 #if canImport(FoundationModels)
@@ -66,6 +68,13 @@ struct VTAlternativesOutput {
 struct VTAddressOutput {
     @Guide(description: "The address copied exactly as written in the text (same words, tone marks and abbreviations), without person names, phone numbers or notes. Empty string if the text has no address.")
     var address: String
+}
+
+@available(iOS 26.0, macOS 26.0, *)
+@Generable(description: "The translation of the user's text")
+struct VTTranslateOutput {
+    @Guide(description: "The whole text translated, natural for a native speaker, same meaning, tone, names, numbers, emoji and line breaks. Translation only, no notes.")
+    var translation: String
 }
 #endif
 
@@ -160,6 +169,10 @@ enum IntelligenceEngine {
         let session = LanguageModelSession(instructions: instructions)
         let options = GenerationOptions(samplingMode: .greedy)
         do {
+            if kind == IntelligenceKind.translate {
+                let r = try await session.respond(to: prompt, generating: VTTranslateOutput.self, options: options)
+                return (IntelligenceCode.ok, r.content.translation)
+            }
             if kind == IntelligenceKind.address {
                 let r = try await session.respond(to: prompt, generating: VTAddressOutput.self, options: options)
                 return (IntelligenceCode.ok, r.content.address)

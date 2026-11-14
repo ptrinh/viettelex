@@ -3564,7 +3564,7 @@ extension KeyboardViewController {
             let core = TranslateText.splitWhitespace(src.text).core
             let result: Result<String, TranslateFailure>
             if let pair = TranslateDirection.resolve(detected: TranslateText.detect(core, target: target), target: target) {
-                result = await OnDeviceTranslator.translate(core, pair: pair)
+                result = await Self.translateMaybeAI(core, pair: pair)
             } else {
                 result = .failure(.unknownLanguage)
             }
@@ -3572,6 +3572,26 @@ extension KeyboardViewController {
             self.finishTranslate(result.map { TranslateText.rewrap(original: src.text, translated: $0) }, src: src,
                                  partial: partial)
         }
+    }
+
+    /// "Dịch bằng Apple Intelligence" (thử nghiệm) bật + model dùng được ⇒ hỏi model trước; lỗi /
+    /// quá hạn / kết quả không qua AITranslate.validate / đoạn dài ⇒ Apple Translation như thường.
+    /// Tắt ⇒ không dlopen VTIntelligence (0 chi phí).
+    @available(iOS 26.0, *)
+    private static func translateMaybeAI(_ text: String, pair: TranslateDirection.Pair) async -> Result<String, TranslateFailure> {
+        if TranslatePrefs.useAI(UserDefaultsProvider.shared), text.count <= AITranslate.maxChars,
+           AIAssistLoader.status() == .available {
+            let t0 = CACurrentMediaTime()
+            let r = await AIAssistLoader.run(kind: 3, instructions: AITranslate.instructions,
+                                             prompt: AITranslate.prompt(text, source: pair.source, target: pair.target),
+                                             timeout: AITranslate.timeout)
+            if case .success(let s) = r, let ok = AITranslate.validate(s, source: text, target: pair.target) {
+                TouchLog.write(String(format: "translate ai ok %.0fms", (CACurrentMediaTime() - t0) * 1000))
+                return .success(ok)
+            }
+            TouchLog.write("translate ai → apple translation")
+        }
+        return await OnDeviceTranslator.translate(text, pair: pair)
     }
 
     private func finishTranslate(_ r: Result<String, TranslateFailure>, src: TextTools.Source, partial: Bool = false) {

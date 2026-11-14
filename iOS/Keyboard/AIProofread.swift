@@ -492,3 +492,61 @@ enum AIAddress {
         return out
     }
 }
+
+
+// MARK: dịch bằng Apple Intelligence (thử nghiệm — TranslatePrefs.aiKey)
+
+/// Prompt + kiểm kết quả — port 1:1 Android `AITranslate` (Translate.kt). Không qua `validate` ⇒
+/// bàn phím dùng Apple Translation (không bao giờ ghi bản dịch đáng ngờ vào ô).
+enum AITranslate {
+    /// Đoạn dài hơn ⇒ Apple Translation ngay (ngữ cảnh / đầu ra của model trên máy có hạn).
+    static let maxChars = 1000
+    /// Quá hạn ⇒ Apple Translation.
+    static let timeout: TimeInterval = 8
+
+    static let instructions = """
+    You translate text the user typed on a phone keyboard. Write it the way a native speaker would \
+    say it, keeping the meaning, tone, names, numbers, emoji and line breaks. Reply with the translation only.
+    """
+
+    static func englishName(_ code: String) -> String {
+        Locale(identifier: "en").localizedString(forIdentifier: code) ?? code
+    }
+
+    static func prompt(_ text: String, source: String, target: String) -> String {
+        "Translate the text below from \(englishName(source)) to \(englishName(target)).\n\nText:\n" + text
+    }
+
+    /// Bản dịch đã gọn, hoặc nil nếu trông không ổn (trống, lời dẫn, độ dài lệch, sai chữ viết,
+    /// còn chữ riêng tiếng Việt ở đích Latin, mất dòng).
+    static func validate(_ output: String, source: String, target: String) -> String? {
+        var out = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        let src = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let nl = out.firstIndex(of: "\n") {
+            let first = out[..<nl]
+            if first.hasSuffix(":"), first.count < 60 {
+                out = String(out[out.index(after: nl)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        let quotes: Set<Character> = ["\"", "“", "”", "'"]
+        if out.count >= 2, let f = out.first, let l = out.last, quotes.contains(f), quotes.contains(l),
+           let s0 = src.first, !quotes.contains(s0) {
+            out = String(out.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard !out.isEmpty else { return nil }
+        let n = src.count
+        if out.count > n * 3 + 20 || out.count * 3 + 10 < n { return nil }
+        let srcLines = src.split(separator: "\n", omittingEmptySubsequences: false).count
+        if srcLines > 1, out.split(separator: "\n", omittingEmptySubsequences: false).count != srcLines { return nil }
+        let t = TranslatePrefs.base(target)
+        let ok: Bool
+        if t == TranslatePrefs.vietnamese {
+            ok = TranslateText.looksVietnamese(out, target: "en") || !out.contains(where: \.isLetter)
+        } else if TranslateText.scripts(of: t).contains(.latin) || TranslateText.scripts(of: t).isEmpty {
+            ok = !TranslateText.looksVietnamese(out, target: "")
+        } else {
+            ok = TranslateText.inTargetScript(out, target: t)
+        }
+        return ok ? out : nil
+    }
+}

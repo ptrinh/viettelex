@@ -383,3 +383,28 @@ final class AIAddressTests: XCTestCase {
         XCTAssertLessThanOrEqual(AIAddress.prompt(String(repeating: "a", count: 2000)).count, ClipDetect.maxLength + 20)
     }
 }
+
+/// Dịch bằng Apple Intelligence (thử nghiệm) — vector khớp Android AITranslateTests.
+final class AITranslateTests: XCTestCase {
+    func testAcceptsGoodTranslations() {
+        XCTAssertEqual(AITranslate.validate("It's raining cats and dogs", source: "Mưa như trút nước", target: "en"), "It's raining cats and dogs")
+        XCTAssertEqual(AITranslate.validate("Trời mưa như trút nước", source: "It's raining cats and dogs", target: "vi"), "Trời mưa như trút nước")
+        XCTAssertEqual(AITranslate.validate("ありがとう", source: "Cảm ơn", target: "ja"), "ありがとう")
+        XCTAssertEqual(AITranslate.validate("Translation:\nHello", source: "Xin chào", target: "en"), "Hello")
+        XCTAssertEqual(AITranslate.validate("\"Hello\"", source: "Xin chào", target: "en"), "Hello")
+        XCTAssertEqual(AITranslate.validate("Line one\nLine two", source: "Dòng một\nDòng hai", target: "en"), "Line one\nLine two")
+    }
+    func testRejectsSuspiciousOutput() {
+        XCTAssertNil(AITranslate.validate("", source: "Xin chào", target: "en"))
+        XCTAssertNil(AITranslate.validate("Xin chào bạn", source: "Xin chào bạn", target: "en"))
+        XCTAssertNil(AITranslate.validate("Hello", source: "Hello", target: "vi"))
+        XCTAssertNil(AITranslate.validate("Hello", source: "Xin chào", target: "ja"))
+        XCTAssertNil(AITranslate.validate("Line one and two", source: "Dòng một\nDòng hai", target: "en"))
+        XCTAssertNil(AITranslate.validate(String(repeating: "Hi. ", count: 40), source: "Chào", target: "en"))
+    }
+    func testPromptNamesLanguages() {
+        let p = AITranslate.prompt("Xin chào", source: "vi", target: "en")
+        XCTAssertTrue(p.contains("from Vietnamese to English"))
+        XCTAssertTrue(p.hasSuffix("Xin chào"))
+    }
+}

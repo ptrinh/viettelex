@@ -815,6 +815,8 @@ enum L10n {
         "Dán SĐT %@": "Paste phone %@",
         "Dán STK %@": "Paste account %@",
         "Dán địa chỉ": "Paste address",
+        "Dịch bằng Apple Intelligence (thử nghiệm)": "Translate with Apple Intelligence (experimental)",
+        "Dịch tự nhiên hơn, hiểu ngữ cảnh và thành ngữ nhưng chậm hơn; lỗi hoặc quá lâu thì dùng Apple Translation. Vẫn chạy hoàn toàn trên máy.": "More natural translations that understand context and idioms, but slower; on error or timeout Apple Translation is used. Still runs entirely on device.",
         "iOS chỉ cho bàn phím đọc clipboard khi bàn phím đang hiện, có Toàn quyền truy cập và đã chọn \"Cho phép dán\". Mục copy lúc bàn phím ẩn được ghi khi bạn mở lại bàn phím (hoặc khi chạm Dán). Lưu chỉ trên máy; mục không ghim tự xoá theo cài đặt Giữ lịch sử clipboard (mặc định 1 giờ).": "iOS only lets the keyboard read the clipboard while it’s showing, with Full Access and \"Allow Paste\" chosen. Things copied while the keyboard is hidden are recorded when you open it again (or tap Paste). Stored on device only; unpinned items are deleted per the Keep clipboard history setting (default 1 hour).",
         "Xoá hết": "Clear all",
         "Đóng clipboard": "Close clipboard",
