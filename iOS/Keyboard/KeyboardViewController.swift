@@ -2199,7 +2199,8 @@ final class KeyboardViewController: UIInputViewController {
         if composed.isEmpty, pasteOffer() {
             // Nút Dán tắt: vẫn ghi lịch sử + chip tách số (thuộc Lịch sử clipboard).
             set.paste = pasteButtonSetting; set.pasteIsImage = pasteIsImage
-            let chips = clip.chips(currentChange: pasteSeenChange, usedChange: pasteUsedChange)
+            let chips = ClipDetect.prioritize(clip.chips(currentChange: pasteSeenChange, usedChange: pasteUsedChange),
+                                              for: fieldTraits?.preferredClipKind)
             // Chip tách số (≤2) + ô "Dán" nguyên văn ở cuối: SuggestionSlots.arrange.
             set.clipChips = chips.map { ($0.label, KeyboardView.clipTokenPrefix + $0.value) }
         }
@@ -2649,7 +2650,8 @@ extension KeyboardViewController {
             keyboard.hidePasteCard()
         } else if pasteOffer() {
             set.paste = pasteButtonSetting; set.pasteIsImage = pasteIsImage
-            let chips = clip.chips(currentChange: pasteSeenChange, usedChange: pasteUsedChange)
+            let chips = ClipDetect.prioritize(clip.chips(currentChange: pasteSeenChange, usedChange: pasteUsedChange),
+                                              for: fieldTraits?.preferredClipKind)
             set.clipChips = chips.map { ($0.label, KeyboardView.clipTokenPrefix + $0.value) }
         }
         if fieldTraits?.wantsURLChips == true {

@@ -81,6 +81,11 @@ data class FieldTraits(
      * vẫn gợi ý chữ đầy đủ (như Gboard, #113) nhưng KHÔNG tự sửa và KHÔNG học từ.
      */
     val appNoSuggestions: Boolean = false,
+    /**
+     * Ô địa chỉ / SĐT (EditorInfo inputType + hintText — FieldMapping.clipPreference): chip
+     * clipboard loại đó lên đầu ([ClipDetect.prioritize]). Song sinh iOS preferredClipKind.
+     */
+    val clipPreference: ClipChip.Kind? = null,
 ) {
     /** Cách ghi chữ vào ô theo app (bảng [WriteMode.forPackage]). */
     val writeMode: WriteMode get() = WriteMode.forPackage(packageName)
@@ -524,6 +529,7 @@ class KeyboardSession(
         autoCapitalize = settings.autoCapitalize
         recentEnglish.clear(); langRecent.clear()
         emailBar = settings.showSuggestions && field.emailField && !field.isSecure
+        clipPreference = field.clipPreference
         suggestionsActive = StripMode.wordsActive(settings.showSuggestions, field,
             StripMode.overridesAppNoSuggest(settings.suggestInNoSuggestFields, field, incognito))
         stripMode = StripMode.of(settings.showSuggestions, field, incognito, settings.suggestInNoSuggestFields)
@@ -1624,6 +1630,7 @@ class KeyboardSession(
 
     // MARK: chip số + lịch sử clipboard
 
+    private var clipPreference: ClipChip.Kind? = null
     private var chipsForChange = -1
     private var chipsCached: List<ClipChip> = emptyList()
 
@@ -1636,7 +1643,7 @@ class KeyboardSession(
             chipsCached = if (cb.isSensitive()) emptyList()
                 else cb.readText()?.let { ClipDetect.detect(it) } ?: emptyList()
         }
-        return chipsCached
+        return ClipDetect.prioritize(chipsCached, clipPreference)
     }
 
     /**

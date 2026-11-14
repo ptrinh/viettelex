@@ -62,6 +62,24 @@ data class FieldConfig(
 )
 
 object FieldMapping {
+    /**
+     * Loại chip clipboard ưu tiên ở ô này: TYPE_CLASS_PHONE / hint "SĐT…" ⇒ SĐT; variation
+     * POSTAL_ADDRESS / hint "Địa chỉ…" ⇒ địa chỉ. Không rõ ⇒ null (thứ tự mặc định).
+     */
+    fun clipPreference(inputType: Int, hint: CharSequence?): com.viettelex.keyboard.ClipChip.Kind? {
+        val cls = inputType and InputType.TYPE_MASK_CLASS
+        val variation = inputType and InputType.TYPE_MASK_VARIATION
+        if (cls == InputType.TYPE_CLASS_PHONE) return com.viettelex.keyboard.ClipChip.Kind.PHONE
+        if (cls == InputType.TYPE_CLASS_TEXT && variation == InputType.TYPE_TEXT_VARIATION_POSTAL_ADDRESS)
+            return com.viettelex.keyboard.ClipChip.Kind.ADDRESS
+        val h = hint?.toString()?.let { com.viettelex.keyboard.ClipDetect.fold(it) } ?: return null
+        return when {
+            h.contains("dia chi") || h.contains("address") -> com.viettelex.keyboard.ClipChip.Kind.ADDRESS
+            h.contains("dien thoai") || h.contains("sdt") || h.contains("phone") -> com.viettelex.keyboard.ClipChip.Kind.PHONE
+            else -> null
+        }
+    }
+
     /** Pixel Launcher: ô tìm đặt MULTI_LINE + NO_ENTER_ACTION nhưng Enter phải là "tìm". */
     const val PIXEL_LAUNCHER = "com.google.android.apps.nexuslauncher"
 

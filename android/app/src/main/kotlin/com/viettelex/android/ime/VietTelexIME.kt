@@ -951,7 +951,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             packageName = info.packageName, urlField = proxy.uriField,
             emailField = field.kind == InputKind.EMAIL, stripTools = field.stripTools,
             lowercaseSuggestions = field.lowercaseSuggestions, appNoSuggestions = field.appNoSuggestions,
-            emailCompose = field.emailCompose))
+            emailCompose = field.emailCompose,
+            clipPreference = FieldMapping.clipPreference(info.inputType, info.hintText)))
         // Bảng gõ tắt đổi ⇒ từ vựng vuốt mới: dựng lại template ở nền (cú vuốt kế khỏi chờ).
         if (session.takeSwipeVocabChanged()) swipeDecoder?.let { dec ->
             if (dec.layout != null) worker().post { synchronized(swipeLock) { if (swipeDecoder === dec) dec.prepare() } }

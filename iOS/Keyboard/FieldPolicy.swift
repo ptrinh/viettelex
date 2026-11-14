@@ -226,6 +226,20 @@ extension FieldTraits {
         return [UITextContentType.password, .newPassword, .oneTimeCode].contains(c)
     }
 
+    /// Loại chip clipboard ưu tiên theo ô (ClipDetect.prioritize) — song sinh Android
+    /// FieldTraits.clipPreference.
+    var preferredClipKind: ClipChip.Kind? {
+        if let c = contentType {
+            let address: Set<UITextContentType> = [.fullStreetAddress, .streetAddressLine1, .streetAddressLine2,
+                                                   .addressCity, .addressState, .addressCityAndState, .sublocality, .location]
+            if address.contains(c) { return .address }
+            if c == .telephoneNumber { return .phone }
+            if c == .oneTimeCode { return .otp }
+        }
+        if keyboardType == .phonePad || keyboardType == .namePhonePad { return .phone }
+        return nil
+    }
+
     /// Ô URL / thanh "tìm hoặc nhập địa chỉ" (Safari, Chrome — keyboardType .webSearch):
     /// chip `www.` `.com` `.vn` (+ `https://` khi ô trống) ở dải công cụ (URLChips).
     var wantsURLChips: Bool { inputKind == .url || inputKind == .search }

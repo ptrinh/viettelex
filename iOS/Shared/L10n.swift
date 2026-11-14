@@ -814,6 +814,7 @@ enum L10n {
         "Dán OTP %@": "Paste OTP %@",
         "Dán SĐT %@": "Paste phone %@",
         "Dán STK %@": "Paste account %@",
+        "Dán địa chỉ": "Paste address",
         "iOS chỉ cho bàn phím đọc clipboard khi bàn phím đang hiện, có Toàn quyền truy cập và đã chọn \"Cho phép dán\". Mục copy lúc bàn phím ẩn được ghi khi bạn mở lại bàn phím (hoặc khi chạm Dán). Lưu chỉ trên máy; mục không ghim tự xoá theo cài đặt Giữ lịch sử clipboard (mặc định 1 giờ).": "iOS only lets the keyboard read the clipboard while it’s showing, with Full Access and \"Allow Paste\" chosen. Things copied while the keyboard is hidden are recorded when you open it again (or tap Paste). Stored on device only; unpinned items are deleted per the Keep clipboard history setting (default 1 hour).",
         "Xoá hết": "Clear all",
         "Đóng clipboard": "Close clipboard",

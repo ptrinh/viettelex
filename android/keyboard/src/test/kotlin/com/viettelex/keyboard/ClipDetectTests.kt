@@ -81,6 +81,40 @@ class ClipDetectTests {
         assertEquals(emptyList<Any>(), d("a".repeat(501) + " 0912345678"))
     }
 
+    /** Địa chỉ — feedback 15/11/2026; vector khớp iOS testShippingInfoAddress. */
+    @Test fun shippingInfoAddress() {
+        assertEquals(listOf(Kind.PHONE to "0976543210", Kind.ADDRESS to "458 Lê Văn Sỹ, P.14, Q.3, TP.HCM"),
+            d("Nguyễn Văn A, 0976.543.210, 458 Lê Văn Sỹ, P.14, Q.3, TP.HCM"))
+        assertEquals(listOf(Kind.PHONE to "0912345678", Kind.ADDRESS to "12/3A Nguyễn Trãi, Phường Bến Thành, Quận 1, TP Hồ Chí Minh"),
+            d("Tên: Trần Thị B\nSĐT: 0912345678\nĐịa chỉ: 12/3A Nguyễn Trãi, Phường Bến Thành, Quận 1, TP Hồ Chí Minh"))
+        assertEquals(listOf(Kind.PHONE to "0987654321", Kind.ADDRESS to "Số 5 ngõ 10 Láng Hạ, Đống Đa, Hà Nội"),
+            d("Chị Lan 0987654321\nSố 5 ngõ 10 Láng Hạ, Đống Đa, Hà Nội"))
+        assertEquals(listOf(Kind.PHONE to "0356789012", Kind.ADDRESS to "xóm 3, xã Tân Lập, huyện Đan Phượng, Hà Nội"),
+            d("xóm 3, xã Tân Lập, huyện Đan Phượng, Hà Nội - 0356789012"))
+        assertEquals(listOf(Kind.ADDRESS to "25 Trần Phú, Hải Châu, Đà Nẵng"), d("ship giúp e về 25 Trần Phú, Hải Châu, Đà Nẵng nhé"))
+        assertEquals(listOf(Kind.ADDRESS to "thôn Đông, xã Yên Phú, Ý Yên, Nam Định"), d("Đ/c: thôn Đông, xã Yên Phú, Ý Yên, Nam Định"))
+        assertEquals(listOf(Kind.ADDRESS to "123 Lê Lợi, Phường 7, Quận Gò Vấp, TPHCM"),
+            d("Địa chỉ:\n123 Lê Lợi\nPhường 7, Quận Gò Vấp\nTPHCM"))
+        assertEquals(listOf(Kind.ADDRESS to "Lô B2, KDC Hồng Loan, P. Hưng Thạnh, Q. Cái Răng, Cần Thơ"),
+            d("Lô B2, KDC Hồng Loan, P. Hưng Thạnh, Q. Cái Răng, Cần Thơ"))
+        assertEquals(listOf(Kind.ADDRESS to "458 Lê Văn Sỹ Q3"), d("Ghi chú: giao giờ hành chính, 458 Lê Văn Sỹ Q3"))
+    }
+
+    @Test fun noAddress() {
+        assertEquals(emptyList<Any>(), d("Phở Hà Nội ngon lắm"))
+        assertEquals(emptyList<Any>(), d("Hẹn 8h30 ở Quận 1 nhé"))
+        assertEquals(emptyList<Any>(), d("quán phở bò ngon"))
+        assertEquals(emptyList<Any>(), d("2 cái áo size M"))
+    }
+
+    @Test fun prioritizeByField() {
+        val c = ClipDetect.detect("Nguyễn Văn A, 0976543210, 458 Lê Văn Sỹ, P.14, Q.3, TP.HCM")
+        assertEquals(listOf(Kind.ADDRESS, Kind.PHONE), ClipDetect.prioritize(c, Kind.ADDRESS).map { it.kind })
+        assertEquals(listOf(Kind.PHONE, Kind.ADDRESS), ClipDetect.prioritize(c, Kind.PHONE).map { it.kind })
+        assertEquals(listOf(Kind.PHONE, Kind.ADDRESS), ClipDetect.prioritize(c, null).map { it.kind })
+        assertEquals("Dán địa chỉ", ClipDetect.detect("458 Lê Văn Sỹ, Q.3").single().label)
+    }
+
     @Test fun labels() {
         assertEquals("Dán STK 0071…", ClipDetect.detect("STK: 0071 0001 23456 Vietcombank").single().label)
         assertEquals("Dán SĐT 0912…", ClipDetect.detect("0912345678").single().label)

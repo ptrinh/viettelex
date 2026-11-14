@@ -8,6 +8,7 @@ final class ClipDetectTests: XCTestCase {
             case .otp: return "otp:\(c.value)"
             case .phone: return "phone:\(c.value)"
             case .account: return "stk:\(c.value)"
+            case .address: return "addr:\(c.value)"
             }
         }
     }
@@ -61,6 +62,38 @@ final class ClipDetectTests: XCTestCase {
         XCTAssertEqual(kinds("Giá 1,250,000 VND"), [])
         XCTAssertEqual(kinds("Năm 2026 có 365 ngày"), [])
         XCTAssertEqual(kinds(String(repeating: "1234567890 ", count: 60)), [])   // quá dài
+    }
+    // Địa chỉ — feedback 15/11/2026: copy thông tin ship mới tách được SĐT.
+    func testShippingInfoAddress() {
+        XCTAssertEqual(kinds("Nguyễn Văn A, 0976.543.210, 458 Lê Văn Sỹ, P.14, Q.3, TP.HCM"),
+                       ["phone:0976543210", "addr:458 Lê Văn Sỹ, P.14, Q.3, TP.HCM"])
+        XCTAssertEqual(kinds("Tên: Trần Thị B\nSĐT: 0912345678\nĐịa chỉ: 12/3A Nguyễn Trãi, Phường Bến Thành, Quận 1, TP Hồ Chí Minh"),
+                       ["phone:0912345678", "addr:12/3A Nguyễn Trãi, Phường Bến Thành, Quận 1, TP Hồ Chí Minh"])
+        XCTAssertEqual(kinds("Chị Lan 0987654321\nSố 5 ngõ 10 Láng Hạ, Đống Đa, Hà Nội"),
+                       ["phone:0987654321", "addr:Số 5 ngõ 10 Láng Hạ, Đống Đa, Hà Nội"])
+        XCTAssertEqual(kinds("xóm 3, xã Tân Lập, huyện Đan Phượng, Hà Nội - 0356789012"),
+                       ["phone:0356789012", "addr:xóm 3, xã Tân Lập, huyện Đan Phượng, Hà Nội"])
+        XCTAssertEqual(kinds("ship giúp e về 25 Trần Phú, Hải Châu, Đà Nẵng nhé"), ["addr:25 Trần Phú, Hải Châu, Đà Nẵng"])
+        XCTAssertEqual(kinds("Đ/c: thôn Đông, xã Yên Phú, Ý Yên, Nam Định"), ["addr:thôn Đông, xã Yên Phú, Ý Yên, Nam Định"])
+        XCTAssertEqual(kinds("Địa chỉ:\n123 Lê Lợi\nPhường 7, Quận Gò Vấp\nTPHCM"),
+                       ["addr:123 Lê Lợi, Phường 7, Quận Gò Vấp, TPHCM"])
+        XCTAssertEqual(kinds("Lô B2, KDC Hồng Loan, P. Hưng Thạnh, Q. Cái Răng, Cần Thơ"),
+                       ["addr:Lô B2, KDC Hồng Loan, P. Hưng Thạnh, Q. Cái Răng, Cần Thơ"])
+        XCTAssertEqual(kinds("Ghi chú: giao giờ hành chính, 458 Lê Văn Sỹ Q3"), ["addr:458 Lê Văn Sỹ Q3"])
+    }
+    func testNoAddress() {
+        XCTAssertEqual(kinds("Phở Hà Nội ngon lắm"), [])
+        XCTAssertEqual(kinds("Hẹn 8h30 ở Quận 1 nhé"), [])
+        XCTAssertEqual(kinds("quán phở bò ngon"), [])
+        XCTAssertEqual(kinds("2 cái áo size M"), [])
+    }
+    func testPrioritizeByField() {
+        let c = ClipDetect.detect("Nguyễn Văn A, 0976543210, 458 Lê Văn Sỹ, P.14, Q.3, TP.HCM")
+        XCTAssertEqual(ClipDetect.prioritize(c, for: .address).map(\.kind), [.address, .phone])
+        XCTAssertEqual(ClipDetect.prioritize(c, for: .phone).map(\.kind), [.phone, .address])
+        XCTAssertEqual(ClipDetect.prioritize(c, for: nil).map(\.kind), [.phone, .address])
+        XCTAssertEqual(ClipDetect.prioritize(c, for: .otp).map(\.kind), [.phone, .address])
+        XCTAssertEqual(ClipDetect.detect("458 Lê Văn Sỹ, Q.3").first?.label, "Dán địa chỉ")
     }
     func testLabels() {
         let c = ClipDetect.detect("STK: 0071000123456")

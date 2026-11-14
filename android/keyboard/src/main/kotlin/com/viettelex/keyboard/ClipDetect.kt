@@ -11,7 +11,8 @@ import java.text.Normalizer
  * hay "…123456." cuối câu vẫn nhận).
  */
 data class ClipChip(val kind: Kind, val value: String, val label: String) {
-    enum class Kind { OTP, PHONE, ACCOUNT }
+    /** Thứ tự = thứ tự hiện chip mặc định. */
+    enum class Kind { OTP, PHONE, ADDRESS, ACCOUNT }
 }
 
 object ClipDetect {
@@ -70,6 +71,9 @@ object ClipDetect {
             }
         }
 
+        // --- Địa chỉ --- (nguyên văn, không chiếm span số)
+        AddressDetect.detect(text)?.let { out += chip(ClipChip.Kind.ADDRESS, it) }
+
         // --- STK ---
         val whole = trimmed.all { it in '0'..'9' || it == ' ' || it == '-' }
         val hasKw = ACCOUNT_KEYWORD.containsMatchIn(folded)
@@ -94,7 +98,24 @@ object ClipDetect {
             ClipChip.Kind.OTP -> "Dán OTP $shown"
             ClipChip.Kind.PHONE -> "Dán SĐT $shown"
             ClipChip.Kind.ACCOUNT -> "Dán STK $shown"
+            ClipChip.Kind.ADDRESS -> "Dán địa chỉ"
         }
+    }
+
+    /**
+     * Ô đang điền là ô địa chỉ / SĐT (EditorInfo) ⇒ chip loại đó lên đầu (dải chỉ hiện 2 chip).
+     * Không biết loại ô ⇒ giữ thứ tự mặc định. Song sinh iOS ClipDetect.prioritize.
+     */
+    fun prioritize(chips: List<ClipChip>, kind: ClipChip.Kind?): List<ClipChip> {
+        val i = if (kind == null) -1 else chips.indexOfFirst { it.kind == kind }
+        if (i <= 0) return chips
+        return listOf(chips[i]) + chips.filterIndexed { j, _ -> j != i }
+    }
+
+    /** Có SĐT Việt Nam trong [s] (cùng luật chip SĐT) — AddressDetect dùng làm ranh giới. */
+    internal fun containsPhone(s: String): Boolean = runs(s, " .-").any { r ->
+        val plus = r.start > 0 && s[r.start - 1] == '+'
+        r.groupEnds.any { (_, n) -> normalizePhone(r.digits.substring(0, n), plus) != null }
     }
 
     private fun chip(kind: ClipChip.Kind, value: String) = ClipChip(kind, value, label(kind, value))
@@ -157,7 +178,7 @@ object ClipDetect {
     }
 
     /** Bỏ dấu + lowercase, GIỮ nguyên độ dài (index khớp chuỗi gốc). */
-    internal fun fold(s: String): String {
+    fun fold(s: String): String {
         val sb = StringBuilder(s.length)
         for (c in s) {
             val base = when (c) {
@@ -173,6 +194,231 @@ object ClipDetect {
     }
 
     private fun IntRange.overlaps(o: IntRange) = first <= o.last && o.first <= last
+}
+
+/**
+ * Địa chỉ Việt Nam trong nội dung vừa copy (thông tin giao hàng…). Luật THUẦN, chặt — bỏ sót thì
+ * vẫn còn Dán nguyên văn, hiện nhầm mới phiền. Port 1:1 iOS `AddressDetect` (ClipDetect.swift).
+ *  1. Tách đoạn theo xuống dòng , ; | và " - ".
+ *  2. Đoạn có nhãn "Địa chỉ:/ĐC:/Đ/c:/Address:" ⇒ phần sau nhãn + các đoạn kế tới khi gặp đoạn có
+ *     SĐT hoặc nhãn khác ("Tên:", "Ghi chú:").
+ *  3. Không nhãn: mỗi đoạn chấm "tầng" — số nhà, đường/ngõ/hẻm…, phường/xã, quận/huyện, tỉnh/thành
+ *     (từ khoá phải đi kèm chữ HOA hoặc số: "Quận 3", "P.14", "xã Tân Lập"; "quán phở" không tính).
+ *     Lấy khúc liền nhau (không vượt đoạn có SĐT/nhãn) có ≥ 2 tầng, ít nhất một tầng là số nhà /
+ *     phường-xã / quận-huyện.
+ */
+object AddressDetect {
+    const val MAX_OUTPUT = 200
+
+    enum class Level { HOUSE, STREET, WARD, DISTRICT, PROVINCE }
+
+    private sealed class Part { class Label(val rest: String) : Part(); object Boundary : Part(); object Content : Part() }
+
+    fun detect(raw: String): String? {
+        val text = Normalizer.normalize(raw, Normalizer.Form.NFC)
+        val parts = split(text).map { it to classify(it) }
+        // 1. có nhãn
+        for ((i, p) in parts.withIndex()) {
+            val k = p.second as? Part.Label ?: continue
+            val out = ArrayList<String>()
+            if (k.rest.isNotEmpty()) out += k.rest
+            var j = i + 1
+            while (j < parts.size && parts[j].second === Part.Content) { out += parts[j].first; j++ }
+            return finish(out)
+        }
+        // 2. không nhãn: khúc tốt nhất trong từng dải giữa các ranh giới
+        var bestScore = 0
+        var best: List<String>? = null
+        var lo = -1; var hi = 0; var head = ""
+        val levels = HashSet<Level>()
+        fun close() {
+            if (lo >= 0 && accepts(levels) && levels.size > bestScore) {
+                // Đoạn đầu: bỏ lời dẫn trước dấu hiệu đầu tiên ("ship giúp e về 25 Trần Phú").
+                bestScore = levels.size
+                best = listOf(head) + parts.subList(lo + 1, hi + 1).map { it.first }
+            }
+            lo = -1; levels.clear()
+        }
+        for ((i, p) in parts.withIndex()) {
+            if (p.second !== Part.Content) { close(); continue }
+            val (lv, from) = scan(p.first)
+            if (lv.isEmpty()) continue
+            if (lo < 0) { lo = i; head = p.first.substring(from) }
+            hi = i; levels += lv
+        }
+        close()
+        return best?.let { finish(it) }
+    }
+
+    /** ≥ 2 tầng, trong đó có số nhà / phường-xã / quận-huyện ("Phở Hà Nội" = đường + tỉnh: không). */
+    fun accepts(l: Set<Level>): Boolean =
+        l.size >= 2 && (Level.HOUSE in l || Level.WARD in l || Level.DISTRICT in l)
+
+    // --- tách + phân loại đoạn ---
+
+    fun split(text: String): List<String> {
+        val out = ArrayList<String>()
+        val cur = StringBuilder()
+        fun flush() { val t = cur.toString().trim(' ', '\t'); if (t.isNotEmpty()) out += t; cur.setLength(0) }
+        for ((i, ch) in text.withIndex()) {
+            if (ch == '\n' || ch == '\r' || ch in ",;|") { flush(); continue }
+            if ((ch == '-' || ch == '–') && i > 0 && i + 1 < text.length && text[i - 1] == ' ' && text[i + 1] == ' ') { flush(); continue }
+            cur.append(ch)
+        }
+        flush()
+        return out
+    }
+
+    private val ADDRESS_LABELS = setOf("dc", "d/c", "d.c", "add", "addr", "address", "noi nhan", "giao den", "giao toi",
+        "ship den", "ship toi", "gui den", "gui toi")
+
+    private fun classify(p: String): Part {
+        val f = ClipDetect.fold(p)
+        val c = f.take(26).indexOf(':')
+        if (c >= 0) {
+            val head = f.substring(0, c).trim()
+            if (head.isNotEmpty() && head.all { it.isLetter() || it in " /." }) {
+                val rest = p.substring(c + 1).trim()
+                if (head.startsWith("dia chi") || head in ADDRESS_LABELS) return Part.Label(rest)
+                val first = head.split(' ').first()
+                if (first !in KEYWORD_WORDS) return Part.Boundary
+            }
+        } else if (f.startsWith("dia chi ")) {
+            return Part.Label(p.substring(8).trim())
+        }
+        if (ClipDetect.containsPhone(p)) return Part.Boundary
+        return Part.Content
+    }
+
+    private val TRAILING_PARTICLES = setOf("nhé", "nha", "nhe", "nhá", "nhen", "ạ", "nhé.", "nha.")
+
+    private fun finish(parts: List<String>): String? {
+        val words = parts.joinToString(", ").split(Regex("\\s+")).filter { it.isNotEmpty() }.toMutableList()
+        // Tiểu từ cuối câu nhắn ("…Đà Nẵng nhé").
+        while (words.isNotEmpty() && words.last().lowercase() in TRAILING_PARTICLES) words.removeAt(words.size - 1)
+        val s = words.joinToString(" ").trimEnd('.', ',', ';', '-', '–', ':', ' ')
+        if (s.length > MAX_OUTPUT || s.count { it.isLetter() } < 4) return null
+        return s
+    }
+
+    // --- tầng địa chỉ trong một đoạn ---
+
+    /** Từ khoá đầy đủ (đã gập dấu) — phải đi kèm chữ HOA hoặc số phía sau. */
+    private val FULL_KEYWORDS: List<Pair<List<String>, Level>> = listOf(
+        "to dan pho" to Level.STREET, "khu do thi" to Level.STREET, "khu dan cu" to Level.STREET,
+        "thanh pho" to Level.PROVINCE, "thi xa" to Level.DISTRICT, "thi tran" to Level.WARD,
+        "khu pho" to Level.STREET, "so nha" to Level.HOUSE, "chung cu" to Level.STREET, "toa nha" to Level.STREET,
+        "phuong" to Level.WARD, "xa" to Level.WARD, "ward" to Level.WARD,
+        "quan" to Level.DISTRICT, "huyen" to Level.DISTRICT, "district" to Level.DISTRICT,
+        "tinh" to Level.PROVINCE, "province" to Level.PROVINCE, "city" to Level.PROVINCE,
+        "duong" to Level.STREET, "pho" to Level.STREET, "ngo" to Level.STREET, "ngach" to Level.STREET,
+        "hem" to Level.STREET, "kiet" to Level.STREET, "thon" to Level.STREET, "xom" to Level.STREET,
+        "ap" to Level.STREET, "lo" to Level.STREET, "street" to Level.STREET, "road" to Level.STREET,
+        "lane" to Level.STREET, "alley" to Level.STREET,
+    ).map { (w, l) -> w.split(' ') to l }
+
+    /**
+     * Viết tắt: dính số ("P14", "Q3") hoặc có chấm/khoảng trắng rồi chữ HOA/số ("P. Bến Nghé",
+     * "TP HCM"); một chữ cái thì bắt buộc dính số hoặc có chấm.
+     */
+    private val ABBREVIATIONS = mapOf(
+        "p" to Level.WARD, "x" to Level.WARD, "tt" to Level.WARD, "q" to Level.DISTRICT, "h" to Level.DISTRICT,
+        "tx" to Level.DISTRICT, "tp" to Level.PROVINCE, "kp" to Level.STREET, "kdc" to Level.STREET,
+        "kdt" to Level.STREET, "cc" to Level.STREET, "d" to Level.STREET, "sn" to Level.HOUSE,
+    )
+    private val KEYWORD_WORDS: Set<String> = FULL_KEYWORDS.map { it.first.first() }.toSet() + ABBREVIATIONS.keys
+
+    /** Tỉnh/thành (34 đơn vị sau sáp nhập 2025 + tên cũ còn hay dùng), đã gập dấu. Chữ đầu phải HOA. */
+    private val PROVINCES: List<List<String>> = listOf(
+        "ha noi", "ho chi minh", "sai gon", "hai phong", "da nang", "can tho", "hue", "thua thien hue",
+        "lai chau", "dien bien", "son la", "lang son", "quang ninh", "thanh hoa", "nghe an", "ha tinh",
+        "cao bang", "tuyen quang", "lao cai", "thai nguyen", "phu tho", "bac ninh", "hung yen",
+        "ninh binh", "quang tri", "quang ngai", "gia lai", "khanh hoa", "lam dong", "dak lak", "dak nong",
+        "dong nai", "tay ninh", "vinh long", "dong thap", "ca mau", "an giang", "ha giang", "yen bai",
+        "bac kan", "vinh phuc", "bac giang", "hoa binh", "hai duong", "thai binh", "ha nam", "nam dinh",
+        "quang binh", "quang nam", "kon tum", "binh dinh", "phu yen", "ninh thuan", "binh thuan",
+        "binh phuoc", "binh duong", "vung tau", "long an", "tien giang", "ben tre", "tra vinh",
+        "hau giang", "soc trang", "bac lieu", "kien giang", "nha trang", "da lat", "bien hoa",
+    ).map { it.split(' ') }
+    /** Viết liền / viết tắt thành phố (chỉ khi viết HOA toàn bộ, trừ "tphcm"). */
+    private val CITY_TOKENS = setOf("hcm", "tphcm", "hn", "sg", "hcmc")
+
+    private class Tok(val s: String, val start: Int, val end: Int, val digit: Boolean)
+
+    fun levels(p: String): Set<Level> = scan(p).first
+
+    /** Tầng + vị trí dấu hiệu đầu tiên trong đoạn. */
+    fun scan(p: String): Pair<Set<Level>, Int> {
+        val o = p
+        val f = ClipDetect.fold(p)
+        val toks = ArrayList<Tok>()
+        var i = 0
+        while (i < f.length) {
+            val d = f[i] in '0'..'9'
+            if (!d && !f[i].isLetter()) { i++; continue }
+            val s = i
+            while (i < f.length && (if (d) f[i] in '0'..'9' else f[i].isLetter())) i++
+            toks += Tok(f.substring(s, i), s, i, d)
+        }
+        fun isUpper(k: Int) = k < o.length && o[k].isUpperCase()
+        fun isDigit(k: Int) = k < o.length && o[k] in '0'..'9'
+        /** Vị trí ký tự đầu sau [end] khi bỏ qua khoảng trắng và "." — (vị trí, có chấm). */
+        fun next(end: Int): Pair<Int, Boolean> {
+            var k = end; var dot = false
+            while (k < f.length && (f[k] == ' ' || f[k] == '.')) { if (f[k] == '.') dot = true; k++ }
+            return k to dot
+        }
+        fun capOrDigit(k: Int) = isUpper(k) || isDigit(k)
+
+        val out = HashSet<Level>()
+        var from = -1
+        fun hit(l: Level, at: Int) { out += l; if (from < 0) from = at }
+        var t = 0
+        while (t < toks.size) {
+            val tok = toks[t]
+            if (tok.digit) {
+                // Số nhà: 1–5 chữ số, trước là đầu đoạn/khoảng trắng; ở đầu đoạn hoặc ngay sau là tên
+                // viết HOA ("ở 12 Nguyễn Trãi"). "Phường 14", "P.14", "12:30" không tính.
+                val prevOK = tok.start == 0 || f[tok.start - 1] == ' '
+                val nt = toks.getOrNull(t + 1)
+                val followedByName = nt != null && !nt.digit && isUpper(nt.start) && nt.start > tok.end
+                if (tok.s.length <= 5 && prevOK && (tok.start == 0 || followedByName)) hit(Level.HOUSE, tok.start)
+                t++; continue
+            }
+            // Tỉnh/thành
+            if (isUpper(tok.start)) {
+                val n = PROVINCES.firstOrNull { w ->
+                    t + w.size <= toks.size && w.indices.all { toks[t + it].s == w[it] && !toks[t + it].digit }
+                }
+                if (n != null) { hit(Level.PROVINCE, tok.start); t += n.size; continue }
+            }
+            if (tok.s in CITY_TOKENS && (tok.s == "tphcm" || (tok.start until tok.end).all { o[it].isUpperCase() })) {
+                hit(Level.PROVINCE, tok.start); t++; continue
+            }
+            // "Số 5" ⇒ số nhà
+            if (tok.s == "so" && toks.getOrNull(t + 1)?.digit == true) { hit(Level.HOUSE, tok.start); t++; continue }
+            // Từ khoá đầy đủ
+            val kw = FULL_KEYWORDS.firstOrNull { (w, _) ->
+                t + w.size <= toks.size && w.indices.all { toks[t + it].s == w[it] }
+            }
+            if (kw != null) {
+                val end = toks[t + kw.first.size - 1].end
+                if (capOrDigit(next(end).first)) hit(kw.second, tok.start)
+                t += kw.first.size; continue
+            }
+            // Viết tắt
+            ABBREVIATIONS[tok.s]?.let { lv ->
+                val attachedDigit = tok.end < f.length && f[tok.end] in '0'..'9'
+                val (k, dot) = next(tok.end)
+                val ok = attachedDigit || (capOrDigit(k) && (dot || tok.s.length >= 2))
+                // "8h30", "2x3": viết tắt dính chữ/số phía trước không tính.
+                val prevFree = tok.start == 0 || !(f[tok.start - 1].isLetter() || f[tok.start - 1] in '0'..'9')
+                if (ok && prevFree) hit(lv, tok.start)
+            }
+            t++
+        }
+        return out to (if (from < 0) 0 else from)
+    }
 }
 
 /** Heuristic "trông như bí mật" — mục nhạy cảm tự hết hạn sớm (2 phút) trong lịch sử. */
