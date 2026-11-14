@@ -22,7 +22,7 @@
 <body>
 
 <h1>Chính sách quyền riêng tư — VietTelex</h1>
-<p class="date">Cập nhật lần cuối: 26/09/2026</p>
+<p class="date">Cập nhật lần cuối: 15/11/2026</p>
 
 <p>VietTelex là bàn phím tiếng Việt (kiểu gõ Telex) cho macOS, iOS, Android, Windows và Linux. Chúng tôi thiết kế app theo nguyên tắc <strong>không thu thập dữ liệu</strong>.</p>
 
@@ -34,7 +34,7 @@
 </ul>
 
 <h2>Dữ liệu bàn phím xử lý (và không rời khỏi máy)</h2>
-<p>Để hoạt động, bàn phím xử lý nội dung bạn gõ <strong>ngay trên thiết bị</strong>. Không có nội dung nào được gửi đi. Các dữ liệu sau lưu <strong>cục bộ</strong> (trong App Group, không đồng bộ, không lên mạng):</p>
+<p>Để hoạt động, bàn phím xử lý nội dung bạn gõ <strong>ngay trên thiết bị</strong>. Không có nội dung nào được gửi đi. Các dữ liệu sau lưu <strong>cục bộ</strong> (trong App Group; chỉ lên mạng khi bạn tự bật Đồng bộ — xem mục dưới):</p>
 <ul>
   <li><strong>Cài đặt bàn phím</strong> (kiểu gõ, gợi ý, giao diện…).</li>
   <li><strong>Từ vựng cá nhân</strong>: bàn phím ghi nhớ tần suất từ hay dùng để gợi ý tốt hơn — lưu trên máy, xoá được trong app.</li>
@@ -50,11 +50,19 @@
 </ol>
 <p>Ngoài hai việc trên, VietTelex <strong>không dùng Toàn quyền Truy cập</strong> cho mục đích nào khác, và <strong>không</strong> dùng nó để thu thập hay gửi nội dung gõ.</p>
 
+<h2>Đồng bộ giữa các máy (tuỳ chọn, mặc định tắt)</h2>
+<p>Nếu bạn tự bật, VietTelex đồng bộ <strong>cài đặt, gõ tắt và mẫu câu</strong> giữa các máy của bạn. <strong>Không</strong> đồng bộ nội dung bạn gõ, từ đã học hay clipboard.</p>
+<ul>
+  <li><strong>iPhone, iPad, Mac</strong>: qua iCloud của chính bạn (iCloud Key-Value Storage).</li>
+  <li><strong>Android</strong>: qua <strong>Google Drive</strong> của chính bạn, trong thư mục ẩn dành riêng cho app (appDataFolder). App chỉ xin quyền <code>drive.appdata</code> — chỉ đọc/ghi được thư mục ẩn đó, <strong>không</strong> xem được file nào khác trong Drive. Dữ liệu đi thẳng giữa máy bạn và Google, không qua máy chủ nào của VietTelex. Tắt đồng bộ hoặc gỡ quyền tại myaccount.google.com → Bảo mật → Ứng dụng bên thứ ba bất cứ lúc nào.</li>
+</ul>
+<p>Việc VietTelex sử dụng và chuyển thông tin nhận được từ Google API tuân thủ <a href="https://developers.google.com/terms/api-services-user-data-policy">Chính sách dữ liệu người dùng của Google API Services</a>, bao gồm các yêu cầu Sử dụng giới hạn (Limited Use).</p>
+
 <h2>Android</h2>
-<p>Trên Android, dữ liệu nói trên lưu trong bộ nhớ riêng của app (không sao lưu lên mạng bởi VietTelex). App chỉ khai báo hai quyền:</p>
+<p>Trên Android, dữ liệu nói trên lưu trong bộ nhớ riêng của app (VietTelex không đưa lên mạng, trừ khi bạn bật Đồng bộ qua Google Drive như trên). App chỉ khai báo hai quyền:</p>
 <ul>
   <li><code>VIBRATE</code> — rung phím khi bạn bật "Rung phím".</li>
-  <li><code>INTERNET</code> — chỉ dùng cho mẫu câu động do bạn tự tạo (URL bắt đầu bằng https://), khi bạn bấm mẫu đó. Bàn phím không gửi nội dung gõ đi đâu.</li>
+  <li><code>INTERNET</code> — chỉ dùng cho mẫu câu động do bạn tự tạo (URL bắt đầu bằng https://), khi bạn bấm mẫu đó, và cho Đồng bộ qua Google Drive nếu bạn bật. Bàn phím không gửi nội dung gõ đi đâu.</li>
 </ul>
 <p>Nút <strong>Dán</strong> trên thanh gợi ý đọc bộ nhớ đệm (clipboard) ngay trên máy để hiện nội dung vừa copy; nội dung này không được lưu hay gửi đi. Android hiện cảnh báo chung cho mọi bàn phím bên thứ ba rằng bàn phím "có thể thu thập văn bản bạn nhập" — VietTelex không làm vậy.</p>
 
@@ -73,7 +81,7 @@
 <hr>
 
 <h1>Privacy Policy — VietTelex (English)</h1>
-<p class="date">Last updated: September 26, 2026</p>
+<p class="date">Last updated: November 15, 2026</p>
 
 <p>VietTelex is a Vietnamese (Telex) keyboard for macOS, iOS, Android, Windows and Linux, built on a <strong>no-data-collection</strong> principle.</p>
 
@@ -85,7 +93,7 @@
 </ul>
 
 <h2>Data the keyboard processes (and that never leaves the device)</h2>
-<p>The keyboard processes what you type <strong>on-device</strong> to function. Nothing you type is sent anywhere. The following is stored <strong>locally</strong> (in the app's App Group container, never synced, never uploaded):</p>
+<p>The keyboard processes what you type <strong>on-device</strong> to function. Nothing you type is sent anywhere. The following is stored <strong>locally</strong> (in the app's App Group container; uploaded only if you turn on Sync — see below):</p>
 <ul>
   <li><strong>Keyboard settings</strong> (typing mode, suggestions, appearance…).</li>
   <li><strong>Personal vocabulary</strong>: the keyboard remembers how often you use words to improve suggestions — stored on-device, erasable in the app.</li>
@@ -101,11 +109,19 @@
 </ol>
 <p>Beyond these two features, VietTelex does <strong>not</strong> use Full Access for anything, and never uses it to collect or transmit typed content.</p>
 
+<h2>Sync between devices (optional, off by default)</h2>
+<p>If you turn it on, VietTelex syncs your <strong>settings, shortcuts and snippets</strong> between your devices. It does <strong>not</strong> sync what you type, learned words or the clipboard.</p>
+<ul>
+  <li><strong>iPhone, iPad, Mac</strong>: through your own iCloud (iCloud Key-Value Storage).</li>
+  <li><strong>Android</strong>: through your own <strong>Google Drive</strong>, in the hidden folder reserved for the app (appDataFolder). The app requests only the <code>drive.appdata</code> scope — it can read and write that hidden folder only and <strong>cannot</strong> see any other file in your Drive. Data goes directly between your device and Google, never through a VietTelex server. Turn sync off, or remove access at myaccount.google.com → Security → Third-party apps, at any time.</li>
+</ul>
+<p>VietTelex's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+
 <h2>Android</h2>
-<p>On Android, the data above is stored in the app's private storage (never uploaded by VietTelex). The app declares only two permissions:</p>
+<p>On Android, the data above is stored in the app's private storage (VietTelex never uploads it unless you turn on Sync via Google Drive as above). The app declares only two permissions:</p>
 <ul>
   <li><code>VIBRATE</code> — key haptics when you enable "Rung phím".</li>
-  <li><code>INTERNET</code> — used only for dynamic snippets you create yourself (URLs starting with https://), when you tap them. The keyboard never sends what you type anywhere.</li>
+  <li><code>INTERNET</code> — used only for dynamic snippets you create yourself (URLs starting with https://), when you tap them, and for Sync via Google Drive if you turn it on. The keyboard never sends what you type anywhere.</li>
 </ul>
 <p>The <strong>Paste</strong> chip in the suggestion bar reads the clipboard on-device to show what you just copied; that content is never stored or transmitted. Android shows a generic warning for every third-party keyboard that it "may be able to collect all the text you type" — VietTelex does not.</p>
 
