@@ -379,10 +379,16 @@
 
       // circumflex doublers: a e o
       if (lower === 'a' || lower === 'e' || lower === 'o') {
+        const nucleusHasHorn = (end) => {
+          for (let j = end; j >= 0 && isVowelAscii(L[j].base); j--) {
+            if (L[j].mark === 'horn') return true;
+          }
+          return false;
+        };
         if (L.length > 0) {
           const pIdx = L.length - 1;
           const p = L[pIdx];
-          if (p.base === lower && p.mark === 'none') { L[pIdx].mark = 'circumflex'; this.rawLetter[at] = pIdx; return; }
+          if (p.base === lower && p.mark === 'none' && (lower === 'o' || !nucleusHasHorn(pIdx))) { L[pIdx].mark = 'circumflex'; this.rawLetter[at] = pIdx; return; }
           if (p.base === lower && p.mark === 'circumflex') {
             L[pIdx].mark = 'none'; this.cancelled = true;
             this._append(lower, 'none', upper, at); return;
@@ -392,7 +398,7 @@
         if (this.freeMarking) {
           let k = L.length - 1;
           while (k >= 0 && !isVowelAscii(L[k].base)) k--;
-          if (k >= 0 && L[k].base === lower && L[k].mark === 'none') { L[k].mark = 'circumflex'; this.rawLetter[at] = k; return; }
+          if (k >= 0 && L[k].base === lower && L[k].mark === 'none' && (lower === 'o' || !nucleusHasHorn(k))) { L[k].mark = 'circumflex'; this.rawLetter[at] = k; return; }
         }
         this._append(lower, 'none', upper, at); return;
       }

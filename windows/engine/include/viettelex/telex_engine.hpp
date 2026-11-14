@@ -362,6 +362,7 @@ private:
     int render();
     void rebuildFrozenAware();
     void setCircumflex(int k);
+    bool nucleusHasHornVowel(int end) const;
     void recomputeFreeze();
     bool prefixKeepsTone(int n);
     uint64_t scratchSignature(int n) const;

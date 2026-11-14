@@ -1163,6 +1163,23 @@ final class BracketVowelTests: XCTestCase {
         for ch in "]aw" { _ = f.feed(ch) }
         XCTAssertEqual(f.composed, "uaw")
     }
+
+    /// Horned vowels (ư, ơ) never combine with circumflex â/ê in the same nucleus, so
+    /// a/e doublers stay literal for teencode elongation ("uwfaaa" → "ừaaa") while `o`
+    /// still swaps ơ/ươ → ô/uô ("luwowno" → "luôn").
+    func testHornNucleusBlocksAECircumflexDoubler() {
+        XCTAssertEqual(commitFree("uwfaaa"), "ừaaa")
+        XCTAssertEqual(commitFree("owfaaa"), "ờaaa")
+        XCTAssertEqual(commitFree("vuwfaaaa"), "vừaaaa")
+        XCTAssertEqual(commitFree("muwaaaa"), "mưaaaa")
+        XCTAssertEqual(commitFree("uwfeee"), "ừeee")
+        XCTAssertEqual(composeFree("mowo"), "mô")
+        XCTAssertEqual(composeFree("luwowo"), "luô")
+        XCTAssertEqual(composeFree("luwowno"), "luôn")
+        XCTAssertEqual(composeFree("cawsa"), "cấ")
+        XCTAssertEqual(commitFree("week"), "week")
+        XCTAssertEqual(commitFree("weekend"), "weekend")
+    }
 }
 
 // Engine-level contract of the teencode "Dạa" rule (see TeencodeToneThenATests): commit,
