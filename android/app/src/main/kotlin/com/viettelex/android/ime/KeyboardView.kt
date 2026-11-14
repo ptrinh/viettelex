@@ -1407,7 +1407,7 @@ class KeyboardView(
     /** Badge "ViệtTelex" / nhãn vuốt đổi ngôn ngữ / logo trên phím cách — vẽ SAU lưới phím, mỗi khung. */
     private fun drawSpaceContent(c: Canvas) {
         val k = spaceKey ?: return
-        if (plane == Plane.EMOJI) return
+        if (plane == Plane.EMOJI || !languageOnSpace) return
         val contentAlpha = ((if (trackpad) 51 else 255) * theme.labelAlpha).toInt()
         val cx = k.centerX; val cy = k.centerY
         // Badge "ViệtTelex" lúc hiện rồi mờ dần về logo Vᴛ (như iOS). Kẹp trong phím (vẽ sau phím kề).
@@ -1444,6 +1444,11 @@ class KeyboardView(
     // đối diện. Nhấc nhanh (trước ngưỡng trackpad) đủ ~1 phím ⇒ đổi: nhãn mới vào giữa, sáng
     // một nhịp rồi mờ đi, logo Vᴛ/E đổi theo. Không đủ ⇒ trượt về, mờ đi. Giống iOS.
     private var spaceFlickEnabled = false
+    /**
+     * Bàn số (ô điện thoại / ô số) chỉ gõ số: phím cách KHÔNG mang nhãn VI/EN, logo hay badge, và vuốt
+     * phím cách không đổi ngôn ngữ — tester 15/11/2026 tưởng góc "VI" là nút chuyển Anh/Việt thừa.
+     */
+    private val languageOnSpace: Boolean get() = !KeyLayout.isNumberPad(plane)
     var spaceLanguage = KeyboardLanguage.VI
         set(v) { if (field != v) { field = v; invalidateSpace() } }
     private var flickDownT = 0L
@@ -1917,7 +1922,7 @@ class KeyboardView(
                     }
                 } else {
                     if (movedFar) { removeCallbacks(spaceHoldRun); spaceHoldGone = true }
-                    if (spaceFlickEnabled && plane != Plane.EMOJI_SEARCH) moveFlick(x - ptrDownX[pid], y - ptrDownY[pid])
+                    if (spaceFlickEnabled && plane != Plane.EMOJI_SEARCH && languageOnSpace) moveFlick(x - ptrDownX[pid], y - ptrDownY[pid])
                 }
             }
             k.kind == KeyKind.BACKSPACE && pid == bsPtr -> moveBackspace(k, x - ptrDownX[pid], y - ptrDownY[pid], movedFar)
@@ -1984,7 +1989,7 @@ class KeyboardView(
             KeyKind.SPACE -> {
                 if (pid == spacePtr) {
                     removeCallbacks(spaceHoldRun); spacePtr = -1
-                    if (spaceFlickEnabled && !trackpad) endFlick(k, x - ptrDownX[pid], y - ptrDownY[pid], t, cancelled)
+                    if (spaceFlickEnabled && !trackpad && languageOnSpace) endFlick(k, x - ptrDownX[pid], y - ptrDownY[pid], t, cancelled)
                     // Cancel VẪN chốt (KeyCommitQueue) — trừ chạm ở dải mép (vuốt Quay lại);
                     // trackpad đã disarm nên không có space.
                     EdgeTouch.settle(commits, k, edge, cancelled)

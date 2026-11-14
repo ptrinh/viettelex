@@ -668,6 +668,9 @@ object KeyLayout {
     // mẫu câu, tìm emoji, bảng sửa, bàn số giữ đầy bề ngang. Router [hit] giữ nguyên: khe giữa
     // cách mọi phím > 21 dp ⇒ không phím nào (vùng chết như Apple), mép phím vẫn nhận phím gần nhất.
 
+    /** Bàn số kiểu Gboard (ô điện thoại / ô số) — phím cách không mang nhãn ngôn ngữ. */
+    fun isNumberPad(p: Plane): Boolean = p == Plane.PHONE || p == Plane.NUMPAD
+
     /** Plane nào dựng tách đôi khi bật (như iOS: chữ, 123, #+=). */
     fun splitPlane(p: Plane): Boolean = p == Plane.LETTERS || p == Plane.NUMBERS || p == Plane.SYMBOLS
 

@@ -716,4 +716,17 @@ class KeyLayoutTest {
             assertTrue("$width $one", 0.9f * size <= kw - 2 * KeyLabelFit.PAD_DP + 0.01f || size == 22f)
         }
     }
+
+    /** Tester 15/11/2026: bàn số không có nhãn VI/EN trên phím cách (tưởng nút chuyển Anh/Việt thừa). */
+    @Test fun numberPadSpaceCarriesNoLanguage() {
+        assertTrue(KeyLayout.isNumberPad(Plane.PHONE))
+        assertTrue(KeyLayout.isNumberPad(Plane.NUMPAD))
+        for (p in listOf(Plane.LETTERS, Plane.NUMBERS, Plane.SYMBOLS)) assertFalse(KeyLayout.isNumberPad(p))
+        // Nối dây: vẽ nhãn và vuốt đổi ngôn ngữ đều đi qua languageOnSpace.
+        val src = listOf(java.io.File("src/main/kotlin"), java.io.File("app/src/main/kotlin")).first { it.isDirectory }
+            .resolve("com/viettelex/android/ime/KeyboardView.kt").readText()
+        assertTrue("!KeyLayout.isNumberPad(plane)" in src)
+        assertEquals(2, Regex("&& languageOnSpace\\)").findAll(src).count())   // moveFlick + endFlick
+        assertTrue("|| !languageOnSpace) return" in src)                              // drawSpaceContent
+    }
 }
