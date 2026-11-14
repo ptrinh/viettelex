@@ -46,11 +46,18 @@ fun TranslateSettings(leadingDivider: Boolean = true) {
     var error by remember { mutableStateOf<String?>(null) }
     var picking by remember { mutableStateOf(false) }
     var refresh by remember { mutableStateOf(0) }
+    var aiOn by rememberBoolPref(Keys.TRANSLATE_AI, false)
+    var nanoReady by remember { mutableStateOf(false) }
     val ui = if (L10n.isEnglish) L10n.EN else L10n.VI     // đọc state ngôn ngữ ⇒ recompose khi đổi
 
     // Khởi tạo ML Kit chỉ khi trang này mở (không lúc khởi động process).
     LaunchedEffect(Unit) { backend = TranslateFeature.load(ctx) }
     LaunchedEffect(backend, refresh) { backend?.downloadedModels { have = it ?: emptySet() } }
+    // Gemini Nano dùng được trên máy này? (AICore; máy không hỗ trợ ⇒ không hiện công tắc AI)
+    LaunchedEffect(Unit) {
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
+        com.viettelex.android.ai.GeminiNanoBridge.status(com.viettelex.android.ai.GeminiNano.executor) { ok -> main.post { nanoReady = ok } }
+    }
 
     if (leadingDivider) RowDivider()
     VTRow(onClick = { picking = true }) {
@@ -65,6 +72,12 @@ fun TranslateSettings(leadingDivider: Boolean = true) {
     RowDivider()
     SettingToggle(tr("Chỉ tải qua Wi-Fi"), null, wifiOnly) { wifiOnly = it }
     RowDivider()
+    if (nanoReady || aiOn) {
+        SettingToggle(tr("Dịch bằng AI trên máy (thử nghiệm)"),
+            tr("Gemini Nano dịch tự nhiên hơn, hiểu ngữ cảnh và thành ngữ nhưng chậm hơn; lỗi hoặc quá lâu thì dùng ML Kit. Vẫn chạy hoàn toàn trên máy."),
+            aiOn) { aiOn = it }
+        RowDivider()
+    }
 
     val b = backend
     val ready = have?.containsAll(listOf(TranslateLangs.VI, target)) == true

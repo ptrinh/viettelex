@@ -87,6 +87,41 @@ class ClipboardSessionTests {
         assertFalse(s.suggestionsNow(p)!!.paste)         // đã dùng ⇒ hết mời
     }
 
+    /** Ô địa chỉ: chip địa chỉ lên đầu; luật không ra ⇒ hỏi AI một lần mỗi clip, kết quả kiểm chống bịa. */
+    @Test fun addressFieldRanksChipAndAsksAIOnce() {
+        val calls = ArrayList<(String?) -> Unit>()
+        var ready = 0
+        val s = session(traits = FieldTraits(clipPreference = ClipChip.Kind.ADDRESS)); val p = MockProxy()
+        s.clipAddressAI = ClipAddressAI { _, _, done -> calls += done }
+        s.onClipAddressReady = { ready++ }
+        clip.copy("Nguyễn Văn A, 0976543210, 458 Lê Văn Sỹ, P.14, Q.3, TP.HCM")
+        assertEquals(listOf("Dán địa chỉ", "Dán SĐT 0976…"), s.suggestionsNow(p)!!.clipChips.map { it.label })
+        assertEquals(0, calls.size)                                   // luật đã ra ⇒ không gọi AI
+        clip.copy("Chị Lan 0987654321 nhà ở số 5 ngõ 10 láng hạ đống đa hn nha")
+        s.invalidatePasteCache()
+        assertEquals(listOf(ClipChip.Kind.PHONE), s.suggestionsNow(p)!!.clipChips.map { it.kind })
+        s.suggestionsNow(p)
+        assertEquals(1, calls.size)                                   // đang chờ ⇒ không gọi lại
+        calls[0]("số 5 ngõ 10 láng hạ đống đa hn")
+        assertEquals(1, ready)
+        assertEquals(listOf(ClipChip.Kind.ADDRESS, ClipChip.Kind.PHONE), s.suggestionsNow(p)!!.clipChips.map { it.kind })
+        assertEquals(1, calls.size)
+        // Ô thường: không gọi AI
+        val plain = session(); plain.clipAddressAI = ClipAddressAI { _, _, done -> calls += done }
+        clip.copy("nhà ở số 7 ngõ 3 láng hạ")
+        plain.suggestionsNow(p)
+        assertEquals(1, calls.size)
+    }
+
+    @Test fun aiAddressValidation() {
+        val src = "Gửi giúp chị Lan 0987654321\nnhà mình ở số 5 ngõ 10 láng hạ, đống đa hn nha"
+        assertEquals("số 5 ngõ 10 láng hạ, đống đa hn", AIAddress.validate(" số 5  ngõ 10 láng hạ, đống đa hn. ", src))
+        assertNull(AIAddress.validate("Số 5 ngõ 10 Láng Hạ, Đống Đa, Hà Nội", src))   // "noi" bịa
+        assertNull(AIAddress.validate("số 7 ngõ 10 láng hạ", src))
+        assertNull(AIAddress.validate("chị Lan 0987654321", src))
+        assertNull(AIAddress.validate("", src))
+    }
+
     @Test fun chipsNeedAdvancedClipboardWhenPaywallOn() {
         PlusGate.install({ null }, debugBuild = false)
         PlusGate.paywallEnabled = true

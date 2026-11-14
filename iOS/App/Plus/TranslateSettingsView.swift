@@ -11,6 +11,9 @@ import Translation
 struct TranslateSettingsView: View {
     @AppStorage(TranslatePrefs.targetKey, store: UserDefaults(suiteName: PlusConfig.appGroup))
     private var storedTarget = TranslatePrefs.defaultTarget
+    @AppStorage(TranslatePrefs.aiKey, store: UserDefaults(suiteName: PlusConfig.appGroup))
+    private var useAI = false
+    @State private var aiAvailable = false
     @State private var languages: [String] = []
     @State private var status: LanguageAvailability.Status?
     @State private var config: TranslationSession.Configuration?
@@ -64,11 +67,21 @@ struct TranslateSettingsView: View {
             } header: { Text(L("Gói dịch")) } footer: {
                 Text(L("Gói dịch của Apple tải một lần, sau đó dịch hoàn toàn trên máy — chữ bạn gõ không gửi đi đâu. Xoá gói: Cài đặt → Ứng dụng → Dịch thuật."))
             }
+
+            // Chỉ hiện khi máy có Apple Intelligence dùng được (hoặc đã bật trước đó — để tắt được).
+            if aiAvailable || useAI {
+                Section {
+                    Toggle(L("Dịch bằng Apple Intelligence (thử nghiệm)"), isOn: $useAI)
+                } footer: {
+                    Text(L("Dịch tự nhiên hơn, hiểu ngữ cảnh và thành ngữ nhưng chậm hơn; lỗi hoặc quá lâu thì dùng Apple Translation. Vẫn chạy hoàn toàn trên máy."))
+                }
+            }
         }
         .navigationTitle(L("Dịch trên máy"))
         .task {
             let ids = await LanguageAvailability().supportedLanguages.map(\.minimalIdentifier)
             languages = TranslatePrefs.pickerTargets((ids.isEmpty ? TranslatePrefs.knownTargets : ids) + [target])
+            aiAvailable = AIAvailability.isAvailable
             await refresh()
         }
         .onChange(of: storedTarget) {

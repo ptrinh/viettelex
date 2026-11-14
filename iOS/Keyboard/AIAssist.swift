@@ -435,6 +435,38 @@ final class AIAssist {
         }
     }
 
+    // MARK: địa chỉ từ clipboard (ô địa chỉ)
+
+    /// Kết quả theo changeCount clipboard (nil value = model không tìm thấy / lỗi ⇒ không hỏi lại).
+    private var clipAddr: (change: Int, value: String?)?
+    private var clipAddrInFlight: Int?
+
+    /// Địa chỉ model trích từ `text` (clipboard lần `change`). Chưa có ⇒ bắt đầu hỏi NỀN (một lần
+    /// mỗi nội dung), trả nil ngay; xong ⇒ vẽ lại thanh. Model không dùng được ⇒ luôn nil.
+    func clipAddress(text: String, change: Int) -> String? {
+        if let c = clipAddr, c.change == change { return c.value }
+        guard clipAddrInFlight != change, ensureStatus() == .available else { return nil }
+        clipAddrInFlight = change
+        let t0 = CACurrentMediaTime()
+        Task { @MainActor [weak self] in
+            let r = await AIAssistLoader.run(kind: 2, instructions: AIAddress.instructions,
+                                             prompt: AIAddress.prompt(text))
+            guard let self, self.clipAddrInFlight == change else { return }
+            self.clipAddrInFlight = nil
+            var value: String?
+            switch r {
+            case .success(let s): value = AIAddress.validate(s, source: text)
+            case .failure(let f):
+                TouchLog.write("ai: address failed \(f)")
+                if f == .unavailable { self.status = .notReady }
+            }
+            TouchLog.write(String(format: "ai: address %.0fms found=%d", (CACurrentMediaTime() - t0) * 1000, value == nil ? 0 : 1))
+            self.clipAddr = (change, value)
+            if value != nil { self.host.refresh() }
+        }
+        return nil
+    }
+
     private func replaceWord(_ word: String, with alt: String) {
         guard let sel = proxy.selected, let result = AIText.replaceWord(in: sel, word: word, with: alt) else { return }
         alts = nil

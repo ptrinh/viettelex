@@ -192,6 +192,46 @@ sealed class TranslateResult {
     data class Failed(val reason: String) : TranslateResult()
 }
 
+/**
+ * Dịch bằng LLM trên máy (Gemini Nano — thử nghiệm): prompt + kiểm kết quả. Kết quả không qua
+ * [validate] ⇒ app dùng ML Kit (không bao giờ ghi bản dịch đáng ngờ vào ô).
+ */
+object AITranslate {
+    /** Đoạn dài hơn ⇒ khỏi hỏi model (giới hạn ngữ cảnh / đầu ra của model trên máy), dùng ML Kit. */
+    const val MAX_CHARS = 1000
+
+    private fun englishName(code: String) =
+        java.util.Locale.forLanguageTag(code).getDisplayLanguage(java.util.Locale.ENGLISH).ifBlank { code }
+
+    fun prompt(text: String, plan: TranslateDirection.Plan): String =
+        "Translate the text below from ${englishName(plan.from)} to ${englishName(plan.to)}. " +
+            "Write it the way a native speaker would say it, keeping the meaning, tone, names, numbers, " +
+            "emoji and line breaks. Reply with the translation only, no notes or quotes.\n\nText:\n" + text
+
+    /** Bản dịch đã gọn, hoặc null nếu trông không ổn (trống, lời dẫn, độ dài lệch, sai chữ viết, mất dòng). */
+    fun validate(output: String, source: String, plan: TranslateDirection.Plan): String? {
+        var out = output.trim()
+        // Lời dẫn kiểu "Translation:" / "Here is the translation:" ở dòng đầu.
+        val firstLine = out.substringBefore('\n')
+        if (firstLine.endsWith(':') && firstLine.length < 60 && out.contains('\n')) out = out.substringAfter('\n').trim()
+        if (out.length >= 2 && out.first() in "\"“'" && out.last() in "\"”'" && source.trim().first() !in "\"“'") {
+            out = out.substring(1, out.length - 1).trim()
+        }
+        if (out.isEmpty()) return null
+        val n = source.trim().length
+        if (out.length > n * 3 + 20 || out.length * 3 + 10 < n) return null
+        val srcLines = source.trim().lines().size
+        if (srcLines > 1 && out.lines().size != srcLines) return null
+        val ok = when {
+            plan.to == TranslateLangs.VI -> TranslateDirection.looksVietnamese(out, "en") || !out.any { it.isLetter() }
+            // Đích Latin: không được còn chữ RIÊNG tiếng Việt (ơ ư đ ă… — kiểm chặt, không tính à á é).
+            TranslateLangs.isLatin(plan.to) -> !TranslateDirection.looksVietnamese(out, "")
+            else -> TranslateDirection.inTargetScript(out, plan.to)
+        }
+        return if (ok) out else null
+    }
+}
+
 /** Một client dịch cho MỘT cặp; [close] giải phóng model native. Callback về main thread. */
 interface TranslateEngine {
     fun translate(text: String, onDone: (TranslateResult) -> Unit)

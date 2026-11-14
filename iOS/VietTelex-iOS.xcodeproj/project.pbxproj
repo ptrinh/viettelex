@@ -170,6 +170,7 @@
 		42530AF9240EA84945F8FA6E /* FootballFx.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77323AD52A4C80D9D12CE505 /* FootballFx.swift */; };
 		42C0FC911DFA0F3E53C151F2 /* patrick-hand.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E75AFF6CFBC6B0096C134CFB /* patrick-hand.ttf */; };
 		434A2DE773686767F92FFCDC /* NightClubSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9A05AE760FBCD9C4122821C /* NightClubSnapshotTests.swift */; };
+		43F7102CFF2C64B076E98410 /* TouchLogAlerts.swift in Sources */ = {isa = PBXBuildFile; fileRef = C358AB627E9E79C3E4E824DE /* TouchLogAlerts.swift */; };
 		444358B0BE78D91F673CD621 /* TouchTargetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C928B7D91A4C54D1642E70F /* TouchTargetTests.swift */; };
 		449E170B3E5587C8C753066F /* TesterFeedback128Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A3A76C6FE352CB31025CB2 /* TesterFeedback128Tests.swift */; };
 		44A5583606CE1DF3341B9EC6 /* BackupStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A809E689B0799E01016CE69B /* BackupStore.swift */; };
@@ -389,6 +390,7 @@
 		A1D007E26A075E6497254AA7 /* EmojiData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE050ECA55A95B273F9E18A0 /* EmojiData.swift */; };
 		A2A7C2D0EE8ACF5B5231EAD7 /* quicksand.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BCEDB8DB46233031AA0E58FB /* quicksand.ttf */; };
 		A2A9A0CA122A1E4542FC1237 /* MoleGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 680C638081B910FE0C6D35F3 /* MoleGame.swift */; };
+		A2C4504AFA9C16E40D57194E /* TouchLogAlerts.swift in Sources */ = {isa = PBXBuildFile; fileRef = C358AB627E9E79C3E4E824DE /* TouchLogAlerts.swift */; };
 		A2CEEACB594EB47AF40541A3 /* swipe-paths-timed.txt in Resources */ = {isa = PBXBuildFile; fileRef = A42C0808FA2107FC8B2A9D05 /* swipe-paths-timed.txt */; };
 		A354F35BE23603DF53A32A80 /* SpaceLogoEN@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 0B0AEDFB5FDC699CA97C4DE2 /* SpaceLogoEN@2x.png */; };
 		A3ACE14C8F0F55490A23732E /* FutoSwipeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FA4464DCB74D34A8A55E14B /* FutoSwipeTests.swift */; };
@@ -405,6 +407,7 @@
 		A8202055F6F4248A5DF3B02C /* ClipboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A7C16DB3F7238439276C90B /* ClipboardTests.swift */; };
 		A8D01039B8A17E5F7671E959 /* KeyEffectPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD4E9F6CE4AEFCD787BC3BF /* KeyEffectPreview.swift */; };
 		A8E752D70EF6926F03C6E45C /* EmojiSearchBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B65EEFA3CD83560C2E9D86B /* EmojiSearchBar.swift */; };
+		A9283EF79B30B5314DE19E56 /* TouchLogAlerts.swift in Sources */ = {isa = PBXBuildFile; fileRef = C358AB627E9E79C3E4E824DE /* TouchLogAlerts.swift */; };
 		A9B5CB329E25C3281FFDE6CC /* KeyAlternatesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20B596D225BB513FA414DB3 /* KeyAlternatesTests.swift */; };
 		AAD686F0EFFB0502D1BC32E9 /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BDB49FABB2F78D2A96902FA /* L10n.swift */; };
 		AADA245766A91FA02046C53A /* EmojiSearchBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B65EEFA3CD83560C2E9D86B /* EmojiSearchBar.swift */; };
@@ -951,6 +954,7 @@
 		C007A36B32C0446F5DA0D89F /* NumericKeypad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumericKeypad.swift; sourceTree = "<group>"; };
 		C0D2E54E996214AA4F8CB065 /* TrackpadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackpadTests.swift; sourceTree = "<group>"; };
 		C23B10293CBF99CC16B1E908 /* ClipboardHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardHistory.swift; sourceTree = "<group>"; };
+		C358AB627E9E79C3E4E824DE /* TouchLogAlerts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchLogAlerts.swift; sourceTree = "<group>"; };
 		C38772D47D6B779FA5C58271 /* L10nTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10nTests.swift; sourceTree = "<group>"; };
 		C39CAE56C7A6C95E09637270 /* suggest-trigram-parity.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "suggest-trigram-parity.txt"; sourceTree = "<group>"; };
 		C445BEBA75DFC20101EC3BA9 /* VNSuggest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VNSuggest.swift; sourceTree = "<group>"; };
@@ -1270,6 +1274,7 @@
 				B1C67EF4DD8066AD3C798959 /* SuggestionCount.swift */,
 				6152562FF50F2AE0026EE23A /* SuggestionInk.swift */,
 				75EF5E8FC1AB07002E906E14 /* SwipeSoundStyles.swift */,
+				C358AB627E9E79C3E4E824DE /* TouchLogAlerts.swift */,
 				1B4720D0E4858AFE6E92602D /* TrackpadSpeed.swift */,
 				79FD55F59F8275BCD7B566DD /* TranslatePrefs.swift */,
 			);
@@ -2068,6 +2073,7 @@
 				1D286BF27687D9F637D3E953 /* ThemeSpec.swift in Sources */,
 				86FFD0F2F1C505CCB71BBCB3 /* TouchGeometry.swift in Sources */,
 				665AA760B41DC86808F42E23 /* TouchLog.swift in Sources */,
+				43F7102CFF2C64B076E98410 /* TouchLogAlerts.swift in Sources */,
 				FAA72FF64936E572745B57FC /* TouchTarget.swift in Sources */,
 				8DE8F0376AD4F1CB2382F531 /* Trackpad.swift in Sources */,
 				37F59C7CDEAAB0A7D1921061 /* TrackpadSpeed.swift in Sources */,
@@ -2167,6 +2173,7 @@
 				C31A1027B7B30D20C5429A3E /* ThemeSettingsView.swift in Sources */,
 				D69BE9A295DEC8D5C42B587F /* ThemeSpec.swift in Sources */,
 				C618DE16B7A564F8E5BD4DA2 /* TouchGeometry.swift in Sources */,
+				A2C4504AFA9C16E40D57194E /* TouchLogAlerts.swift in Sources */,
 				907F964487BA3A68973501C4 /* TrackpadSpeed.swift in Sources */,
 				4A1DAD15F27FA4005C5D4058 /* TranslatePrefs.swift in Sources */,
 				3114B687743026F5D4FA7DCA /* TranslateSettingsView.swift in Sources */,
@@ -2445,6 +2452,7 @@
 				962AD5E7A7B29DDBDD0C54B6 /* ThemeSpec.swift in Sources */,
 				886F6649C089D64E44E1C2FC /* TouchGeometry.swift in Sources */,
 				59184856DB1424FEC29F3781 /* TouchLog.swift in Sources */,
+				A9283EF79B30B5314DE19E56 /* TouchLogAlerts.swift in Sources */,
 				3B0F67D9F2B02D6D37BC001A /* TouchLogFormatTests.swift in Sources */,
 				6E288C02E8191203ECFB80E3 /* TouchTarget.swift in Sources */,
 				444358B0BE78D91F673CD621 /* TouchTargetTests.swift in Sources */,

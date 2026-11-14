@@ -35,6 +35,12 @@ enum TranslatePrefs {
 
     static func target(_ d: UserDefaults?) -> String { normalized(d?.string(forKey: targetKey)) }
 
+    /// "Dịch bằng Apple Intelligence" (thử nghiệm, mặc định TẮT): model trên máy dịch trước,
+    /// lỗi / quá hạn / kết quả bất thường ⇒ Apple Translation. Không sao lưu (tuỳ máy) — song
+    /// sinh Android Keys.TRANSLATE_AI.
+    static let aiKey = "translateAI"
+    static func useAI(_ d: UserDefaults?) -> Bool { d?.bool(forKey: aiKey) ?? false }
+
     static func setTarget(_ v: String, _ d: UserDefaults?) { d?.set(normalized(v), forKey: targetKey) }
 
     /// Tên ngôn ngữ theo ngôn ngữ giao diện ("Tiếng Nhật" / "Japanese"), viết hoa chữ đầu.

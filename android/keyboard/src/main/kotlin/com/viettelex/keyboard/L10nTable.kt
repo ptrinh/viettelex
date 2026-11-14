@@ -763,6 +763,8 @@ object L10nTable {
         put("Dịch sang", "Translate into")
         put("Chiều ngược lại: đoạn đã là %s sẽ dịch sang tiếng Việt.", "Reverse: text that is already %s is translated into Vietnamese.")
         put("Chỉ tải qua Wi-Fi", "Download over Wi-Fi only")
+        put("Dịch bằng AI trên máy (thử nghiệm)", "On-device AI translation (experimental)")
+        put("Gemini Nano dịch tự nhiên hơn, hiểu ngữ cảnh và thành ngữ nhưng chậm hơn; lỗi hoặc quá lâu thì dùng ML Kit. Vẫn chạy hoàn toàn trên máy.", "Gemini Nano translates more naturally and understands context and idioms, but is slower; on error or timeout ML Kit is used. Still runs entirely on device.")
         put("Đang tải gói dịch…", "Downloading translation packs…")
         put("✓ Đã có gói: Tiếng Việt + %s", "✓ Packs ready: Vietnamese + %s")
         put("Tải gói dịch (Tiếng Việt + %s, %s)", "Download translation packs (Vietnamese + %s, %s)")

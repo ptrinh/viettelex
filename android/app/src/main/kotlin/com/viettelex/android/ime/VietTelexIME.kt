@@ -102,7 +102,9 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     /** Công cụ văn bản vừa áp ⇒ ô "↩︎ Hoàn tác" / ⌫ ngay sau (một lượt). */
     private var toolUndo: TextTools.Undo? = null
     /** Dịch trên máy (Plus): controller rẻ; client ML Kit chỉ tạo khi chạm "Dịch", đóng 30 s sau lượt cuối (MlKitBackend). */
-    private val translate by lazy { TranslateController(com.viettelex.android.translate.TranslateFeature.engineFactory(this)) }
+    private val translate by lazy {
+        TranslateController(com.viettelex.android.translate.TranslateFeature.engineFactory(this) { prefs.getBoolean(Keys.TRANSLATE_AI, false) })
+    }
     private var translateUsed = false
     private val clearStatusRun = Runnable { strip?.showStatus(null) }
 
@@ -346,6 +348,9 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         }
         syncClipHistory(prefs.getBoolean(Keys.CLIPBOARD_HISTORY, false), ClipboardTTL.of(prefs.getString(Keys.CLIPBOARD_TTL, null)))
         clipboard.onChanged = { onClipChanged() }
+        // Ô địa chỉ + luật không ra địa chỉ ⇒ Gemini Nano (client tạo lười ở lần gọi đầu).
+        session.clipAddressAI = com.viettelex.android.ai.GeminiNanoAddress()
+        session.onClipAddressReady = { if (inputShown) refreshBar() }
         // Mời dán một lần mỗi mục clipboard: chỉ lưu id (timestamp ClipDescription), không nội dung.
         session.pasteOnce.reload(stateStore().getLong(Keys.PASTE_OFFERED_ID, Long.MIN_VALUE).takeIf { it != Long.MIN_VALUE })
         session.pasteOnce.persist = { stateStore().edit().putLong(Keys.PASTE_OFFERED_ID, it).apply() }
@@ -951,7 +956,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             packageName = info.packageName, urlField = proxy.uriField,
             emailField = field.kind == InputKind.EMAIL, stripTools = field.stripTools,
             lowercaseSuggestions = field.lowercaseSuggestions, appNoSuggestions = field.appNoSuggestions,
-            emailCompose = field.emailCompose))
+            emailCompose = field.emailCompose,
+            clipPreference = FieldMapping.clipPreference(info.inputType, info.hintText)))
         // Bảng gõ tắt đổi ⇒ từ vựng vuốt mới: dựng lại template ở nền (cú vuốt kế khỏi chờ).
         if (session.takeSwipeVocabChanged()) swipeDecoder?.let { dec ->
             if (dec.layout != null) worker().post { synchronized(swipeLock) { if (swipeDecoder === dec) dec.prepare() } }

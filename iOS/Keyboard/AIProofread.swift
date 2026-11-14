@@ -448,3 +448,105 @@ enum AITimeout {
         return r
     }
 }
+
+
+// MARK: trích địa chỉ (ô địa chỉ, clipboard mà luật thuần AddressDetect không ra)
+
+/// Chỉ gọi khi: công tắc Apple Intelligence BẬT, ô đang điền là ô địa chỉ (trait), clipboard chưa
+/// có chip địa chỉ — một lần mỗi nội dung clipboard, chạy nền (AIAssist.clipAddress).
+enum AIAddress {
+    static let instructions = """
+    You extract the postal address from text the user copied on a phone, usually Vietnamese \
+    shipping details (name, phone number, address, notes). Return the address exactly as written \
+    in the text: same words, tone marks and abbreviations, in the same order. Leave out person \
+    names, phone numbers, prices and notes. If the text contains no address, return an empty string.
+    """
+
+    static func prompt(_ text: String) -> String {
+        "Copied text:\n" + String(text.prefix(ClipDetect.maxLength))
+    }
+
+    /// Chống bịa: mọi từ (gập dấu) của kết quả phải có trong nội dung gốc; không chứa SĐT; độ dài
+    /// hợp lý. Trả bản đã gọn khoảng trắng, nil nếu không đạt.
+    static func validate(_ output: String, source: String) -> String? {
+        let out = output.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            .trimmingCharacters(in: CharacterSet(charactersIn: " .,;:-"))
+        guard !out.isEmpty, out.count <= AddressDetect.maxOutput, out.filter(\.isLetter).count >= 4 else { return nil }
+        let src = Set(tokens(source))
+        let toks = tokens(out)
+        guard toks.count >= 2, toks.allSatisfy(src.contains) else { return nil }
+        let c = Array(out)
+        let hasPhone = ClipDetect.runs(c, seps: [" ", ".", "-"], allowPlus: true)
+            .contains { ClipDetect.bounded(c, $0) && ClipDetect.phonePrefix($0) != nil }
+        return hasPhone ? nil : out
+    }
+
+    /// Từ (chữ hoặc số liền nhau) đã gập dấu, chữ thường.
+    static func tokens(_ s: String) -> [String] {
+        let f = ClipDetect.fold(Array(s.precomposedStringWithCanonicalMapping))
+        var out: [String] = [], cur = ""
+        for ch in f {
+            if ch.isLetter || ch.isASCIIDigit { cur.append(ch) } else if !cur.isEmpty { out.append(cur); cur = "" }
+        }
+        if !cur.isEmpty { out.append(cur) }
+        return out
+    }
+}
+
+
+// MARK: dịch bằng Apple Intelligence (thử nghiệm — TranslatePrefs.aiKey)
+
+/// Prompt + kiểm kết quả — port 1:1 Android `AITranslate` (Translate.kt). Không qua `validate` ⇒
+/// bàn phím dùng Apple Translation (không bao giờ ghi bản dịch đáng ngờ vào ô).
+enum AITranslate {
+    /// Đoạn dài hơn ⇒ Apple Translation ngay (ngữ cảnh / đầu ra của model trên máy có hạn).
+    static let maxChars = 1000
+    /// Quá hạn ⇒ Apple Translation.
+    static let timeout: TimeInterval = 8
+
+    static let instructions = """
+    You translate text the user typed on a phone keyboard. Write it the way a native speaker would \
+    say it, keeping the meaning, tone, names, numbers, emoji and line breaks. Reply with the translation only.
+    """
+
+    static func englishName(_ code: String) -> String {
+        Locale(identifier: "en").localizedString(forIdentifier: code) ?? code
+    }
+
+    static func prompt(_ text: String, source: String, target: String) -> String {
+        "Translate the text below from \(englishName(source)) to \(englishName(target)).\n\nText:\n" + text
+    }
+
+    /// Bản dịch đã gọn, hoặc nil nếu trông không ổn (trống, lời dẫn, độ dài lệch, sai chữ viết,
+    /// còn chữ riêng tiếng Việt ở đích Latin, mất dòng).
+    static func validate(_ output: String, source: String, target: String) -> String? {
+        var out = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        let src = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let nl = out.firstIndex(of: "\n") {
+            let first = out[..<nl]
+            if first.hasSuffix(":"), first.count < 60 {
+                out = String(out[out.index(after: nl)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        let quotes: Set<Character> = ["\"", "“", "”", "'"]
+        if out.count >= 2, let f = out.first, let l = out.last, quotes.contains(f), quotes.contains(l),
+           let s0 = src.first, !quotes.contains(s0) {
+            out = String(out.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard !out.isEmpty else { return nil }
+        let n = src.count
+        if out.count > n * 3 + 20 || out.count * 3 + 10 < n { return nil }
+        let srcLines = src.split(separator: "\n", omittingEmptySubsequences: false).count
+        if srcLines > 1, out.split(separator: "\n", omittingEmptySubsequences: false).count != srcLines { return nil }
+        let t = TranslatePrefs.base(target)
+        let ok: Bool
+        if t == TranslatePrefs.vietnamese {
+            ok = TranslateText.looksVietnamese(out, target: "en") || !out.contains(where: \.isLetter)
+        } else if TranslateText.scripts(of: t).contains(.latin) || TranslateText.scripts(of: t).isEmpty {
+            ok = !TranslateText.looksVietnamese(out, target: "")
+        } else {
+            ok = TranslateText.inTargetScript(out, target: t)
+        }
+        return ok ? out : nil
+    }
+}

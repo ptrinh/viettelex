@@ -89,6 +89,12 @@ final class ClipboardFeature {
     /// Chip cho clipboard HIỆN TẠI (changeCount khớp nội dung đã biết, chưa dùng).
     /// Tự lưu tắt ⇒ nội dung chỉ "biết" sau lần đọc chủ động (mở bảng clipboard) ⇒ chip
     /// STK/OTP chỉ hiện từ lúc đó — chấp nhận, đổi lại không có banner "đã dán từ…".
+    /// Nội dung clipboard hiện tại khi được phép chip (cùng điều kiện `chips`) — nguồn cho AI địa chỉ.
+    func chipSource(currentChange: Int, usedChange: Int) -> String? {
+        guard !incognito, chipsUnlocked(), let k = known, k.change == currentChange, k.change != usedChange else { return nil }
+        return k.text
+    }
+
     func chips(currentChange: Int, usedChange: Int) -> [ClipChip] {
         guard !incognito, chipsUnlocked(), let k = known, k.change == currentChange, k.change != usedChange else { return [] }
         return ClipDetect.detect(k.text)
