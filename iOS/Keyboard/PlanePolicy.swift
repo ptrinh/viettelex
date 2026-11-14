@@ -9,9 +9,11 @@ enum PlanePolicy {
 
     /// Dấu KẾT VẾ: chạm ở plane 123/#+= ⇒ về plane chữ NGAY, không cần dấu cách (Phil
     /// 06/11/2026; chế độ "Tự động" của SymbolReturn). Gồm dạng in ấn trong hàng biến thể
-    /// (… ” ’ »). Ngoặc / nháy MỞ (( “ ‘ «), @ / # $ % & * - _ + = [ { < > \ |, số, tiền tệ,
-    /// toán: giữ plane.
-    static let clauseEnders: Set<String> = [".", ",", "?", "!", ")", "\"", "'", ":", ";",
+    /// (… ” ’ ») và & $ @ (Phil 15/11/2026: sau chúng là chữ — "a&b", "$tên", "@gmail").
+    /// "." KHÔNG về (15/11/2026: người dùng hay gõ "..." — về sau chấm đầu thì phải bấm 123
+    /// lại); dấu cách vẫn đưa về chữ. Ngoặc / nháy MỞ (( “ ‘ «), / # % * - _ + = [ { < > \ |,
+    /// số, tiền tệ khác, toán: giữ plane.
+    static let clauseEnders: Set<String> = [",", "?", "!", ")", "\"", "'", ":", ";", "&", "$", "@",
                                             "\u{2026}", "\u{201D}", "\u{2019}", "\u{00BB}"]
     /// Dấu nằm GIỮA số: ngay sau chữ số thì ở lại plane số ("2.5", "1,000", "10:30").
     static let digitSeparators: Set<String> = [".", ",", ":"]

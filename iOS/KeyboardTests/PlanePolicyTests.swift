@@ -24,7 +24,7 @@ final class ClauseEndReturnTests: XCTestCase {
         ("2", ".", false, "2.5 — thập phân"),
         ("1", ",", false, "1,000 — hàng nghìn"),
         ("10", ":", false, "10:30 — giờ"),
-        ("ok", ".", true, "ok."),
+        ("ok", ".", false, "ok. — . ở lại (gõ ...)"),
         ("ok", ",", true, "ok,"),
         ("hi", "!", true, "hi!"),
         ("hi", "?", true, "hi?"),
@@ -45,9 +45,12 @@ final class ClauseEndReturnTests: XCTestCase {
         ("", "\u{201C}", false, "“ mở giữ plane"),
         ("", "\u{2018}", false, "‘ mở giữ plane"),
         ("", "\u{00AB}", false, "« mở giữ plane"),
-        ("", ".", true, "đầu ô: . về chữ"),
-        ("a ", ".", true, "sau dấu cách: . về chữ"),
-    ] + ["@", "/", "#", "$", "%", "&", "*", "-", "_", "+", "=", "[", "{", "<", ">", "\\", "|",
+        ("", ".", false, "đầu ô: . ở lại"),
+        ("a ", ".", false, "sau dấu cách: . ở lại"),
+        ("a", "&", true, "a&b"),
+        ("", "$", true, "$tên"),
+        ("abc", "@", true, "@gmail"),
+    ] + ["/", "#", "%", "*", "-", "_", "+", "=", "[", "{", "<", ">", "\\", "|",
          "1", "0", "₫", "€", "×", "÷", "]", "}", "~"].map { ("ok", $0, false, "\($0) giữ plane") }
 
     func testTable() {
@@ -79,7 +82,8 @@ final class ClauseEndReturnTests: XCTestCase {
     static let modeTable: [(before: String, key: String, auto: Bool, always: Bool, why: String)] = [
         ("wow", "!", true, true, "!!! — ! đầu đã về chữ"),
         ("hi ", ":", true, true, ":)) — : về chữ (Tự động / Luôn)"),
-        ("abc", "@", false, true, "@gmail — Luôn về chữ ngay"),
+        ("abc", "@", true, true, "@gmail — về chữ ngay"),
+        ("a", "&", true, true, "a&b — về chữ ngay"),
         ("", "#", false, true, "#tag — Luôn về chữ ngay"),
         ("2", ".", false, false, "2.5 — . sau số ở lại cả Luôn"),
         ("10", ":", false, false, "10:30 — : sau số ở lại cả Luôn"),
@@ -89,9 +93,9 @@ final class ClauseEndReturnTests: XCTestCase {
         ("ok", "\u{00BD}", false, false, "½ (biến thể số) ở lại"),
         ("ok", "(", false, true, "( — Luôn về chữ"),
         ("ok", "-", false, true, "- — Luôn về chữ"),
-        ("ok", "$", false, true, "$"),
+        ("ok", "$", true, true, "$tên"),
         ("ok", "\u{20AB}", false, true, "₫"),
-        ("ok", ".", true, true, "ok."),
+        ("ok", ".", false, true, "ok. — Tự động ở lại (gõ ...), Luôn về"),
         ("2", "!", true, true, "! sau số vẫn về chữ"),
     ]
 
@@ -156,8 +160,10 @@ final class ClauseEndReturnTests: XCTestCase {
         kb.debugTapSymbol(".")
         XCTAssertEqual(kb.debugPlaneName, "numbers", "Tắt: . ở lại")
         kb.symbolReturn = .auto
+        kb.debugTapSymbol(".")
+        XCTAssertEqual(kb.debugPlaneName, "numbers", "Tự động: . ở lại (gõ ...)")
         kb.debugTapSymbol("@")
-        XCTAssertEqual(kb.debugPlaneName, "numbers", "Tự động: @ ở lại")
+        XCTAssertEqual(kb.debugPlaneName, "letters", "Tự động: @ về chữ")
     }
 
     @MainActor private func makeKeyboard(_ kind: KeyboardView.InputKind = .normal) -> (KeyboardView, UIView) {
@@ -174,6 +180,7 @@ final class ClauseEndReturnTests: XCTestCase {
     @MainActor func testViewReturnsAndReevaluatesShift() {
         let (kb, host) = makeKeyboard()
         _ = host
+        kb.symbolReturn = .auto   // mặc định là Tắt từ 10/11/2026
         kb.debugSetPlane(numbers: true)
         kb.contextBeforeProbe = { "2" }
         kb.debugTapSymbol(".")
@@ -184,9 +191,9 @@ final class ClauseEndReturnTests: XCTestCase {
         XCTAssertEqual(kb.debugPlaneName, "numbers")
         kb.contextBeforeProbe = { "k" }
         kb.autoShiftProbe = { true }
-        kb.debugTapSymbol(".")
-        XCTAssertEqual(kb.debugPlaneName, "letters", "ok.")
-        XCTAssertTrue(kb.debugShiftOn, "về chữ sau \".\" đánh giá lại viết hoa như chạm ABC")
+        kb.debugTapSymbol("!")
+        XCTAssertEqual(kb.debugPlaneName, "letters", "ok!")
+        XCTAssertTrue(kb.debugShiftOn, "về chữ sau \"!\" đánh giá lại viết hoa như chạm ABC")
     }
 
     @MainActor func testViewNumericFieldStays() {

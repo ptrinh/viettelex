@@ -3,7 +3,8 @@ package com.viettelex.keyboard
 /**
  * "Về bàn chữ sau ký hiệu" (setting [Keys.SYMBOL_RETURN]; cùng chuỗi với iOS App Group
  * "symbolReturn"; 06/11/2026). Chạm một ký tự ở plane ?123 / =\< rồi:
- *  - [AUTO] ("Tự động"): dấu kết vế . , ? ! ) " ' : ; (… ” ’ ») về chữ ngay; ký hiệu khác ở lại.
+ *  - [AUTO] ("Tự động"): , ? ! ) " ' : ; & $ @ (… ” ’ ») về chữ ngay; "." và ký hiệu khác ở lại
+ *    (gõ "..." liền tay — 15/11/2026).
  *  - [ALWAYS] ("Luôn"): MỌI ký hiệu về chữ ngay; chữ số ở lại.
  *  - [OFF] (mặc định từ 10/11/2026, "Tắt"): không về sau ký hiệu — chỉ dấu cách đưa về chữ.
  *    (Người dùng tưởng "chọn một ký tự là bị về ABC" là lỗi — email 10/11/2026.)

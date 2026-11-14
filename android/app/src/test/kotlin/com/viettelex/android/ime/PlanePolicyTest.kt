@@ -107,7 +107,7 @@ class PlanePolicyTest {
         Triple("2", ".", false),          // 2.5 — thập phân
         Triple("1", ",", false),          // 1,000 — hàng nghìn
         Triple("10", ":", false),         // 10:30 — giờ
-        Triple("ok", ".", true),
+        Triple("ok", ".", false),         // . ở lại (gõ ...)
         Triple("ok", ",", true),
         Triple("hi", "!", true),
         Triple("hi", "?", true),
@@ -128,9 +128,12 @@ class PlanePolicyTest {
         Triple("", "“", false),      // nháy / ngoặc kép MỞ giữ plane
         Triple("", "‘", false),
         Triple("", "«", false),
-        Triple("", ".", true),            // đầu ô
-        Triple("a ", ".", true),          // sau dấu cách
-    ) + listOf("@", "/", "#", "$", "%", "&", "*", "-", "_", "+", "=", "[", "{", "<", ">", "\\", "|",
+        Triple("", ".", false),           // đầu ô
+        Triple("a ", ".", false),         // sau dấu cách
+        Triple("a", "&", true),           // a&b
+        Triple("", "$", true),            // $tên
+        Triple("abc", "@", true),         // @gmail
+    ) + listOf("/", "#", "%", "*", "-", "_", "+", "=", "[", "{", "<", ">", "\\", "|",
         "1", "0", "₫", "€", "×", "÷", "]", "}", "~").map { Triple("ok", it, false) }
 
     @Test fun clauseEnderTable() {
@@ -182,7 +185,8 @@ class PlanePolicyTest {
     private val modeTable = listOf(
         ModeCase("wow", "!", true, true, "!!! — ! đầu đã về chữ"),
         ModeCase("hi ", ":", true, true, ":)) — : về chữ (Tự động / Luôn)"),
-        ModeCase("abc", "@", false, true, "@gmail — Luôn về chữ ngay"),
+        ModeCase("abc", "@", true, true, "@gmail — về chữ ngay"),
+        ModeCase("a", "&", true, true, "a&b — về chữ ngay"),
         ModeCase("", "#", false, true, "#tag — Luôn về chữ ngay"),
         ModeCase("2", ".", false, false, "2.5 — . sau số ở lại cả Luôn"),
         ModeCase("10", ":", false, false, "10:30 — : sau số ở lại cả Luôn"),
@@ -192,9 +196,9 @@ class PlanePolicyTest {
         ModeCase("ok", "½", false, false, "½ (biến thể số) ở lại"),
         ModeCase("ok", "(", false, true, "( — Luôn về chữ"),
         ModeCase("ok", "-", false, true, "- — Luôn về chữ"),
-        ModeCase("ok", "$", false, true, "$"),
+        ModeCase("ok", "$", true, true, "\$tên"),
         ModeCase("ok", "₫", false, true, "₫"),
-        ModeCase("ok", ".", true, true, "ok."),
+        ModeCase("ok", ".", false, true, "ok. — Tự động ở lại (gõ ...), Luôn về"),
         ModeCase("2", "!", true, true, "! sau số vẫn về chữ"),
     )
 
