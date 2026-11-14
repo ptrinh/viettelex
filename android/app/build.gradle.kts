@@ -11,7 +11,7 @@ android {
     defaultConfig {
         applicationId = "com.viettelex.android"
         minSdk = 26; targetSdk = 36
-        versionCode = 47; versionName = "1.6.8"
+        versionCode = 48; versionName = "1.6.9"
     }
     // Upload key: keystore.properties (gitignored, ~/keystores/viettelex.jks). Thiếu file → release unsigned.
     val keystoreProps = Properties().apply {

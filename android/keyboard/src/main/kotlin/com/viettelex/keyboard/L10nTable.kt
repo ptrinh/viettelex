@@ -746,7 +746,7 @@ object L10nTable {
         put("Đồng bộ", "Sync")
         put("Cài đặt, gõ tắt và từ đã học theo bạn sang máy khác.", "Your settings, shortcuts and learned words follow you to other devices.")
         put("Công cụ văn bản", "Text tools")
-        put("Thẻ Công cụ trong bảng ☰ và bảng sửa văn bản: đổi HOA/thường, thêm/xoá dấu, dịch…", "Tools tab in the ☰ panel and the text-editing panel: UPPER/lower case, add/remove tones, translate…")
+        put("Thẻ Công cụ trong bảng ☰ và bảng sửa văn bản: đổi HOA/thường, thêm/xoá dấu, dịch…", "Tools tab in the ☰ and text-editing panels: UPPER/lower case, add/remove tones, translate…")
         put("Đổi HOA/thường, hoa đầu từ/đầu câu, xoá dấu tiếng Việt.", "Switch UPPER/lower, Title Case/Sentence case, strip Vietnamese accents.")
         put("Huy hiệu cảm ơn", "Thank-you badge")
         put("Dấu ★ nhỏ trong app — lời cảm ơn vì đã ủng hộ.", "A small ★ in the app — a thank-you for your support.")
