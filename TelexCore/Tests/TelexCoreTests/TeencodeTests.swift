@@ -187,6 +187,12 @@ final class TeencodeTests: XCTestCase {
         XCTAssertEqual(commit("cosaaaaaaa"), "cóaaaaaa")
         XCTAssertEqual(commit("quafaaaa"), "quàaaa")
         XCTAssertEqual(commit("ddepjpppp"), "đẹppppp")
+        // Horned head: a/e doublers do not circumflex after ư/ơ, so every tail key lands.
+        XCTAssertEqual(commit("uwfaaa"), "ừaaa")
+        XCTAssertEqual(commit("owfaaa"), "ờaaa")
+        XCTAssertEqual(commit("vuwfaaa"), "vừaaa")
+        XCTAssertEqual(commit("muwaaaa"), "mưaaaa")
+        XCTAssertEqual(commit("uwfeee"), "ừeee")
         // Already worked before the feature — must not regress (no transform at all).
         XCTAssertEqual(commit("xinnnn"), "xinnnn")
     }

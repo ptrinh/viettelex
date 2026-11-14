@@ -1738,6 +1738,12 @@ void TelexEngine::setCircumflex(int k) {
         letters_[k - 1].mark = Mark::None;
 }
 
+bool TelexEngine::nucleusHasHornVowel(int end) const {
+    for (int j = end; j >= 0 && isVowelAscii(letters_[j].base); --j)
+        if (letters_[j].mark == Mark::Horn) return true;
+    return false;
+}
+
 // Eager English restore gate (Swift `eagerRestoreApplies`) — only at the freeze moment.
 bool TelexEngine::eagerRestoreApplies(int n) const {
     if (!eagerEnglishRestore || vniMode || pCancelled_ || rawCount_ < gen::kFreezePrefixMinLength ||
@@ -1993,7 +1999,8 @@ void TelexEngine::parseStep(int at) {
         if (pCount_ > 0) {
             int pIdx = pCount_ - 1;
             const Letter p = letters_[pIdx];
-            if (p.base == lower && p.mark == Mark::None) {
+            if (p.base == lower && p.mark == Mark::None &&
+                (lower == 'o' || !nucleusHasHornVowel(pIdx))) {
                 setCircumflex(pIdx); rawLetter_[at] = pIdx; return;
             }
             // `o` on ơ (ươ cluster): hook -> hat ("mơ"+o -> mô).
@@ -2001,7 +2008,8 @@ void TelexEngine::parseStep(int at) {
                 setCircumflex(pIdx); rawLetter_[at] = pIdx; return;
             }
             // Same swap for `a` on ă ("awa" -> â). Issue #149.
-            if (lower == 'a' && p.base == lower && p.mark == Mark::Breve) {
+            if (lower == 'a' && p.base == lower && p.mark == Mark::Breve &&
+                !nucleusHasHornVowel(pIdx)) {
                 setCircumflex(pIdx); rawLetter_[at] = pIdx; return;
             }
             if (p.base == lower && p.mark == Mark::Circumflex) {
@@ -2015,7 +2023,8 @@ void TelexEngine::parseStep(int at) {
             int k = pCount_ - 1;
             while (k >= 0 && !isVowelAscii(letters_[k].base)) --k;
             const int nucleusEnd = k;
-            while (k >= 0 && isVowelAscii(letters_[k].base)) {
+            const bool hornBlocksCircumflex = lower != 'o' && nucleusHasHornVowel(nucleusEnd);
+            while (!hornBlocksCircumflex && k >= 0 && isVowelAscii(letters_[k].base)) {
                 // "lươn" + o -> "luôn": the reach-back also retargets a horned o.
                 if (letters_[k].base == lower &&
                     (letters_[k].mark == Mark::None || (lower == 'o' && letters_[k].mark == Mark::Horn) ||

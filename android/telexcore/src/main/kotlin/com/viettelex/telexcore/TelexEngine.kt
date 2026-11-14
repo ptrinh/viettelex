@@ -1595,6 +1595,15 @@ class TelexEngine {
         }
     }
 
+    private fun nucleusHasHornVowel(end: Int): Boolean {
+        var j = end
+        while (j >= 0 && isVowelAscii(lBase[j])) {
+            if (lMark[j] == Mark.HORN) return true
+            j--
+        }
+        return false
+    }
+
     private fun rebuildFrozenAware() {
         rebuildParseState()
         tonesFolded = false
@@ -1842,7 +1851,9 @@ class TelexEngine {
         if (lower == 'a'.code || lower == 'e'.code || lower == 'o'.code) {
             if (pCount > 0) {
                 val pIdx = pCount - 1
-                if (lBase[pIdx] == lower && lMark[pIdx] == Mark.NONE) {
+                if (lBase[pIdx] == lower && lMark[pIdx] == Mark.NONE &&
+                    (lower == 'o'.code || !nucleusHasHornVowel(pIdx))
+                ) {
                     setCircumflex(pIdx); rawLetter[at] = pIdx; return
                 }
                 // `o` on ơ (ươ cluster): hook → hat, common IME style ("mơ"+o → mô).
@@ -1850,7 +1861,9 @@ class TelexEngine {
                     setCircumflex(pIdx); rawLetter[at] = pIdx; return
                 }
                 // Same swap for `a` on ă ("awa"→â). Issue #149.
-                if (lower == 'a'.code && lBase[pIdx] == lower && lMark[pIdx] == Mark.BREVE) {
+                if (lower == 'a'.code && lBase[pIdx] == lower && lMark[pIdx] == Mark.BREVE &&
+                    !nucleusHasHornVowel(pIdx)
+                ) {
                     setCircumflex(pIdx); rawLetter[at] = pIdx; return
                 }
                 if (lBase[pIdx] == lower && lMark[pIdx] == Mark.CIRCUMFLEX) {
@@ -1863,7 +1876,8 @@ class TelexEngine {
                 var k = pCount - 1
                 while (k >= 0 && !isVowelAscii(lBase[k])) k--
                 val nucleusEnd = k
-                while (k >= 0 && isVowelAscii(lBase[k])) {
+                val hornBlocksCircumflex = lower != 'o'.code && nucleusHasHornVowel(nucleusEnd)
+                while (!hornBlocksCircumflex && k >= 0 && isVowelAscii(lBase[k])) {
                     // "lươn" + o → "luôn": reach-back also retargets a horned o.
                     if (lBase[k] == lower &&
                         (lMark[k] == Mark.NONE || (lower == 'o'.code && lMark[k] == Mark.HORN) ||

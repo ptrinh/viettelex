@@ -765,6 +765,20 @@ class EnginePortedTest {
         assertEquals("HÓA", composeWith("HOAS") {})
         assertEquals("Tiếng", composeWith("Tieengs") {})
     }
+
+    @Test fun testHornNucleusBlocksAECircumflexDoubler() {
+        assertEquals("ừaaa", commitWith("uwfaaa") { freeMarking = true })
+        assertEquals("ờaaa", commitWith("owfaaa") { freeMarking = true })
+        assertEquals("vừaaaa", commitWith("vuwfaaaa") { freeMarking = true })
+        assertEquals("mưaaaa", commitWith("muwaaaa") { freeMarking = true })
+        assertEquals("ừeee", commitWith("uwfeee") { freeMarking = true })
+        assertEquals("mô", composeWith("mowo") { freeMarking = true })
+        assertEquals("luô", composeWith("luwowo") { freeMarking = true })
+        assertEquals("luôn", composeWith("luwowno") { freeMarking = true })
+        assertEquals("cấ", composeWith("cawsa") { freeMarking = true })
+        assertEquals("week", commitWith("week") { freeMarking = true })
+        assertEquals("weekend", commitWith("weekend") { freeMarking = true })
+    }
 }
 
 /** Ported from TelexCore/Tests/TelexCoreTests/FreeMarkingRimeTests.swift. */
@@ -1041,6 +1055,11 @@ class TeencodePortedTest {
         assertEquals("cóaaaaaa", commitWith("cosaaaaaaa") { freeMarking = true; liveSpellCheck = true; teencode = true })
         assertEquals("quàaaa", commitWith("quafaaaa") { freeMarking = true; liveSpellCheck = true; teencode = true })
         assertEquals("đẹppppp", commitWith("ddepjpppp") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("ừaaa", commitWith("uwfaaa") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("ờaaa", commitWith("owfaaa") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("vừaaa", commitWith("vuwfaaa") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("mưaaaa", commitWith("muwaaaa") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("ừeee", commitWith("uwfeee") { freeMarking = true; liveSpellCheck = true; teencode = true })
         assertEquals("xinnnn", commitWith("xinnnn") { freeMarking = true; liveSpellCheck = true; teencode = true })
     }
 

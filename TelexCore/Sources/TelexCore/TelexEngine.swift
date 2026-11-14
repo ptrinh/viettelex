@@ -2620,6 +2620,20 @@ public struct TelexEngine {
         }
     }
 
+    /// True when the contiguous vowel nucleus ending at `end` already carries a horn
+    /// (`ư` or `ơ`). Vietnamese never combines `ư`/`ơ` with `â`/`ê` in one nucleus, so
+    /// `a`/`e` doublers after a horned vowel stay literal (`uwfaaa` → `ừaaa`,
+    /// `owfaaa` → `ờaaa`) while `o` still swaps `ơ`/`ươ` → `ô`/`uô`.
+    @inline(__always)
+    private func nucleusHasHornVowel(endingAt end: Int) -> Bool {
+        var j = end
+        while j >= 0 && isVowelAscii(letters[j].base) {
+            if letters[j].mark == .horn { return true }
+            j -= 1
+        }
+        return false
+    }
+
     /// Recompute the live-spell-check freeze point (`disabledAtCount`) from scratch by
     /// replaying the word one key at a time — exactly what forward typing computed
     /// incrementally. Needed whenever the freeze can no longer be extended from the
@@ -3014,7 +3028,8 @@ public struct TelexEngine {
             if pCount > 0 {
                 let pIdx = pCount - 1
                 let p = letters[pIdx]
-                if p.base == lower && p.mark == .none {
+                if p.base == lower && p.mark == .none,
+                   lower == UInt8(ascii: "o") || !nucleusHasHornVowel(endingAt: pIdx) {
                     setCircumflex(pIdx); rawLetter[at] = pIdx; return
                 }
                 // `o` on a HORNED o (ơ, the ươ cluster): hook → hat, UniKey-style —
@@ -3024,7 +3039,8 @@ public struct TelexEngine {
                     setCircumflex(pIdx); rawLetter[at] = pIdx; return
                 }
                 // Same swap for `a` on ă: breve → hat ("awa"→â, "cawsa"→cấ). Issue #149.
-                if lower == UInt8(ascii: "a"), p.base == lower, p.mark == .breve {
+                if lower == UInt8(ascii: "a"), p.base == lower, p.mark == .breve,
+                   !nucleusHasHornVowel(endingAt: pIdx) {
                     setCircumflex(pIdx); rawLetter[at] = pIdx; return
                 }
                 if p.base == lower && p.mark == .circumflex {
@@ -3046,7 +3062,9 @@ public struct TelexEngine {
                 var k = pCount - 1
                 while k >= 0 && !isVowelAscii(letters[k].base) { k -= 1 }   // skip coda
                 let nucleusEnd = k
-                while k >= 0, isVowelAscii(letters[k].base) {               // walk nucleus
+                let hornBlocksCircumflex = lower != UInt8(ascii: "o")
+                    && nucleusHasHornVowel(endingAt: nucleusEnd)
+                while !hornBlocksCircumflex, k >= 0, isVowelAscii(letters[k].base) { // walk nucleus
                     // "lươn" + o → "luôn": the reach-back also turns a
                     // horned o into ô — same hook→hat retarget as the adjacent case
                     // (and the same oeo/oao guard below).
