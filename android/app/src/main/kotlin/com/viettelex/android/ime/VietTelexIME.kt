@@ -102,7 +102,9 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     /** Công cụ văn bản vừa áp ⇒ ô "↩︎ Hoàn tác" / ⌫ ngay sau (một lượt). */
     private var toolUndo: TextTools.Undo? = null
     /** Dịch trên máy (Plus): controller rẻ; client ML Kit chỉ tạo khi chạm "Dịch", đóng 30 s sau lượt cuối (MlKitBackend). */
-    private val translate by lazy { TranslateController(com.viettelex.android.translate.TranslateFeature.engineFactory(this)) }
+    private val translate by lazy {
+        TranslateController(com.viettelex.android.translate.TranslateFeature.engineFactory(this) { prefs.getBoolean(Keys.TRANSLATE_AI, false) })
+    }
     private var translateUsed = false
     private val clearStatusRun = Runnable { strip?.showStatus(null) }
 

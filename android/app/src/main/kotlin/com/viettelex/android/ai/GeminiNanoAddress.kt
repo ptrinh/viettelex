@@ -3,7 +3,6 @@ package com.viettelex.android.ai
 import android.os.Handler
 import android.os.Looper
 import com.viettelex.keyboard.ClipAddressAI
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -14,14 +13,20 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 class GeminiNanoAddress : ClipAddressAI {
     private val main = Handler(Looper.getMainLooper())
-    private val executor by lazy { Executors.newSingleThreadExecutor { r -> Thread(r, "vt-nano").apply { isDaemon = true } } }
 
     override fun extract(instructions: String, prompt: String, done: (String?) -> Unit) {
         val once = AtomicBoolean(false)
         fun finish(v: String?) { if (once.compareAndSet(false, true)) main.post { done(v) } }
         main.postDelayed({ finish(null) }, TIMEOUT_MS)
-        GeminiNanoBridge.run("$instructions\n\n$prompt", executor) { finish(it) }
+        GeminiNanoBridge.run("$instructions\n\n$prompt", 160, GeminiNano.executor) { finish(it) }
     }
 
     private companion object { const val TIMEOUT_MS = 10_000L }
+}
+
+/** Luồng nền chung cho mọi lượt Gemini Nano (tạo lười). */
+object GeminiNano {
+    val executor: java.util.concurrent.Executor by lazy {
+        java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "vt-nano").apply { isDaemon = true } }
+    }
 }

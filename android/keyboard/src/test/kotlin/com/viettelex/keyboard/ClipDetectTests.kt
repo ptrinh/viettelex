@@ -3,6 +3,7 @@ package com.viettelex.keyboard
 import com.viettelex.keyboard.ClipChip.Kind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -132,5 +133,36 @@ class ClipDetectTests {
         assertFalse(ClipSensitivity.looksSecret("xin chao ban"))
         assertFalse(ClipSensitivity.looksSecret("1234567890123"))
         assertFalse(ClipSensitivity.looksSecret("Nguyễn"))
+    }
+}
+
+/** Dịch bằng Gemini Nano (thử nghiệm): kiểm kết quả trước khi ghi vào ô. */
+class AITranslateTests {
+    private val viEn = TranslateDirection.Plan("vi", "en")
+    private val enVi = TranslateDirection.Plan("en", "vi")
+    private val viJa = TranslateDirection.Plan("vi", "ja")
+
+    @Test fun acceptsGoodTranslations() {
+        assertEquals("It's raining cats and dogs", AITranslate.validate("It's raining cats and dogs", "Mưa như trút nước", viEn))
+        assertEquals("Trời mưa như trút nước", AITranslate.validate("Trời mưa như trút nước", "It's raining cats and dogs", enVi))
+        assertEquals("ありがとう", AITranslate.validate("ありがとう", "Cảm ơn", viJa))
+        assertEquals("Hello", AITranslate.validate("Translation:\nHello", "Xin chào", viEn))   // bỏ lời dẫn
+        assertEquals("Hello", AITranslate.validate("\"Hello\"", "Xin chào", viEn))           // bỏ ngoặc bao
+        assertEquals("Line one\nLine two", AITranslate.validate("Line one\nLine two", "Dòng một\nDòng hai", viEn))
+    }
+
+    @Test fun rejectsSuspiciousOutput() {
+        assertNull(AITranslate.validate("", "Xin chào", viEn))
+        assertNull(AITranslate.validate("Xin chào bạn", "Xin chào bạn", viEn))                // chưa dịch
+        assertNull(AITranslate.validate("Hello", "Hello", enVi))                              // không thành tiếng Việt
+        assertNull(AITranslate.validate("Hello", "Xin chào", viJa))                           // sai chữ viết
+        assertNull(AITranslate.validate("Line one and two", "Dòng một\nDòng hai", viEn))      // mất dòng
+        assertNull(AITranslate.validate("Hi. ".repeat(40), "Chào", viEn))                     // dài bất thường
+    }
+
+    @Test fun promptNamesLanguages() {
+        val p = AITranslate.prompt("Xin chào", viEn)
+        assertTrue(p.contains("from Vietnamese to English"))
+        assertTrue(p.endsWith("Xin chào"))
     }
 }

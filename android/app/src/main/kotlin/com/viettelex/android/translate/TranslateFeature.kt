@@ -22,8 +22,12 @@ object TranslateFeature {
         }
     }
 
-    /** Factory cho bàn phím: gói chưa tải ⇒ máy dịch trả MissingModel (nhắc mở app). */
-    fun engineFactory(ctx: Context): TranslateEngineFactory = TranslateEngineFactory { plan ->
-        load(ctx).engineFactory.create(plan)
+    /**
+     * Factory cho bàn phím: gói chưa tải ⇒ máy dịch trả MissingModel (nhắc mở app). [useAI] (đọc lúc
+     * chạm Dịch): "Dịch bằng AI trên máy" bật ⇒ Gemini Nano trước, ML Kit dự phòng ([NanoFirstEngine]).
+     */
+    fun engineFactory(ctx: Context, useAI: () -> Boolean = { false }): TranslateEngineFactory = TranslateEngineFactory { plan ->
+        val mlkit = load(ctx).engineFactory.create(plan)
+        if (useAI()) NanoFirstEngine(plan, mlkit) else mlkit
     }
 }

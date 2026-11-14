@@ -19,6 +19,7 @@ import java.util.concurrent.Executor;
  */
 public final class GeminiNanoBridge {
     public interface Callback { void done(@Nullable String text); }
+    public interface StatusCallback { void done(boolean available); }
 
     private static GenerativeModelFutures model;
     /** Máy không hỗ trợ (UNAVAILABLE) — nhớ tới hết process, khỏi hỏi lại. */
@@ -31,8 +32,24 @@ public final class GeminiNanoBridge {
         return model;
     }
 
+    /** Model dùng được NGAY (AVAILABLE) — cho màn cài đặt quyết định hiện công tắc. */
+    public static void status(Executor executor, StatusCallback cb) {
+        if (unsupported) { cb.done(false); return; }
+        try {
+            ListenableFuture<Integer> status = client().checkStatus();
+            status.addListener(() -> {
+                int s;
+                try { s = status.get(); } catch (Exception e) { cb.done(false); return; }
+                if (s == FeatureStatus.UNAVAILABLE) unsupported = true;
+                cb.done(s == FeatureStatus.AVAILABLE);
+            }, executor);
+        } catch (Throwable t) {
+            cb.done(false);
+        }
+    }
+
     /** Kiểm trạng thái rồi sinh (temperature 0). Không tự tải model (DOWNLOADABLE ⇒ null). */
-    public static void run(String prompt, Executor executor, Callback cb) {
+    public static void run(String prompt, int maxOutputTokens, Executor executor, Callback cb) {
         if (unsupported) { cb.done(null); return; }
         try {
             GenerativeModelFutures m = client();
@@ -44,7 +61,7 @@ public final class GeminiNanoBridge {
                 if (s != FeatureStatus.AVAILABLE) { cb.done(null); return; }
                 GenerateContentRequest.Builder b = new GenerateContentRequest.Builder(new TextPart(prompt));
                 b.setTemperature(0f);
-                b.setMaxOutputTokens(160);
+                b.setMaxOutputTokens(maxOutputTokens);
                 ListenableFuture<GenerateContentResponse> f = m.generateContent(b.build());
                 f.addListener(() -> {
                     String text = null;

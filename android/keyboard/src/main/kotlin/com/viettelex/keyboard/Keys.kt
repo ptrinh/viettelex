@@ -245,6 +245,11 @@ object Keys {
     const val TRANSLATE_TARGET = "translateTarget"
     /** Dịch trên máy: chỉ tải gói ngôn ngữ qua Wi-Fi (Bool, mặc định BẬT). */
     const val TRANSLATE_WIFI_ONLY = "translateWifiOnly"
+    /**
+     * Dịch bằng AI trên máy (Gemini Nano, thử nghiệm — Bool, mặc định TẮT): hỏi model trước, lỗi /
+     * quá hạn / kết quả bất thường ⇒ ML Kit. Chỉ hiện công tắc khi máy có Gemini Nano.
+     */
+    const val TRANSLATE_AI = "translateAI"
 
     // file trong filesDir
     const val USERLM_FILE = "userlm.bin"
