@@ -22,9 +22,9 @@ android {
         signingConfigs {
             create("upload") {
                 storeFile = file(keystoreProps.getProperty("storeFile"))
-                storePassword = keystoreProps.getProperty("storePassword")
+                storePassword = System.getenv("VIETTELEX_STORE_PASSWORD") ?: keystoreProps.getProperty("storePassword")
                 keyAlias = keystoreProps.getProperty("keyAlias")
-                keyPassword = keystoreProps.getProperty("keyPassword")
+                keyPassword = System.getenv("VIETTELEX_KEY_PASSWORD") ?: keystoreProps.getProperty("keyPassword")
             }
         }
     }

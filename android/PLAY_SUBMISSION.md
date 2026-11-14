@@ -5,12 +5,13 @@ Package `com.viettelex.android` · versionName `1.1` · versionCode `1` (+1 mỗ
 ## 1. Build
 
 ```bash
-cd android && ./gradlew :app:bundleRelease
+cd android && touchenv run --intent "build VietTelex AAB" VIETTELEX_STORE_PASSWORD VIETTELEX_KEY_PASSWORD -- ./gradlew :app:bundleRelease
 # → app/build/outputs/bundle/release/app-release.aab  (ký bằng upload key)
 ```
 
-- Upload key: `~/keystores/viettelex.jks` (alias `viettelex`, RSA 2048, ~27 năm). Mật khẩu trong
-  `android/keystore.properties` (gitignored). **Sao lưu cả 2 file** (1Password/iCloud).
+- Upload key: `~/keystores/viettelex.jks` (alias `viettelex`, RSA 2048, ~27 năm). Mật khẩu nằm trong
+  touchenv (`VIETTELEX_STORE_PASSWORD`, `VIETTELEX_KEY_PASSWORD`, synced); `android/keystore.properties`
+  (gitignored) chỉ còn `storeFile`/`keyAlias`. **Sao lưu file .jks** (1Password/iCloud).
 - Dùng **Play App Signing** (mặc định khi upload AAB đầu tiên) — Google giữ app signing key.
 - Upload key SHA-256: `BA:4B:FB:BB:30:02:73:83:F2:90:2B:20:75:91:B4:92:C8:31:20:CC:B3:3B:32:C0:7D:7B:CF:09:FF:DD:81:87`
 
