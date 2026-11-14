@@ -52,6 +52,11 @@ final class KeyboardViewController: UIInputViewController {
     private var translateTask: Task<Void, Never>?
     /// "Sửa lỗi bằng Apple Intelligence" (Plus, AIAssist.swift): nil khi công tắc tắt ⇒ 0 chi phí.
     private var ai: AIAssist?
+    // Log gỡ lỗi: ảnh chụp ô nhập (probeField) — chỉ dùng khi Debug mode bật.
+    fileprivate var probeReady = false
+    fileprivate var probeKeys = 0
+    fileprivate var probeHostEvents = 0
+    fileprivate var probePrev: TouchLogAlerts.Probe?
     private var filterSensitive = true
     /// Gõ vuốt (thử nghiệm): công tắc trong app; `swipe` chỉ tạo khi bật (0 RAM khi tắt).
     private var swipeSetting = false
@@ -631,6 +636,8 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     override func viewWillDisappear(_ animated: Bool) {
+        probeField("disappear")
+        probeReady = false
         #if DEBUG
         let perfStart = CACurrentMediaTime()
         defer {
@@ -1014,6 +1021,7 @@ final class KeyboardViewController: UIInputViewController {
         // Thay đổi từ NGOÀI edit của mình (tap chỗ khác, đổi ô, host tự gán lại
         // text…). Edit của mình không gọi lại hàm này trong lúc handle() chạy.
         TouchLog.host("textWillChange", applyingEdit: applyingEdit, composing: bridge.isComposing)
+        if TouchLog.enabled { probeHostEvents += 1 }
         if !applyingEdit, !trackpadActive { externalChangePending = true }
     }
 
@@ -1023,6 +1031,7 @@ final class KeyboardViewController: UIInputViewController {
     // hoa chữ đầu. Không tính ở textWillChange vì lúc đó context THÁO DỞ.
     override func textDidChange(_ textInput: UITextInput?) {
         TouchLog.host("textDidChange", applyingEdit: applyingEdit, composing: bridge.isComposing)
+        if TouchLog.enabled { probeHostEvents += 1 }
         guard !applyingEdit, !trackpadActive else { return }
         if externalChangePending { syncComposition("textDidChange") }
         if hostChangeIsOwnEcho { return }
@@ -1036,6 +1045,7 @@ final class KeyboardViewController: UIInputViewController {
 
     override func selectionDidChange(_ textInput: UITextInput?) {
         TouchLog.host("selectionDidChange", applyingEdit: applyingEdit, composing: bridge.isComposing)
+        if TouchLog.enabled { probeHostEvents += 1 }
         guard !applyingEdit, !trackpadActive else { return }
         if externalChangePending { syncComposition("selectionDidChange") }
         if hostChangeIsOwnEcho { return }
@@ -1216,6 +1226,8 @@ final class KeyboardViewController: UIInputViewController {
                     context: textProxy.documentContextBeforeInput, composed: composed)
                 TouchLog.sync("after-\(kind)", ctxLen: d.len, suffix: d.suffix,
                               composingLen: composed.count)
+                probeKeys += 1
+                if probeKeys % 10 == 1 { probeField("keys=\(probeKeys)") }
             }
         }
         switch key {
@@ -1670,6 +1682,14 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     override func viewDidAppear(_ animated: Bool) {
+        if TouchLog.enabled {
+            // Sau khi viewDidAppear xong (phiên nhập đã lập) mới đọc proxy.
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.probeReady = true; self.probeKeys = 0; self.probePrev = nil; self.probeHostEvents = 0
+                self.probeField("appear")
+            }
+        }
         #if DEBUG
         let perfDidStart = CACurrentMediaTime()
         defer {
@@ -3640,6 +3660,29 @@ extension KeyboardViewController {
         translateNotice = nil
         if opens { openTemplatesInApp("dich") }   // app mở trang Dịch trên máy (cần Toàn quyền)
         updateSuggestions()
+    }
+}
+
+// MARK: log gỡ lỗi — ảnh chụp ô nhập (TouchLogAlerts). CHỈ khi Debug mode bật.
+extension KeyboardViewController {
+    /// Ghi `probe …` (độ dài / cờ / ID ô rút gọn) + dòng ⚠︎ khi bất thường chắc chắn. Chỉ sau
+    /// viewDidAppear: documentIdentifier đọc sớm (phiên nhập chưa lập) là bẫy crash — đọc trong vtSafe.
+    fileprivate func probeField(_ event: String) {
+        guard TouchLog.enabled, probeReady else { return }
+        let p = textProxy
+        var sel = 0
+        if #available(iOS 16.0, *) { sel = vtSafe(0) { p.selectedText?.count ?? 0 } }
+        let now = TouchLogAlerts.Probe(
+            doc: vtSafe("?") { String(p.documentIdentifier.uuidString.prefix(4)) },
+            ctxLen: vtSafe(-1) { p.documentContextBeforeInput?.count ?? -1 },
+            afterLen: vtSafe(-1) { p.documentContextAfterInput?.count ?? -1 },
+            hasText: vtSafe(false) { p.hasText },
+            selLen: sel)
+        TouchLog.write("probe \(event) " + TouchLogAlerts.describe(now) + " host=\(probeHostEvents)")
+        for a in TouchLogAlerts.anomalies(prev: probePrev, now: now, hostEvents: probeHostEvents) {
+            TouchLog.write(TouchLogAlerts.mark + " " + a)
+        }
+        probePrev = now; probeHostEvents = 0
     }
 }
 

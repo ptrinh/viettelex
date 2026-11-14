@@ -434,3 +434,31 @@ final class ClipboardLazyLoadTests: XCTestCase {
         XCTAssertEqual(f.history?.debugLoaded, false, "công tắc bật: chỉ tạo object, chưa đọc file")
     }
 }
+
+/// Log gỡ lỗi: ảnh chụp ô nhập + cảnh báo (Messenger không vẽ chữ, 15/11/2026).
+final class TouchLogAlertsTests: XCTestCase {
+    private func probe(_ doc: String = "AB12", ctx: Int = 5, after: Int = 0, hasText: Bool = true) -> TouchLogAlerts.Probe {
+        .init(doc: doc, ctxLen: ctx, afterLen: after, hasText: hasText, selLen: 0)
+    }
+
+    func testDescribeHasNoContent() {
+        XCTAssertEqual(TouchLogAlerts.describe(probe()), "doc=AB12 ctx=5 after=0 hasText=1 sel=0")
+    }
+    func testHasTextMismatch() {
+        XCTAssertEqual(TouchLogAlerts.anomalies(prev: nil, now: probe(hasText: false), hostEvents: 0).count, 1)
+        XCTAssertEqual(TouchLogAlerts.anomalies(prev: nil, now: probe(ctx: 0, hasText: false), hostEvents: 0), [])
+        XCTAssertEqual(TouchLogAlerts.anomalies(prev: nil, now: probe(ctx: -1, hasText: false), hostEvents: 0), [])
+    }
+    func testDocChangedSilently() {
+        XCTAssertEqual(TouchLogAlerts.anomalies(prev: probe("AB12"), now: probe("CD34"), hostEvents: 0),
+                       ["ô đổi AB12→CD34 mà app không báo"])
+        XCTAssertEqual(TouchLogAlerts.anomalies(prev: probe("AB12"), now: probe("CD34"), hostEvents: 2), [])
+        XCTAssertEqual(TouchLogAlerts.anomalies(prev: probe("?"), now: probe("CD34"), hostEvents: 0), [])
+        XCTAssertEqual(TouchLogAlerts.anomalies(prev: probe(), now: probe(), hostEvents: 0), [])
+    }
+    func testAlertsFirst() {
+        let log = "10:00 a\n10:01 ⚠︎ x\n10:02 b"
+        XCTAssertEqual(TouchLogAlerts.alertsFirst(log), "=== Cảnh báo (1) ===\n10:01 ⚠︎ x\n=== Log đầy đủ ===\n" + log)
+        XCTAssertEqual(TouchLogAlerts.alertsFirst("a\nb"), "a\nb")
+    }
+}

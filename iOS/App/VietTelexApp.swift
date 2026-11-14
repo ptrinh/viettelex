@@ -1065,7 +1065,7 @@ struct DebugSection: View {
         .onChange(of: showLog) { on in
             guard on else { return }
             reload()
-            if !logText.isEmpty { UIPasteboard.general.string = logText }
+            if !logText.isEmpty { UIPasteboard.general.string = TouchLogAlerts.alertsFirst(logText) }
         }
         .onChange(of: clearLog) { on in
             guard on else { return }
