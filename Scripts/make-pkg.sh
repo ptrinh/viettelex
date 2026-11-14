@@ -20,6 +20,13 @@ cd "$(dirname "$0")/.."
 APP_SIGN_ID="Developer ID Application: SENPRINTS LLC (84T567KMYD)"
 INSTALLER_SIGN_ID="Developer ID Installer: SENPRINTS LLC (84T567KMYD)"
 PROFILE="VietTelexNotary"
+# Notarize with an App Store Connect API key when one is given (ASC_KEY_PATH, ASC_KEY_ID, ASC_ISSUER_ID; e.g.
+# touchenv run --intent "<why>" ASC_KEY_PATH:file -- <this script>, which also works with the screen locked after a
+# touchenv grant), else with the notarytool keychain profile (readable only while the screen is unlocked).
+NOTARY_AUTH=(--keychain-profile "$PROFILE")
+if [ -n "${ASC_KEY_PATH:-}" ] && [ -n "${ASC_KEY_ID:-}" ] && [ -n "${ASC_ISSUER_ID:-}" ]; then
+    NOTARY_AUTH=(--key "$ASC_KEY_PATH" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID")
+fi
 PKGID="com.viettelex.inputmethod.telex.pkg"
 
 VER=$(plutil -extract CFBundleShortVersionString raw App/Resources/Info.plist)
@@ -120,7 +127,7 @@ echo "→ sign"
 if security find-identity -v 2>/dev/null | grep -q "Developer ID Installer"; then
     productsign --sign "$INSTALLER_SIGN_ID" "$WORK/injected.pkg" "$OUT"
     echo "→ notarizing pkg (waits for result)"
-    xcrun notarytool submit "$OUT" --keychain-profile "$PROFILE" --wait
+    xcrun notarytool submit "$OUT" "${NOTARY_AUTH[@]}" --wait
     xcrun stapler staple "$OUT"
     xcrun stapler validate "$OUT"
     echo "✅ Signed + notarized installer: $OUT"
