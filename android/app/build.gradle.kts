@@ -91,6 +91,8 @@ dependencies {
     implementation("com.google.mlkit:translate:17.0.3")
     // Gemini Nano (AICore) trích địa chỉ ở ô địa chỉ — ai/GeminiNanoAddress.kt. beta2: bản sau cần Kotlin ≥ 2.3.
     implementation("com.google.mlkit:genai-prompt:1.0.0-beta2")
+    // Đồng bộ Google Drive App Data (sync/DriveSync.kt): Authorization API, quyền drive.appdata.
+    implementation("com.google.android.gms:play-services-auth:22.0.0")
     // Billing kéo vài androidx cũ (livedata 2.8.3, fragment 1.1.0) — nâng lên bản mới hơn
     // (đã có sẵn trong cache Gradle) để build --offline chạy được; chỉ là ràng buộc
     // phiên bản, không thêm thư viện mới.

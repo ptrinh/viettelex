@@ -93,6 +93,7 @@ class MainActivity : ComponentActivity() {
         refreshIme()
         // Đồng bộ giao dịch (mua ở máy khác / hoàn tiền / pending vừa xong).
         lifecycleScope.launch { plus.refresh(loadProducts = false) }
+        com.viettelex.android.sync.DriveSync.syncInBackground(this)   // tắt ⇒ không làm gì
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -163,6 +164,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
+        // Rời app: đẩy thay đổi vừa sửa lên Drive (tắt / đang chạy ⇒ không làm gì).
+        if (!isChangingConfigurations) com.viettelex.android.sync.DriveSync.syncInBackground(this)
         // context ỨNG DỤNG: PowerManager lấy từ activity giữ activity trong WeakHashMap tĩnh (rò)
         val interactive = applicationContext.getSystemService(android.os.PowerManager::class.java)?.isInteractive ?: true
         if (SettingsExit.shouldFinish(isChangingConfigurations, launchedChild, interactive, isFinishing)) finish()

@@ -38,7 +38,7 @@ enum class PlusFeature(val viTitle: String, val viDetail: String) {
     PREMIUM_THEMES("Theme cao cấp & ảnh nền", "Thêm bộ màu bàn phím và đặt ảnh riêng làm nền."),
     SENTENCE_DIACRITICS("Thêm dấu cả câu", "Gõ không dấu cả câu, một chạm thêm dấu."),
     ADVANCED_CLIPBOARD("Clipboard nâng cao", "Ghim không giới hạn, chip tách số tài khoản, số điện thoại, mã OTP."),
-    CLOUD_SYNC("Đồng bộ", "Cài đặt, gõ tắt và từ đã học theo bạn sang máy khác."),
+    CLOUD_SYNC("Đồng bộ", "Cài đặt, gõ tắt và mẫu câu theo bạn sang máy Android khác qua Google Drive."),
     TEXT_TOOLS("Công cụ văn bản", "Đổi HOA/thường, hoa đầu từ/đầu câu, xoá dấu tiếng Việt."),
     TRANSLATE("Dịch trên máy", "Dịch đoạn vừa gõ hoặc vùng chọn giữa tiếng Việt và ngôn ngữ bạn chọn — ngay trên máy, không gửi chữ đi đâu."),
     THANKS_BADGE("Huy hiệu cảm ơn", "Dấu ★ nhỏ trong app — lời cảm ơn vì đã ủng hộ.");
@@ -55,7 +55,7 @@ enum class PlusFeature(val viTitle: String, val viDetail: String) {
         PREMIUM_THEMES -> tr("Cách dùng: Tính Năng → Giao diện → chọn theme hoặc ảnh nền.")
         SENTENCE_DIACRITICS -> tr("Cách dùng: bật “Thêm dấu” ở Tính Năng → Sửa lỗi & gợi ý, gõ không dấu cả câu (hom nay troi dep), gõ dấu cách rồi chạm chip ở đầu thanh gợi ý. Hoặc chạm “Thêm dấu” trong thẻ Công cụ (☰) / bảng sửa văn bản.")
         ADVANCED_CLIPBOARD -> tr("Cách dùng: bật Lịch sử clipboard (Tính Năng → Riêng tư & sao lưu), chạm nút clipboard trên thanh gợi ý. Copy STK/SĐT/OTP → chip “Dán …” hiện trên thanh gợi ý.")
-        CLOUD_SYNC -> tr("Cách dùng: tự động qua Sao lưu của Android (Cài đặt hệ thống → Google → Sao lưu). Chuyển máy: Tính Năng → Riêng tư & sao lưu → Xuất / nhập file.")
+        CLOUD_SYNC -> tr("Cách dùng: Tính Năng → Riêng tư & sao lưu → bật Đồng bộ qua Google Drive trên mỗi máy Android. Chuyển sang iPhone: Xuất / nhập file.")
         TEXT_TOOLS -> tr("Cách dùng: chạm ☰ trên thanh gợi ý → thẻ “Công cụ”, hoặc các hàng công cụ cuối bảng sửa văn bản (icon con trỏ trên thanh gợi ý).")
         TRANSLATE -> tr("Cách dùng: Tính Năng → Gõ tắt & mẫu câu → Dịch trên máy: chọn ngôn ngữ đích, tải gói dịch; rồi chạm ☰ trên thanh gợi ý → thẻ “Công cụ” → “Dịch” (hoặc ô “Dịch” cuối bảng sửa văn bản).")
         THANKS_BADGE -> tr("Tự hiện sau khi mua.")

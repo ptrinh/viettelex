@@ -2,7 +2,9 @@ package com.viettelex.android.ui
 
 import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import com.viettelex.android.sync.DriveSync
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -104,4 +106,41 @@ fun SaoLuuSection(onOpenPlus: () -> Unit = {}) {
         }
     }
     ThemeAssetPromptHost(assetPrompt, onOpenPlus)
+    DriveSyncSection(onOpenPlus)
+}
+
+/** Đồng bộ qua Google Drive App Data (Plus) — logic ở sync/DriveSync.kt. */
+@Composable
+private fun DriveSyncSection(onOpenPlus: () -> Unit) {
+    val c = LocalVT.current
+    val ctx = LocalContext.current
+    val st = DriveSync.status.value
+    var on by remember { mutableStateOf(DriveSync.isEnabled(ctx)) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { DriveSync.loadStatus(ctx) }
+    val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
+        DriveSync.handleConsentResult(ctx, res.data) { token ->
+            DriveSync.setEnabled(ctx, true); on = true; DriveSync.run(ctx, token)
+        }
+    }
+    fun start() = DriveSync.authorize(ctx,
+        onToken = { DriveSync.setEnabled(ctx, true); on = true; DriveSync.run(ctx, it) },
+        onConsent = { consent.launch(IntentSenderRequest.Builder(it).build()) })
+
+    VTSection(header = tr("Đồng bộ Google Drive"), footer = tr(SettingCaption.driveSync)) {
+        SettingToggle(tr("Đồng bộ qua Google Drive"), null, on) { v ->
+            when {
+                !DriveSync.isUnlocked() -> onOpenPlus()
+                v -> start()
+                else -> { DriveSync.setEnabled(ctx, false); on = false }
+            }
+        }
+        if (on) {
+            RowDivider()
+            LinkRow(Glyph.Cloud, if (st.running) tr("Đang đồng bộ…") else tr("Đồng bộ ngay")) { if (!st.running) start() }
+            RowDivider()
+            val last = if (st.lastSync > 0) tr("Đồng bộ lần cuối: %s",
+                SimpleDateFormat("HH:mm dd/MM/yyyy", Locale.ROOT).format(Date(st.lastSync))) else tr("Chưa đồng bộ lần nào.")
+            VTRow { Text(st.error ?: last, style = VTType.footnote, color = c.secondary) }
+        }
+    }
 }

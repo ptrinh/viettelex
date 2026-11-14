@@ -93,6 +93,7 @@ internal object SettingCaption {
     const val clipboardFooterAndroid = "Lịch sử chỉ ghi khi VietTelex là bàn phím đang chọn. Không có gì rời khỏi máy." // l10n-key
     const val incognitoAndroid = "Không học từ mới, không lưu clipboard; tự bật ở tab ẩn danh của trình duyệt." // l10n-key
     const val includeLearned = "Từ bàn phím đã học (tần suất gõ) — riêng tư, chỉ bật khi file do chính bạn giữ." // l10n-key
+    const val driveSync = "Cài đặt, gõ tắt, mẫu câu theo bạn sang máy Android khác qua thư mục ẩn trên Google Drive." // l10n-key
     const val backupFile = "File gồm cài đặt, gõ tắt, mẫu câu; mở được trên iPhone, iPad, Android. Nhập sẽ gộp thêm." // l10n-key
     const val debugLogAndroid = "Ghi thời điểm chạm, độ trễ, số phím — KHÔNG ghi chữ bạn gõ. Tắt khi xong." // l10n-key
     const val showLog = "Bật để xem log bên dưới và copy toàn bộ — tắt rồi bật lại để tải log mới." // l10n-key
@@ -123,7 +124,7 @@ internal object SettingCaption {
         materialYou, moleGame, spotlightPhoto, wallpaper, transparency, transparencyHostApp, rowHeightClamp,
         keyboardRaise, suggestionBarHeight, suggestionInk, spaceLogo, splitKeyboardAndroid, resetAppearance,
         advancedStyle, fontScaleAndroid, clipboardHistory, clipboardTTL, clipboardFooterAndroid, incognitoAndroid,
-        includeLearned, backupFile, debugLogAndroid, showLog, clearLog, swipeDataCredit,
+        includeLearned, backupFile, driveSync, debugLogAndroid, showLog, clearLog, swipeDataCredit,
         privacyAndroid, tryItAndroid, zodiacSign, prideFlag,
     )
 }
